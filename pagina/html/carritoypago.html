@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LocalMarket · Finalizar compra</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/carritoypago.css">
+  <link rel="stylesheet" href="../css/dark.css">
+  <link rel="manifest" href="../manifest.json">
+  <script src="../js/shared.js"></script>
+  <script src="../js/auth-guard.js"></script>
+  <script src="../js/Cart.js" defer></script>
+  <script src="../js/carritoypago.js" defer></script>
+</head>
+<body>
+
+  <nav>
+    <a href="index.html" class="nav-logo">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
+      </div>
+      LocalMarket
+    </a>
+
+    <ul class="nav-links" id="main-nav-links"></ul>
+
+    <div class="nav-right">
+      <button class="lm-theme-toggle" onclick="lmToggleTheme()" title="Modo oscuro"></button>
+      <button class="cart-btn" onclick="window.location.href='carritoypago.html'">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        <span class="cart-badge" id="nav-badge">0</span>
+      </button>
+    </div>
+  </nav>
+
+  <div class="page-wrapper">
+
+    <header class="checkout-header">
+      <h1>Finalizar compra</h1>
+      <p class="subhead">Completa tu pedido de forma rápida y segura</p>
+    </header>
+
+    <nav class="stepper" aria-label="Progreso del pedido">
+      <button class="step active" id="tab1" type="button" onclick="goStep(1)">
+        <span class="step-num" id="sn1">1</span>
+        <span class="step-label">Carrito</span>
+      </button>
+      <span class="step-connector"><span class="step-connector-fill" id="connector1"></span></span>
+      <button class="step" id="tab2" type="button" onclick="goStep(2)">
+        <span class="step-num" id="sn2">2</span>
+        <span class="step-label">Pago y entrega</span>
+      </button>
+    </nav>
+
+    <section class="panel active" id="panel1" aria-labelledby="tab1">
+      <div class="layout">
+
+        <div class="layout-main">
+          <div class="card">
+            <div class="card-title">
+              <span class="card-title-text">
+                <svg class="card-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="9" cy="21" r="1.25"/>
+                  <circle cx="20" cy="21" r="1.25"/>
+                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                </svg>
+                Mi carrito
+              </span>
+              <span class="badge" id="count-badge">0 productos</span>
+            </div>
+
+            <div id="cart-items" class="cart-items"></div>
+
+            <div class="empty-cart" id="empty-msg">
+              <div class="empty-illus">
+                <svg width="44" height="44" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="9" cy="21" r="1.25"/>
+                  <circle cx="20" cy="21" r="1.25"/>
+                  <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                </svg>
+              </div>
+              <p class="empty-title">Tu carrito está vacío</p>
+              <p class="empty-sub">Explora nuestro menú y añade lo que más te apetezca</p>
+              <button class="btn-secondary" type="button" onclick="openCatalog()">Ver el menú</button>
+            </div>
+
+            <button class="btn-add-more" type="button" id="addMoreBtn" onclick="openCatalog()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2.25" stroke-linecap="round">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Agregar más productos
+            </button>
+          </div>
+        </div>
+
+        <aside class="summary-card">
+          <div class="card">
+            <div class="card-title"><span class="card-title-text">Resumen del pedido</span></div>
+
+            <div class="coupon-row">
+              <input type="text" id="couponInput" placeholder="Código de cupón"
+                     autocomplete="off" spellcheck="false" maxlength="20">
+              <button class="btn-apply" type="button" onclick="applyCoupon()">Aplicar</button>
+            </div>
+            <div class="coupon-msg" id="couponMsg"></div>
+            <div class="coupon-active" id="couponActive">
+              <span><span class="coupon-tag" id="couponTag"></span></span>
+              <button class="link-btn-sm" type="button" onclick="removeCoupon()">Quitar</button>
+            </div>
+
+            <div class="sum-row"><span>Subtotal</span><span id="subtotalVal">$0.00</span></div>
+            <div class="sum-row"><span>Envío</span><span id="shippingVal1">$2.50</span></div>
+            <div class="sum-row discount" id="discountRow">
+              <span>Descuento</span><span id="discountVal">-$0.00</span>
+            </div>
+            <div class="sum-row total"><span>Total</span><span id="totalVal">$0.00</span></div>
+
+            <button class="btn-primary" id="checkoutBtn" type="button" onclick="goStep(2)">
+              Continuar al pago
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+                <polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </button>
+
+            <p class="hint-line">Códigos: <code>DESCUENTO10</code> · <code>ENVIOGRATIS</code></p>
+          </div>
+        </aside>
+
+      </div>
+    </section>
+
+    <section class="panel" id="panel2" aria-labelledby="tab2">
+      <div class="layout">
+
+        <div class="layout-main">
+          <div class="card">
+            <div class="card-title">
+              <span class="card-title-text">
+                <svg class="card-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                  <circle cx="12" cy="10" r="3"/>
+                </svg>
+                Dirección de entrega
+              </span>
+            </div>
+            <div class="addr-block">
+              <div class="at" id="addrLabelView">Mi Casa</div>
+              <div class="as">
+                <span id="addrStreetView">Calle Principal #123, Apt 4B</span><br>
+                <span id="addrCityView">Colonia Centro, Ciudad, CP 12345</span>
+              </div>
+            </div>
+            <button class="link-btn" type="button" onclick="openAddress()">Cambiar dirección</button>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <span class="card-title-text">
+                <svg class="card-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="1" y="4" width="22" height="16" rx="2.5"/>
+                  <line x1="1" y1="10" x2="23" y2="10"/>
+                </svg>
+                Método de pago
+              </span>
+            </div>
+
+            <div class="radio-opt selected" id="pm1" onclick="selectPM(1)">
+              <span class="radio-dot"><span class="radio-inner"></span></span>
+              <div class="radio-text">
+                <div class="rt">Tarjeta de crédito o débito</div>
+                <div class="rs">Pago seguro en línea</div>
+              </div>
+              <div class="card-icons" aria-hidden="true">
+                <span class="card-brand-pill">VISA</span>
+                <span class="card-brand-pill">MC</span>
+              </div>
+            </div>
+
+            <div class="radio-opt" id="pm2" onclick="selectPM(2)">
+              <span class="radio-dot"><span class="radio-inner"></span></span>
+              <div class="radio-text">
+                <div class="rt">Pago contra entrega</div>
+                <div class="rs">Efectivo o tarjeta al recibir</div>
+              </div>
+            </div>
+
+            <div id="card-fields" class="card-fields">
+              <div class="form-row full">
+                <div class="field" id="field-num">
+                  <label for="cardNum">Número de tarjeta</label>
+                  <div class="input-wrap">
+                    <input type="text" id="cardNum" placeholder="1234 5678 9012 3456"
+                           maxlength="19" inputmode="numeric" autocomplete="cc-number"
+                           oninput="fmtCard(this)">
+                    <span class="card-brand-tag" id="cardBrand"></span>
+                  </div>
+                  <span class="field-error" id="err-num"></span>
+                </div>
+              </div>
+              <div class="form-row full">
+                <div class="field" id="field-name">
+                  <label for="cardName">Nombre en la tarjeta</label>
+                  <input type="text" id="cardName" placeholder="Como aparece en la tarjeta"
+                         autocomplete="cc-name">
+                  <span class="field-error" id="err-name"></span>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field" id="field-exp">
+                  <label for="cardExp">Vencimiento</label>
+                  <input type="text" id="cardExp" placeholder="MM/AA"
+                         maxlength="5" inputmode="numeric" autocomplete="cc-exp"
+                         oninput="fmtExp(this)">
+                  <span class="field-error" id="err-exp"></span>
+                </div>
+                <div class="field" id="field-cvv">
+                  <label for="cardCvv">CVV</label>
+                  <input type="password" id="cardCvv" placeholder="•••"
+                         maxlength="4" inputmode="numeric" autocomplete="cc-csc">
+                  <span class="field-error" id="err-cvv"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-title">
+              <span class="card-title-text">
+                <svg class="card-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="1" y="3" width="15" height="13" rx="1.5"/>
+                  <path d="M16 8h6v13H7v-6"/>
+                  <circle cx="5.5" cy="18.5" r="2.5"/>
+                  <circle cx="18.5" cy="18.5" r="2.5"/>
+                </svg>
+                Opciones de entrega
+              </span>
+            </div>
+
+            <div class="radio-opt selected" id="sh1" onclick="selectSH(1)">
+              <span class="radio-dot"><span class="radio-inner"></span></span>
+              <div class="radio-text">
+                <div class="rt">Entrega estándar</div>
+                <div class="rs">30–45 minutos</div>
+              </div>
+              <div class="radio-price">$2.50</div>
+            </div>
+
+            <div class="radio-opt" id="sh2" onclick="selectSH(2)">
+              <span class="radio-dot"><span class="radio-inner"></span></span>
+              <div class="radio-text">
+                <div class="rt">Entrega express</div>
+                <div class="rs">15–20 minutos</div>
+              </div>
+              <div class="radio-price">$4.99</div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="summary-card">
+          <div class="card">
+            <div class="card-title"><span class="card-title-text">Resumen</span></div>
+            <div id="mini-items" class="mini-items"></div>
+            <div class="sum-row" style="margin-top:10px"><span>Subtotal</span><span id="p2-subtotal">$0.00</span></div>
+            <div class="sum-row"><span>Envío</span><span id="p2-shipping">$2.50</span></div>
+            <div class="sum-row discount" id="p2-discRow">
+              <span>Descuento</span><span id="p2-disc">-$0.00</span>
+            </div>
+            <div class="sum-row total"><span>Total</span><span id="p2-total">$0.00</span></div>
+
+            <button class="btn-primary" type="button" onclick="confirmOrder()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                   stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Confirmar pedido
+            </button>
+            <button class="btn-outline" type="button" onclick="goStep(1)">← Volver al carrito</button>
+          </div>
+        </aside>
+
+      </div>
+    </section>
+
+    <section class="panel" id="panel3">
+      <div class="card success-card">
+        <div class="success-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        </div>
+        <h2 class="success-title">¡Pedido confirmado!</h2>
+        <p class="success-sub">
+          Recibirás una confirmación en tu correo.<br>
+          Tu pedido llegará en <span id="etaText">30–45 minutos</span>.
+        </p>
+        <div class="order-num-box">
+          <span class="order-num-label">Número de pedido</span>
+          <span class="order-num-val" id="orderNum">#000000</span>
+        </div>
+        <button class="btn-primary success-btn" type="button" onclick="resetAll()">
+          Hacer otro pedido
+        </button>
+      </div>
+    </section>
+
+  </div><div class="modal-backdrop" id="catalogModal" onclick="catalogBgClick(event)">
+    <div class="modal" role="dialog" aria-labelledby="catalogTitle" aria-modal="true">
+      <div class="modal-header">
+        <div>
+          <h2 id="catalogTitle">Nuestro menú</h2>
+          <p class="modal-sub">Productos horneados esta mañana</p>
+        </div>
+        <button class="modal-close" type="button" aria-label="Cerrar" onclick="closeCatalog()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="catalogList" class="catalog-grid"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-outline" type="button" onclick="closeCatalog()">Listo</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="addressModal" onclick="addressBgClick(event)">
+    <div class="modal modal-narrow" role="dialog" aria-labelledby="addressTitle" aria-modal="true">
+      <div class="modal-header">
+        <div>
+          <h2 id="addressTitle">Dirección de entrega</h2>
+          <p class="modal-sub">¿Dónde te llevamos el pedido?</p>
+        </div>
+        <button class="modal-close" type="button" aria-label="Cerrar" onclick="closeAddress()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/>
+            <line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label for="addrLabel">Etiqueta</label>
+          <input type="text" id="addrLabel" placeholder="Casa, Oficina, etc." maxlength="40">
+        </div>
+        <div class="field">
+          <label for="addrStreet">Calle y número</label>
+          <input type="text" id="addrStreet" placeholder="Calle Principal #123, Apt 4B" maxlength="100">
+        </div>
+        <div class="field">
+          <label for="addrCity">Colonia, ciudad y código postal</label>
+          <input type="text" id="addrCity" placeholder="Colonia, Ciudad, CP 12345" maxlength="120">
+        </div>
+        <button class="btn-primary" type="button" onclick="saveAddress()">Guardar dirección</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+</body>
+</html>

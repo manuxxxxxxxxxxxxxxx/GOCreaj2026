@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LocalMarket – Iniciar Sesión</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/auth.css">
+<link rel="manifest" href="../manifest.json">
+<script src="../js/shared.js"></script>
+</head>
+<body>
+
+<div class="auth-card">
+
+  <!-- Logo -->
+  <div class="auth-logo">
+    <div class="auth-logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
+    </div>
+    <div>
+      <div class="auth-logo-name">LocalMarket</div>
+      <span class="auth-logo-tagline">Tu mercado del barrio</span>
+    </div>
+  </div>
+
+  <!-- Tab switcher -->
+  <div class="auth-tabs" role="tablist">
+    <button class="auth-tab active" id="tab-login" role="tab" aria-selected="true" aria-controls="login-form">Iniciar Sesión</button>
+    <button class="auth-tab" id="tab-register" role="tab" aria-selected="false" aria-controls="register-form">Registrarse</button>
+  </div>
+
+  <!-- ── LOGIN FORM ── -->
+  <form class="auth-form" id="login-form" novalidate>
+
+    <div class="field-group">
+      <label class="field-label" for="login-email">Correo electrónico</label>
+      <div class="auth-input-wrap">
+        <span class="field-icon">
+          <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
+        </span>
+        <input
+          class="auth-input"
+          id="login-email"
+          type="email"
+          placeholder="correo@ejemplo.com"
+          autocomplete="email"
+          inputmode="email"
+        >
+      </div>
+      <span class="field-error" id="login-email-err">Ingresa un correo válido.</span>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label" for="login-password">Contraseña</label>
+      <div class="auth-input-wrap">
+        <span class="field-icon">
+          <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </span>
+        <input
+          class="auth-input"
+          id="login-password"
+          type="password"
+          placeholder="Tu contraseña"
+          autocomplete="current-password"
+        >
+      </div>
+      <span class="field-error" id="login-password-err">Ingresa tu contraseña.</span>
+    </div>
+
+    <span class="auth-forgot" id="forgot-link">¿Olvidé mi contraseña?</span>
+
+    <span class="field-error" id="login-general-err" style="text-align:center;"></span>
+
+    <button class="auth-btn" type="submit">Iniciar Sesión</button>
+
+    <div class="auth-divider">o continúa con</div>
+
+    <button class="social-btn" type="button" id="google-login-btn">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      Continuar con Google
+    </button>
+
+  </form>
+
+  <!-- ── REGISTER FORM ── -->
+  <form class="auth-form hidden" id="register-form" novalidate>
+
+    <div class="field-group">
+      <label class="field-label" for="reg-name">Nombre completo</label>
+      <div class="auth-input-wrap">
+        <span class="field-icon">
+          <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </span>
+        <input
+          class="auth-input"
+          id="reg-name"
+          type="text"
+          placeholder="Tu nombre completo"
+          autocomplete="name"
+        >
+      </div>
+      <span class="field-error" id="reg-name-err">Ingresa tu nombre.</span>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label" for="reg-email">Correo electrónico</label>
+      <div class="auth-input-wrap">
+        <span class="field-icon">
+          <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
+        </span>
+        <input
+          class="auth-input"
+          id="reg-email"
+          type="email"
+          placeholder="correo@ejemplo.com"
+          autocomplete="email"
+          inputmode="email"
+        >
+      </div>
+      <span class="field-error" id="reg-email-err">Ingresa un correo válido.</span>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label" for="reg-password">Contraseña</label>
+      <div class="auth-input-wrap">
+        <span class="field-icon">
+          <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </span>
+        <input
+          class="auth-input"
+          id="reg-password"
+          type="password"
+          placeholder="Mínimo 6 caracteres"
+          autocomplete="new-password"
+        >
+      </div>
+      <span class="field-error" id="reg-password-err">La contraseña debe tener al menos 6 caracteres.</span>
+    </div>
+
+    <!-- Role selector -->
+    <div class="field-group">
+      <div class="role-selector-label">Tipo de cuenta</div>
+      <div class="role-grid" id="role-grid">
+        <div class="role-card selected" data-role="buyer">
+          <span class="role-card-emoji">🛒</span>
+          <span class="role-card-label">Comprador</span>
+        </div>
+        <div class="role-card" data-role="seller">
+          <span class="role-card-emoji">🏪</span>
+          <span class="role-card-label">Vendedor</span>
+        </div>
+        <div class="role-card" data-role="driver">
+          <span class="role-card-emoji">🛵</span>
+          <span class="role-card-label">Repartidor</span>
+        </div>
+      </div>
+      <span class="field-error" id="reg-role-err">Selecciona un tipo de cuenta.</span>
+    </div>
+
+    <!-- Terms & Conditions -->
+    <div class="field-group">
+      <label class="terms-label">
+        <input type="checkbox" id="reg-terms" class="terms-checkbox">
+        <span>Acepto los <a href="#" class="auth-link" onclick="return false;">Términos y Condiciones</a> y la <a href="#" class="auth-link" onclick="return false;">Política de Privacidad</a></span>
+      </label>
+      <span class="field-error" id="reg-terms-err"></span>
+    </div>
+
+    <span class="field-error" id="reg-general-err" style="text-align:center;"></span>
+
+    <button class="auth-btn" type="submit">Crear cuenta</button>
+
+    <div class="auth-divider">o continúa con</div>
+
+    <button class="social-btn" type="button" id="google-reg-btn">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+      </svg>
+      Registrarse con Google
+    </button>
+
+    <p class="auth-link-row">
+      ¿Ya tienes cuenta?
+      <button type="button" class="auth-link" id="go-login-link">Inicia sesión</button>
+    </p>
+
+  </form>
+
+</div>
+
+<!-- Toast -->
+<div class="lm-toast" id="lm-toast">
+  <span id="lm-toast-msg"></span>
+</div>
+
+<script src="../js/auth.js" defer></script>
+</body>
+</html>

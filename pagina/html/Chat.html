@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LocalMarket – Chat</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/Chat.css">
+<link rel="stylesheet" href="../css/dark.css">
+<link rel="manifest" href="../manifest.json">
+<script src="../js/shared.js"></script>
+<script src="../js/auth-guard.js"></script>
+<script src="../js/Cart.js" defer></script>
+<script src="../js/Chat.js" defer></script>
+</head>
+<body>
+
+<nav>
+  <a href="../html/index.html" class="nav-logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
+    </div>
+    LocalMarket
+  </a>
+  <ul class="nav-links" id="main-nav-links"></ul>
+  <div class="nav-right">
+    <button class="lm-theme-toggle" onclick="lmToggleTheme()" title="Modo oscuro"></button>
+    <button class="cart-btn" onclick="window.location.href='../html/carritoypago.html'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      <span class="cart-badge">0</span>
+    </button>
+  </div>
+</nav>
+
+<!-- Inputs ocultos -->
+<input type="file" id="img-input" accept="image/*,video/*" style="display:none">
+<input type="file" id="file-input" accept=".pdf,.doc,.docx,.txt" style="display:none">
+
+<div class="chat-page">
+
+  <!-- ══ LEFT: lista de contactos ══ -->
+  <aside class="contacts-sidebar" id="contacts-sidebar">
+    <div class="sidebar-header">
+      <h1 class="sidebar-title">Mensajes</h1>
+      <button class="icon-btn" id="new-chat-btn" title="Nueva conversación">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+          <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="search-ico">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="search" id="contacts-search" placeholder="Buscar conversación...">
+    </div>
+
+    <div class="contacts-tabs">
+      <button class="ctab active" data-filter="all">Todos</button>
+      <button class="ctab" data-filter="unread">No leídos</button>
+      <button class="ctab" data-filter="sellers">Vendedores</button>
+      <button class="ctab" data-filter="drivers">Repartidores</button>
+    </div>
+
+    <div class="contacts-list" id="contacts-list"></div>
+  </aside>
+
+  <!-- ══ CENTER: ventana de chat ══ -->
+  <main class="chat-main">
+
+    <div class="chat-empty" id="chat-empty">
+      <div class="empty-icon-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <h3>Tus mensajes</h3>
+      <p>Chatea con vendedores, vecinos y tus repartidores en tiempo real</p>
+    </div>
+
+    <div class="chat-window" id="chat-window">
+
+      <header class="chat-header">
+        <button class="ch-back" id="ch-back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        </button>
+        <div class="ch-avatar-slot" id="ch-avatar-slot"></div>
+        <div class="ch-meta">
+          <div class="ch-name-row">
+            <div class="ch-name" id="ch-name">—</div>
+            <span class="ch-role" id="ch-role" style="display:none"></span>
+          </div>
+          <div class="ch-status" id="ch-status"></div>
+        </div>
+        <div class="ch-actions">
+          <button class="ch-btn" data-act="voice" title="Llamada de voz">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.61 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17z"/>
+            </svg>
+          </button>
+          <button class="ch-btn" data-act="video" title="Videollamada">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+            </svg>
+          </button>
+          <button class="ch-btn" data-act="info" title="Ver información">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- Delivery tracker pinned (solo repartidores) -->
+      <div class="delivery-tracker-bar" id="delivery-tracker-bar" style="display:none">
+        <div class="dt-icon" id="dt-icon">🛵</div>
+        <div class="dt-info">
+          <div class="dt-title" id="dt-title">Pedido en camino</div>
+          <div class="dt-steps" id="dt-steps"></div>
+        </div>
+        <div class="dt-eta" id="dt-eta"></div>
+        <button class="dt-expand" id="dt-expand">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+      </div>
+
+      <!-- Quick replies contextuales -->
+      <div class="quick-replies" id="quick-replies"></div>
+
+      <div class="messages-area" id="messages-area"></div>
+
+      <div class="typing-indicator" id="typing-indicator">
+        <div class="typing-bubble"><span></span><span></span><span></span></div>
+        <span id="typing-label"></span>
+      </div>
+
+      <!-- Reply preview bar -->
+      <div class="reply-preview-bar" id="reply-preview-bar" style="display:none">
+        <div class="rp-line" id="rp-accent"></div>
+        <div class="rp-content">
+          <div class="rp-name" id="rp-name"></div>
+          <div class="rp-text" id="rp-text"></div>
+        </div>
+        <button class="rp-close" id="rp-close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+
+      <footer class="msg-footer">
+        <!-- Recording state -->
+        <div class="recording-bar" id="recording-bar" style="display:none">
+          <div class="rec-pulse"></div>
+          <span class="rec-label">Grabando...</span>
+          <span class="rec-timer" id="rec-timer">0:00</span>
+          <div class="rec-waves">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <button class="rec-cancel" id="rec-cancel">✕ Cancelar</button>
+        </div>
+
+        <!-- Action panel (se abre con +) -->
+        <div class="action-panel" id="action-panel" style="display:none">
+          <button class="action-item" id="act-image">
+            <div class="action-ico" style="background:linear-gradient(135deg,#ec4899,#f97316)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </div>
+            <span>Imagen</span>
+          </button>
+          <button class="action-item" id="act-location">
+            <div class="action-ico" style="background:linear-gradient(135deg,#22c55e,#16a34a)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            <span>Ubicación</span>
+          </button>
+          <button class="action-item" id="act-poll">
+            <div class="action-ico" style="background:linear-gradient(135deg,#4f6ef7,#7c3aed)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
+            <span>Encuesta</span>
+          </button>
+          <button class="action-item" id="act-product">
+            <div class="action-ico" style="background:linear-gradient(135deg,#f97316,#eab308)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+            </div>
+            <span>Producto</span>
+          </button>
+          <button class="action-item" id="act-schedule">
+            <div class="action-ico" style="background:linear-gradient(135deg,#0ea5e9,#6366f1)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            </div>
+            <span>Programar</span>
+          </button>
+          <button class="action-item" id="act-file">
+            <div class="action-ico" style="background:linear-gradient(135deg,#64748b,#334155)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <span>Archivo</span>
+          </button>
+        </div>
+
+        <div class="msg-bar">
+          <button class="bar-btn plus-btn" id="plus-btn" title="Más opciones">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+          <textarea id="msg-input" placeholder="Escribe un mensaje..." rows="1"></textarea>
+          <button class="bar-btn" id="emoji-toggle" title="Emojis">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+              <line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+            </svg>
+          </button>
+          <button class="bar-btn mic-btn" id="voice-btn" title="Nota de voz">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </button>
+          <button class="send-btn" id="send-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+        <div class="emoji-panel" id="emoji-panel"></div>
+      </footer>
+    </div>
+  </main>
+
+  <!-- ══ RIGHT: info del contacto ══ -->
+  <aside class="info-panel" id="info-panel">
+    <div class="info-avatar-wrap" id="info-avatar-wrap"></div>
+    <div class="info-name-panel" id="info-name-panel"></div>
+    <div class="info-role-panel" id="info-role-panel"></div>
+    <div class="info-quick">
+      <button class="info-quick-btn" data-act="voice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.61 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17z"/></svg>
+        Llamar
+      </button>
+      <button class="info-quick-btn" data-act="video">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+        Video
+      </button>
+    </div>
+    <div class="info-section">
+      <div class="info-section-title">Medios compartidos</div>
+      <div class="shared-grid" id="shared-grid"></div>
+    </div>
+    <div class="info-section">
+      <div class="info-section-title">Detalles</div>
+      <div class="info-details-wrap" id="info-details-wrap"></div>
+    </div>
+  </aside>
+</div>
+
+<!-- ══ MODAL: Encuesta ══ -->
+<div class="modal-overlay" id="poll-modal" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Crear Encuesta</h3>
+      <button class="modal-close" id="poll-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <input class="modal-input" id="poll-question" placeholder="¿Cuál es tu pregunta?" maxlength="80">
+      <div id="poll-options-wrap">
+        <input class="modal-input poll-opt-input" placeholder="Opción 1">
+        <input class="modal-input poll-opt-input" placeholder="Opción 2">
+      </div>
+      <button class="modal-add-opt" id="poll-add-opt">+ Añadir opción</button>
+    </div>
+    <button class="modal-send-btn" id="poll-send">Enviar encuesta 📊</button>
+  </div>
+</div>
+
+<!-- ══ MODAL: Programar mensaje ══ -->
+<div class="modal-overlay" id="schedule-modal" style="display:none">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3>Programar mensaje</h3>
+      <button class="modal-close" id="schedule-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <textarea class="modal-input" id="schedule-text" placeholder="Escribe el mensaje..." rows="3" maxlength="500"></textarea>
+      <input class="modal-input" type="datetime-local" id="schedule-time">
+    </div>
+    <button class="modal-send-btn" id="schedule-send">Programar envío 🕐</button>
+  </div>
+</div>
+
+<!-- ══ MODAL: Compartir producto ══ -->
+<div class="modal-overlay" id="product-modal" style="display:none">
+  <div class="modal-card wide">
+    <div class="modal-header">
+      <h3>Compartir producto</h3>
+      <button class="modal-close" id="product-close">✕</button>
+    </div>
+    <div class="product-picker" id="product-picker"></div>
+  </div>
+</div>
+
+<!-- ══ LIGHTBOX ══ -->
+<div class="lightbox" id="lightbox" style="display:none">
+  <div class="lightbox-bg" id="lightbox-bg"></div>
+  <img class="lightbox-img" id="lightbox-img" src="" alt="">
+  <button class="lightbox-close" id="lightbox-close">✕</button>
+</div>
+
+<!-- ══ REACTION PICKER ══ -->
+<div class="reaction-picker" id="reaction-picker" style="display:none">
+  <button data-emoji="❤️">❤️</button>
+  <button data-emoji="😂">😂</button>
+  <button data-emoji="😮">😮</button>
+  <button data-emoji="😢">😢</button>
+  <button data-emoji="👍">👍</button>
+  <button data-emoji="🔥">🔥</button>
+</div>
+
+<!-- ══ VOICE CALL OVERLAY ══ -->
+<div class="call-overlay" id="voice-overlay">
+  <div class="voice-panel">
+    <div class="vc-avatar" id="vc-avatar"></div>
+    <div class="vc-name" id="vc-name"></div>
+    <div class="vc-status" id="vc-status">Llamando...</div>
+    <div class="vc-timer" id="vc-timer"></div>
+    <div class="vc-waves" id="vc-waves">
+      <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div>
+    </div>
+    <div class="vc-controls">
+      <div class="vc-ctrl-wrap">
+        <button class="vc-btn mute-btn" id="vc-mute">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+        </button>
+        <span class="vc-btn-label">Silencio</span>
+      </div>
+      <div class="vc-ctrl-wrap">
+        <button class="vc-btn end-btn" id="vc-end">
+          <svg viewBox="0 0 24 24" fill="white">
+            <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.58.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02L6.6 10.8z"/>
+          </svg>
+        </button>
+        <span class="vc-btn-label">Colgar</span>
+      </div>
+      <div class="vc-ctrl-wrap">
+        <button class="vc-btn speaker-btn" id="vc-speaker">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+          </svg>
+        </button>
+        <span class="vc-btn-label">Altavoz</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ VIDEO CALL OVERLAY ══ -->
+<div class="call-overlay video-overlay" id="video-overlay">
+  <div class="video-remote" id="video-remote">
+    <div class="video-bg-anim" id="video-bg-anim"></div>
+    <div class="video-cam-off" id="video-cam-off" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="1.5">
+        <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/>
+        <line x1="1" y1="1" x2="23" y2="23"/>
+      </svg>
+    </div>
+    <div class="video-remote-name" id="video-remote-name"></div>
+  </div>
+  <div class="video-local" id="video-local">
+    <div class="video-local-anim" id="video-local-anim"></div>
+    <div class="video-local-off" id="video-local-off" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.5">
+        <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/>
+        <line x1="1" y1="1" x2="23" y2="23"/>
+      </svg>
+    </div>
+  </div>
+  <div class="video-top-bar">
+    <div class="video-contact-name" id="video-contact-name"></div>
+    <div class="video-timer-wrap">
+      <div class="video-timer-dot"></div>
+      <div class="video-timer" id="video-timer"></div>
+    </div>
+    <button class="video-close-btn" id="video-close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div class="video-status-overlay" id="video-status-overlay">
+    <div class="video-connecting-name" id="video-connecting-name"></div>
+    <div class="video-connecting-status" id="video-connecting-status">Conectando...</div>
+    <div class="video-connecting-dots"><span></span><span></span><span></span></div>
+  </div>
+  <div class="video-controls">
+    <div class="vid-ctrl-item">
+      <button class="vid-btn" id="vid-mute">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+          <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+        </svg>
+      </button>
+      <span>Micro</span>
+    </div>
+    <div class="vid-ctrl-item">
+      <button class="vid-btn" id="vid-cam">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+        </svg>
+      </button>
+      <span>Cámara</span>
+    </div>
+    <div class="vid-ctrl-item">
+      <button class="vid-btn" id="vid-screen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2"/>
+          <line x1="8" y1="21" x2="16" y2="21"/>
+          <line x1="12" y1="17" x2="12" y2="21"/>
+        </svg>
+      </button>
+      <span>Pantalla</span>
+    </div>
+    <div class="vid-ctrl-item">
+      <button class="vid-btn end-vid" id="vid-end">
+        <svg viewBox="0 0 24 24" fill="white">
+          <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.58.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02L6.6 10.8z"/>
+        </svg>
+      </button>
+      <span>Colgar</span>
+    </div>
+  </div>
+</div>
+
+<div class="lm-toast" id="lm-toast">
+  <svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="lm-toast-msg"></span>
+</div>
+
+</body>
+</html>

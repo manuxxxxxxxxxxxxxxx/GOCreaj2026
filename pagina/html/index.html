@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LocalMarket - Impulsa tu Comunidad Local</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/index.css">
+<link rel="stylesheet" href="../css/dark.css">
+<link rel="manifest" href="../manifest.json">
+<script src="../js/shared.js"></script>
+<script src="../js/auth-guard.js"></script>
+<script src="../js/Cart.js" defer></script>
+<script src="../js/index.js" defer></script>
+</head>
+<body>
+<nav>
+  <a href="#" class="nav-logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
+    </div>
+    LocalMarket
+  </a>
+
+  <ul class="nav-links" id="main-nav-links"></ul>
+
+  <div class="nav-right">
+    <button class="lm-theme-toggle" onclick="lmToggleTheme()" title="Modo oscuro"></button>
+    <button class="cart-btn" onclick="window.location.href='carritoypago.html'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+      <span class="cart-badge">0</span>
+    </button>
+    <button class="roles-btn" onclick="window.location.href='perfil.html'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      Perfil
+    </button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-content">
+    <h1 class="hero-title">Impulsa tu Comunidad<br>Local</h1>
+    <p class="hero-desc">Marketplace digital que conecta emprendedores locales con su comunidad. Compra, vende, invierte y aprende todo en un solo lugar.</p>
+    <div class="hero-btns">
+   <button class="btn-outline-white" onclick="window.location.href='market.html'">Explorar Productos</button>
+
+<button class="cta-btn" onclick="window.location.href='market.html'">Explorar como Comprador</button>
+    </div>
+  </div>
+  <div class="hero-image-wrap">
+    <div class="hero-img-placeholder"></div>
+  </div>
+</section>
+
+<!-- STATS -->
+<section class="stats">
+  <div class="stat">
+    <div class="stat-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div class="stat-num">1,234</div>
+    <div class="stat-label">Emprendedores Activos</div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
+    </div>
+    <div class="stat-num">5,678</div>
+    <div class="stat-label">Productos Disponibles</div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+    </div>
+    <div class="stat-num">890</div>
+    <div class="stat-label">Entregas Hoy</div>
+  </div>
+  <div class="stat">
+    <div class="stat-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    </div>
+    <div class="stat-num">4.8</div>
+    <div class="stat-label">Calificación Promedio</div>
+  </div>
+</section>
+
+<!-- Como participar -->
+<section class="section section-bg-light">
+  <div class="centered">
+    <h2 class="section-title">¿Cómo Quieres Participar?</h2>
+    <p class="section-sub">Accede al panel según tu rol en la plataforma</p>
+  </div>
+  <div class="roles-grid">
+    <!-- Vendedor -->
+    <div class="role-card">
+      <div class="role-icon green">
+        <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
+      </div>
+      <div class="role-title">Soy Vendedor</div>
+      <div class="role-desc">Publica productos, gestiona pedidos y aumenta tus ventas</div>
+      <button class="role-btn green">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        70% de ganancias
+      </button>
+    </div>
+    <!-- Repartidor -->
+    <div class="role-card">
+      <div class="role-icon blue">
+        <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      </div>
+      <div class="role-title">Soy Repartidor</div>
+      <div class="role-desc">Acepta entregas, gana dinero y optimiza tus rutas</div>
+      <button class="role-btn blue">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        20% de ganancias
+      </button>
+    </div>
+    <!-- Comprador -->
+    <div class="role-card">
+      <div class="role-icon purple">
+        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      </div>
+      <div class="role-title">Soy Comprador</div>
+      <div class="role-desc">Explora productos locales y recibe entregas rápidas</div>
+      <button class="role-btn purple">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Ofertas exclusivas
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- Productos destacados -->
+<section class="section section-bg-light" style="padding-top:0">
+  <div class="products-header">
+    <div>
+      <h2 class="section-title">Productos Destacados</h2>
+      <p class="section-sub" style="margin-bottom:0">Los más populares en tu zona</p>
+    </div>
+    <a href="#" class="see-all">Ver todos →</a>
+  </div>
+  <div class="products-grid">
+    <!-- Product 1 -->
+    <div class="product-card">
+      <div class="product-img">
+        <img src="https://images.unsplash.com/photo-1608198093002-ad4e005484ec?w=400" alt="Pan Artesanal">
+        <span class="product-badge badge-promo">Promoción</span>
+      </div>
+      <div class="product-body">
+        <div class="product-name">Pan Artesanal Integral</div>
+        <div class="product-seller">Panadería Don José</div>
+        <div class="product-meta">
+          <span class="rating"><span class="star">★</span> 4.8</span>
+          <span class="dot"></span>
+          <span>📍 0.5 km</span>
+        </div>
+        <div class="product-footer">
+          <span class="product-price">$4.50</span>
+          <button class="add-btn">Agregar</button>
+        </div>
+      </div>
+    </div>
+    <!-- Product 2 -->
+    <div class="product-card">
+      <div class="product-img">
+        <img src="https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400" alt="Verduras">
+        <span class="product-badge badge-new">Nuevo</span>
+      </div>
+      <div class="product-body">
+        <div class="product-name">Verduras Orgánicas Mix</div>
+        <div class="product-seller">Huerto Verde</div>
+        <div class="product-meta">
+          <span class="rating"><span class="star">★</span> 4.9</span>
+          <span class="dot"></span>
+          <span>📍 1.2 km</span>
+        </div>
+        <div class="product-footer">
+          <span class="product-price">$12.00</span>
+          <button class="add-btn">Agregar</button>
+        </div>
+      </div>
+    </div>
+    <!-- Product 3 -->
+    <div class="product-card">
+      <div class="product-img">
+        <img src="https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=400" alt="Café">
+        <span class="product-badge badge-feat">Destacado</span>
+      </div>
+      <div class="product-body">
+        <div class="product-name">Café Premium 250g</div>
+        <div class="product-seller">Café del Barrio</div>
+        <div class="product-meta">
+          <span class="rating"><span class="star">★</span> 4.7</span>
+          <span class="dot"></span>
+          <span>📍 0.8 km</span>
+        </div>
+        <div class="product-footer">
+          <span class="product-price">$8.75</span>
+          <button class="add-btn">Agregar</button>
+        </div>
+      </div>
+    </div>
+    <!-- Product 4 -->
+    <div class="product-card">
+      <div class="product-img">
+        <img src="https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=400" alt="Artesanías">
+        <span class="product-badge badge-pop">Popular</span>
+      </div>
+      <div class="product-body">
+        <div class="product-name">Artesanías Decorativas</div>
+        <div class="product-seller">Manos Creativas</div>
+        <div class="product-meta">
+          <span class="rating"><span class="star">★</span> 5</span>
+          <span class="dot"></span>
+          <span>📍 2.0 km</span>
+        </div>
+        <div class="product-footer">
+          <span class="product-price">$25.00</span>
+          <button class="add-btn">Agregar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section features-section">
+  <div class="centered">
+    <h2 class="section-title">Todo lo que Necesitas en un Solo Lugar</h2>
+    <p class="section-sub">Una plataforma completa diseñada para impulsar el comercio local y la economía comunitaria</p>
+  </div>
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon blue">
+        <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
+      </div>
+      <div class="feature-name">Marketplace Local</div>
+      <div class="feature-desc">Descubre productos de emprendedores de tu zona</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon green">
+        <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      </div>
+      <div class="feature-name">Entregas en Tiempo Real</div>
+      <div class="feature-desc">Seguimiento GPS con información de tráfico en vivo</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon purple">
+        <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="4"/><circle cx="8" cy="12" r="2"/><path d="M16 8l-4 4 4 4"/></svg>
+      </div>
+      <div class="feature-name">Reels Promocionales</div>
+      <div class="feature-desc">Videos cortos de productos y negocios locales</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon pink">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      </div>
+      <div class="feature-name">Chat Integrado</div>
+      <div class="feature-desc">Comunicación directa entre todos los participantes</div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA BANNER -->
+<section class="cta-banner">
+  <h2>¿Listo para Empezar?</h2>
+  <p>Únete a nuestra comunidad de emprendedores y forma parte del cambio económico local</p>
+  <div class="cta-btns">
+    <button class="cta-btn">Explorar como Comprador</button>
+    <button class="cta-btn">Registrarme como Vendedor</button>
+    <button class="cta-btn">Ser Repartidor</button>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-top">
+    <div class="footer-brand">
+      <div class="logo-wrap">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
+        </div>
+        <span class="brand-name">LocalMarket</span>
+      </div>
+      <p>Impulsando la economía local a través de la tecnología</p>
+    </div>
+    <div class="footer-col">
+      <h4>Comprador</h4>
+      <ul>
+        <li><a href="#">Explorar Productos</a></li>
+        <li><a href="#">Reels</a></li>
+        <li><a href="#">Invertir</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Vendedor</h4>
+      <ul>
+        <li><a href="#">Dashboard</a></li>
+        <li><a href="#">Capacitación</a></li>
+        <li><a href="#">Financiamiento</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>Repartidor</h4>
+      <ul>
+        <li><a href="#">Dashboard</a></li>
+        <li><a href="#">Entregas</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-copy">© 2026 LocalMarket. Todos los derechos reservados.</div>
+</footer>
+</body>
+</html>

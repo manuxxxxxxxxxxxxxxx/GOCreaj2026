@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>404 – Página no encontrada · LocalMarket</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/dark.css">
+<script src="../js/shared.js"></script>
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root { --blue:#4f6ef7; --purple:#7c3aed; --text:#111827; --text-muted:#6b7280; --border:#e5e7eb; --bg:#f1f5f9; --white:#fff; }
+  body { font-family:'Plus Jakarta Sans',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center; }
+  .logo { font-size:1.1rem; font-weight:800; color:var(--purple); margin-bottom:48px; display:flex; align-items:center; gap:10px; }
+  .logo-icon { width:36px; height:36px; border-radius:10px; background:linear-gradient(135deg,#4f6ef7,#8b3cf7); display:grid; place-items:center; }
+  .logo-icon svg { width:20px; height:20px; fill:white; }
+  .error-num { font-size:clamp(5rem,18vw,9rem); font-weight:800; background:linear-gradient(135deg,#4f6ef7,#8b3cf7); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; line-height:1; }
+  .error-emoji { font-size:3rem; margin:8px 0 16px; }
+  h1 { font-size:1.5rem; font-weight:800; margin-bottom:10px; }
+  p { color:var(--text-muted); font-size:.95rem; line-height:1.6; max-width:400px; margin-bottom:36px; }
+  .actions { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+  .btn { padding:12px 24px; border-radius:12px; font-family:inherit; font-size:.9rem; font-weight:700; text-decoration:none; cursor:pointer; border:none; transition:all .15s; }
+  .btn-primary { background:var(--blue); color:white; }
+  .btn-primary:hover { background:#3a57d7; }
+  .btn-secondary { background:none; border:2px solid var(--border); color:var(--text-muted); }
+  .btn-secondary:hover { border-color:var(--blue); color:var(--blue); }
+  .suggestions { margin-top:48px; display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+  .suggestion-link { display:flex; align-items:center; gap:6px; padding:9px 16px; border-radius:10px; background:white; border:1px solid var(--border); font-size:.82rem; font-weight:600; color:var(--text-muted); text-decoration:none; transition:all .15s; }
+  .suggestion-link:hover { border-color:var(--blue); color:var(--blue); }
+</style>
+</head>
+<body>
+<div class="logo">
+  <div class="logo-icon"><svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg></div>
+  LocalMarket
+</div>
+
+<div class="error-num">404</div>
+<div class="error-emoji">🗺️</div>
+<h1>Página no encontrada</h1>
+<p>La página que buscas no existe o fue movida. No te preocupes, el mercado sigue abierto.</p>
+
+<div class="actions">
+  <a class="btn btn-primary" href="../html/index.html">← Ir al inicio</a>
+  <button class="btn btn-secondary" onclick="history.back()">Volver atrás</button>
+</div>
+
+<div class="suggestions">
+  <a class="suggestion-link" href="../html/market.html">🏪 Marketplace</a>
+  <a class="suggestion-link" href="../html/Entregas.html">🚚 Entregas</a>
+  <a class="suggestion-link" href="../html/Reels.html">🎬 Reels</a>
+  <a class="suggestion-link" href="../html/Chat.html">💬 Chat</a>
+  <a class="suggestion-link" href="../html/historial.html">📋 Historial</a>
+</div>
+
+<script>_lmSyncToggleIcons();</script>
+</body>
+</html>
