@@ -13,6 +13,8 @@ import orderRoutes        from './routes/orders';
 import deliveryRoutes     from './routes/deliveries';
 import analyticsRoutes    from './routes/analytics';
 import notificationRoutes from './routes/notifications';
+import messagesRoutes     from './routes/messages';
+import categoriesRoutes   from './routes/categories';
 import { errorHandler }   from './middleware/errorHandler';
 
 const app  = express();
@@ -34,7 +36,11 @@ app.use(helmet({
 const ALLOWED_ORIGINS = (process.env.FRONTEND_URL || 'http://localhost:5173')
   .split(',')
   .map(o => o.trim())
-  .concat(['http://localhost:5500', 'http://127.0.0.1:5500']); // Live Server de VSCode
+  .concat([
+    'http://localhost:5500', 'http://127.0.0.1:5500',  // VS Code Live Server
+    'http://localhost:8081', 'http://127.0.0.1:8081',  // Expo web
+    'http://localhost:19006',                           // Expo web legacy
+  ]);
 
 app.use(cors({
   origin: (origin, cb) => {
@@ -89,6 +95,8 @@ app.use('/api/v1/orders',                      orderRoutes);
 app.use('/api/v1/deliveries',                  deliveryRoutes);
 app.use('/api/v1/analytics',                   analyticsRoutes);
 app.use('/api/v1/notifications',               notificationRoutes);
+app.use('/api/v1/messages',                    messagesRoutes);
+app.use('/api/v1/categories',                  categoriesRoutes);
 
 /* ── 404 ── */
 app.use('*', (_req, res) =>

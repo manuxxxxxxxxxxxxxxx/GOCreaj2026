@@ -9,6 +9,7 @@ import ProductCard from '../components/ProductCard';
 import Toast from '../components/Toast';
 import { useCart } from '../hooks/useCart';
 import { getProducts } from '../services/productsService';
+import { getCategories, type CategoryItem } from '../services/categoriesService';
 import { Colors, Radius, Shadow } from '../theme/colors';
 import { CATEGORIES } from '../data/catalog';
 import type { Product, ProductCategory } from '../types';
@@ -17,11 +18,16 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Market'>;
 
 export default function MarketScreen({ navigation }: Props) {
   const { addItem, count } = useCart();
-  const [products,  setProducts]  = useState<Product[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [search,    setSearch]    = useState('');
-  const [category,  setCategory]  = useState<ProductCategory | 'todos'>('todos');
-  const [toast,     setToast]     = useState({ visible: false, message: '' });
+  const [products,   setProducts]   = useState<Product[]>([]);
+  const [categories, setCategories] = useState<CategoryItem[]>([...CATEGORIES] as CategoryItem[]);
+  const [loading,    setLoading]    = useState(true);
+  const [search,     setSearch]     = useState('');
+  const [category,   setCategory]   = useState<ProductCategory | 'todos'>('todos');
+  const [toast,      setToast]      = useState({ visible: false, message: '' });
+
+  useEffect(() => {
+    getCategories().then(setCategories);
+  }, []);
 
   useEffect(() => {
     load();
@@ -85,7 +91,7 @@ export default function MarketScreen({ navigation }: Props) {
       {/* Categories */}
       <FlatList
         horizontal
-        data={CATEGORIES}
+        data={categories}
         keyExtractor={(c) => c.key}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.catsContent}

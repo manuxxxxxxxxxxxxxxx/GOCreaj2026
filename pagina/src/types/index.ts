@@ -179,6 +179,14 @@ export interface Reel {
   };
 }
 
+export interface Category {
+  id?: number;
+  slug: string;
+  name: string;
+  emoji: string;
+  sort_order?: number;
+}
+
 export interface ApiResponse<T> {
   data: T;
   error?: string;

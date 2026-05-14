@@ -7,11 +7,9 @@
     "dev": "nodemon --watch src --ext ts --exec ts-node src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
-    "migrate": "psql $DATABASE_URL -f migrations/001_schema.sql && psql $DATABASE_URL -f migrations/002_master_admin_terms.sql && psql $DATABASE_URL -f migrations/003_indexes_messages_cleanup.sql",
-    "migrate:win": "psql %DATABASE_URL% -f migrations/001_schema.sql & psql %DATABASE_URL% -f migrations/002_master_admin_terms.sql & psql %DATABASE_URL% -f migrations/003_indexes_messages_cleanup.sql",
-    "migrate:001": "psql $DATABASE_URL -f migrations/001_schema.sql",
-    "migrate:002": "psql $DATABASE_URL -f migrations/002_master_admin_terms.sql",
-    "migrate:003": "psql $DATABASE_URL -f migrations/003_indexes_messages_cleanup.sql",
+    "migrate": "ts-node src/migrate.ts",
+    "migrate:psql": "psql $DATABASE_URL -f migrations/001_schema.sql",
+    "migrate:psql:win": "psql %DATABASE_URL% -f migrations/001_schema.sql",
     "db:cleanup": "psql $DATABASE_URL -c \"SELECT cleanup_expired_tokens();\""
   },
   "dependencies": {
