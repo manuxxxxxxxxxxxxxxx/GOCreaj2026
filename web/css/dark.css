@@ -1,0 +1,202 @@
+/* ═══════════════════════════════════════════════════════════
+   LocalMarket · dark.css
+   Overrides de variables CSS para modo oscuro.
+   Se activa cuando <html> tiene la clase "dark".
+   ═══════════════════════════════════════════════════════════ */
+
+html.dark {
+  /* Colores base */
+  --bg:        #0f172a;
+  --white:     #1e293b;
+  --border:    #334155;
+  --text:      #f1f5f9;
+  --text-muted:#94a3b8;
+
+  /* Colores de acento (ligeramente más brillantes en oscuro) */
+  --blue:      #6366f1;
+  --blue-dark: #4f46e5;
+  --purple:    #a78bfa;
+  --green:     #34d399;
+  --red:       #f87171;
+  --orange:    #fb923c;
+}
+
+/* ── body ── */
+html.dark body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ── Nav ── */
+html.dark nav {
+  background: #1e293b;
+  border-color: #334155;
+}
+html.dark .nav-links a:hover { background: #334155; color: var(--text); }
+html.dark .nav-links a.active { background: #312e81; color: #a5b4fc; }
+html.dark .cart-btn:hover { background: #334155; }
+html.dark .roles-btn { background: #334155; color: var(--text); border-color: #475569; }
+
+/* ── Cards / Panels ── */
+html.dark .product-card,
+html.dark .chat-window,
+html.dark .contacts-sidebar,
+html.dark .info-panel,
+html.dark .voice-panel,
+html.dark .modal-card,
+html.dark .role-card,
+html.dark .feature-card,
+html.dark .summary-card,
+html.dark .payment-card,
+html.dark .step-panel,
+html.dark .tray-card,
+html.dark .historial-card,
+html.dark .perfil-card,
+html.dark .order-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+/* ── Inputs ── */
+html.dark input,
+html.dark textarea,
+html.dark select,
+html.dark .modal-input,
+html.dark #msg-input,
+html.dark .search-wrap input,
+html.dark .market-search input {
+  background: #0f172a;
+  color: var(--text);
+  border-color: #334155;
+}
+html.dark input::placeholder,
+html.dark textarea::placeholder { color: #64748b; }
+html.dark input:focus,
+html.dark textarea:focus { border-color: var(--blue); }
+
+/* ── Messages ── */
+html.dark .msg-row.recv .msg-bubble {
+  background: #1e293b;
+  color: var(--text);
+}
+html.dark .typing-bubble { background: #1e293b; }
+html.dark .msg-action-btn {
+  background: #1e293b;
+  border-color: #334155;
+  color: var(--text);
+}
+html.dark .reaction-item { background: #1e293b; border-color: #334155; }
+html.dark .reaction-item.mine { background: #312e81; border-color: #6366f1; }
+
+/* ── Contact items ── */
+html.dark .contact-item:hover { background: #334155; }
+html.dark .contact-item.active { background: #1e3a5f; }
+html.dark .ctab:hover { background: #334155; }
+html.dark .ctab.active { background: #1e3a5f; color: #93c5fd; }
+
+/* ── Chat footer / input bar ── */
+html.dark .msg-footer { background: #1e293b; border-color: #334155; }
+html.dark .msg-bar { background: #0f172a; border-color: #334155; }
+html.dark .emoji-panel { background: #1e293b; }
+html.dark .action-item:hover { background: #334155; }
+html.dark .plus-btn { background: #1e3a5f; color: #93c5fd; }
+html.dark .plus-btn.open { background: var(--blue); color: white; }
+html.dark .reply-preview-bar { background: #1e293b; border-color: #334155; }
+html.dark .qr-chip { background: #1e293b; border-color: #6366f1; color: #93c5fd; }
+html.dark .qr-chip:hover { background: var(--blue); color: white; }
+
+/* ── Delivery tracker ── */
+html.dark .delivery-tracker-bar { background: #1a2440; border-color: #2d3e6e; }
+html.dark .dt-title { color: #93c5fd; }
+html.dark .dt-eta   { color: #93c5fd; }
+html.dark .dt-step  { background: rgba(255,255,255,.08); color: #94a3b8; }
+html.dark .dt-expand { background: rgba(255,255,255,.06); color: #93c5fd; }
+
+/* ── Market ── */
+html.dark .market-search { background: #1e293b; border-color: #334155; }
+html.dark .category-pill { background: #1e293b; border-color: #334155; color: var(--text-muted); }
+html.dark .category-pill.active { background: #1e3a5f; color: #93c5fd; border-color: #6366f1; }
+html.dark .filter-panel { background: #1e293b; border-color: #334155; }
+html.dark .filter-section-title { color: #94a3b8; }
+html.dark .sort-select { background: #0f172a; border-color: #334155; color: var(--text); }
+
+/* ── Checkout ── */
+html.dark .stepper-connector { background: #334155; }
+html.dark .step-circle { background: #1e293b; border-color: #334155; color: #94a3b8; }
+html.dark .step-circle.active { background: var(--blue); border-color: var(--blue); color: white; }
+html.dark .step-circle.done { background: var(--green); border-color: var(--green); color: white; }
+html.dark .cart-item { border-color: #334155; }
+html.dark .radio-option { border-color: #334155; background: #0f172a; }
+html.dark .radio-option:hover { border-color: var(--blue); background: #1e3a5f; }
+html.dark .radio-option.selected { border-color: var(--blue); background: #1e3a5f; }
+html.dark .card-field { background: #0f172a; border-color: #334155; color: var(--text); }
+
+/* ── Index / Landing ── */
+html.dark .hero { background: linear-gradient(135deg, #0f172a, #1e293b); }
+html.dark .stat-card { background: #1e293b; border-color: #334155; }
+html.dark .feature-card { background: #1e293b; }
+html.dark .cta-section { background: linear-gradient(135deg,#1e3a5f,#312e81); }
+html.dark footer { background: #0f172a; border-color: #334155; }
+
+/* ── Reels sidebar ── */
+html.dark .activity-tray { background: #1e293b; border-color: #334155; }
+html.dark .tray-header { color: #94a3b8; border-color: #334155; }
+html.dark .tray-tab { color: #94a3b8; }
+html.dark .tray-tab.active { background: #1e3a5f; color: #93c5fd; }
+html.dark .tray-item { border-color: #334155; }
+html.dark .tray-item:hover { background: #334155; }
+
+/* ── Modals ── */
+html.dark .modal-overlay { background: rgba(0,0,0,.75); }
+html.dark .modal-card { background: #1e293b; }
+html.dark .modal-header { border-color: #334155; }
+html.dark .modal-close { color: #94a3b8; }
+html.dark .modal-close:hover { background: #334155; }
+html.dark .modal-add-opt { border-color: #475569; color: #94a3b8; }
+html.dark .modal-add-opt:hover { border-color: var(--blue); color: #93c5fd; }
+html.dark .product-picker-item { border-color: #334155; }
+html.dark .product-picker-item:hover { border-color: var(--blue); }
+html.dark .ppi-img { background: #0f172a; }
+
+/* ── Poll bubble ── */
+html.dark .msg-row.recv .poll-bubble { background: #1e293b; }
+html.dark .poll-option { background: #0f172a; border-color: #334155; color: var(--text); }
+html.dark .poll-option.voted { border-color: var(--blue); background: #1e3a5f; }
+
+/* ── Historial / Perfil ── */
+html.dark .historial-page,
+html.dark .perfil-page { background: var(--bg); }
+html.dark .order-card { background: #1e293b; border-color: #334155; }
+html.dark .order-item-row { border-color: #334155; }
+html.dark .perfil-section { background: #1e293b; border-color: #334155; }
+html.dark .perfil-input { background: #0f172a; border-color: #334155; color: var(--text); }
+html.dark .perfil-input:focus { border-color: var(--blue); }
+
+/* ── Entregas ── */
+html.dark .delivery-header { background: #1e293b; border-color: #334155; }
+html.dark .eta-card { background: linear-gradient(135deg, #1e3a5f, #312e81); }
+html.dark .driver-card { background: #1e293b; border-color: #334155; }
+html.dark .timeline-step { background: #1e293b; }
+html.dark .support-card { background: #1a2000; border-color: #365314; }
+
+/* ── Scrollbars en dark ── */
+html.dark ::-webkit-scrollbar-track { background: #1e293b; }
+html.dark ::-webkit-scrollbar-thumb { background: #475569; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* ── Theme toggle button ── */
+.lm-theme-toggle {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--border, #e5e7eb);
+  background: none;
+  cursor: pointer;
+  display: grid; place-items: center;
+  color: var(--text-muted, #6b7280);
+  transition: all .15s;
+  flex-shrink: 0;
+}
+.lm-theme-toggle:hover { background: var(--bg, #f1f5f9); color: var(--text, #111827); }
+.lm-theme-toggle svg { width: 17px; height: 17px; pointer-events: none; }
+html.dark .lm-theme-toggle { border-color: #334155; color: #94a3b8; }
+html.dark .lm-theme-toggle:hover { background: #334155; color: var(--text); }
