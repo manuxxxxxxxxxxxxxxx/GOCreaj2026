@@ -1,0 +1,95 @@
+// src/screens/Register/styles.ts
+import { StyleSheet } from 'react-native';
+
+export const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: '#f9fafb' },
+  scroll: { paddingHorizontal: 24, paddingBottom: 40 },
+
+  headerBar: { marginBottom: 8 },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  backIcon: { fontSize: 22, color: '#111827', fontWeight: '700' },
+
+  heroWrap: { alignItems: 'center', marginVertical: 18 },
+  heroEmoji: { fontSize: 44, marginBottom: 6 },
+  brand: { fontSize: 24, fontWeight: '900', color: '#059669' },
+  tagline: { fontSize: 13, color: '#6b7280', marginTop: 2 },
+
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 22,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+
+  label: { fontSize: 12, fontWeight: '700', color: '#374151', marginBottom: 6, marginTop: 4 },
+  hint: { fontWeight: '500', color: '#9ca3af' },
+  inputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    marginBottom: 12,
+  },
+  inputIcon: { fontSize: 16, marginRight: 8 },
+  input: { flex: 1, paddingVertical: 14, fontSize: 15, color: '#111827' },
+  eye: { fontSize: 18 },
+
+  terms: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: 8,
+    marginBottom: 18,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 1,
+  },
+  checkboxOn: { backgroundColor: '#059669', borderColor: '#059669' },
+  check: { color: '#fff', fontSize: 14, fontWeight: '900' },
+  termsTxt: { flex: 1, fontSize: 12, color: '#6b7280', lineHeight: 18 },
+  termsLink: { color: '#059669', fontWeight: '700' },
+
+  btn: {
+    backgroundColor: '#059669',
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: 'center',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  btnDisabled: { opacity: 0.6 },
+  btnTxt: { color: '#fff', fontSize: 16, fontWeight: '800' },
+
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 },
+  footerTxt: { color: '#6b7280', fontSize: 14 },
+  footerLink: { color: '#059669', fontSize: 14, fontWeight: '800' },
+});

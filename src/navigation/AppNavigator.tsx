@@ -1,21 +1,26 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+// src/navigation/AppNavigator.tsx
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HomeScreen } from '../screens/HomeScreen';
-import { ReelsScreen } from '../screens/ReelsScreen';
-import { ExploreScreen } from '../screens/ExploreScreen';
-import { ChatScreen } from '../screens/ChatScreen';
-import { ProfileScreen } from '../screens/ProfileScreen';
+
+// ✅ IMPORTS CORREGIDOS según los exports reales de tu proyecto:
+//   Home y Chat usan `export default`
+//   Reels, Explorador y Perfil usan `export` con nombre
+import ChatScreen from '../screens/Chat';
+import { ExploreScreen } from '../screens/Explorador';
+import HomeScreen from '../screens/Home';
+import { ProfileScreen } from '../screens/Perfil';
+import { ReelsScreen } from '../screens/Reels';
 
 const Tab = createBottomTabNavigator();
 
 const TABS = [
-  { name: 'Home', label: 'Inicio', icon: '🏠', iconActive: '🏠' },
-  { name: 'Reels', label: 'Reels', icon: '▶️', iconActive: '▶️' },
-  { name: 'Explore', label: 'Explorar', icon: '🔍', iconActive: '🔍' },
-  { name: 'Chat', label: 'Chat', icon: '💬', iconActive: '💬' },
-  { name: 'Profile', label: 'Perfil', icon: '👤', iconActive: '👤' },
+  { name: 'Home',    label: 'Inicio',  icon: '🏠' },
+  { name: 'Reels',   label: 'Reels',   icon: '▶️' },
+  { name: 'Explore', label: 'Explorar', icon: '🔍' },
+  { name: 'Chat',    label: 'Chat',    icon: '💬' },
+  { name: 'Profile', label: 'Perfil',  icon: '👤' },
 ];
 
 function CustomTabBar({ state, navigation }: any) {
@@ -35,7 +40,11 @@ function CustomTabBar({ state, navigation }: any) {
             {focused && <View style={s.activeBar} />}
             <View style={[s.iconWrap, focused && s.iconWrapActive]}>
               <Text style={s.tabIcon}>{tab.icon}</Text>
-              {route.name === 'Chat' && <View style={s.chatBadge}><Text style={s.chatBadgeTxt}>3</Text></View>}
+              {route.name === 'Chat' && (
+                <View style={s.chatBadge}>
+                  <Text style={s.chatBadgeTxt}>3</Text>
+                </View>
+              )}
             </View>
             <Text style={[s.tabLabel, focused && s.tabLabelActive]}>{tab.label}</Text>
           </TouchableOpacity>
@@ -47,18 +56,32 @@ function CustomTabBar({ state, navigation }: any) {
 
 export function AppNavigator() {
   return (
-    <Tab.Navigator tabBar={props => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Reels" component={ReelsScreen} />
+    <Tab.Navigator
+      tabBar={props => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
+    >
+      <Tab.Screen name="Home"    component={HomeScreen} />
+      <Tab.Screen name="Reels"   component={ReelsScreen} />
       <Tab.Screen name="Explore" component={ExploreScreen} />
-      <Tab.Screen name="Chat" component={ChatScreen} />
+      <Tab.Screen name="Chat"    component={ChatScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
 
 const s = StyleSheet.create({
-  tabBar: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.97)', borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 6, shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 10 },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.97)',
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    paddingTop: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 10,
+  },
   tabItem: { flex: 1, alignItems: 'center', paddingVertical: 4, position: 'relative' },
   activeBar: { position: 'absolute', top: -6, width: 28, height: 3, backgroundColor: '#059669', borderRadius: 999 },
   iconWrap: { width: 40, height: 36, borderRadius: 16, alignItems: 'center', justifyContent: 'center', position: 'relative' },
