@@ -133,6 +133,13 @@ html.dark .card-field { background: #0f172a; border-color: #334155; color: var(-
 
 /* ── Index / Landing ── */
 html.dark .hero { background: linear-gradient(135deg, #0f172a, #1e293b); }
+html.dark .stats { background: #1e293b; border-color: #334155; }
+html.dark .stat-icon { background: #334155; }
+html.dark .stat-num { color: #f1f5f9; }
+html.dark .stat-label { color: #94a3b8; }
+html.dark .section-bg-light { background: #0f172a; }
+html.dark .section-title { color: #f1f5f9; }
+html.dark .section-sub { color: #94a3b8; }
 html.dark .stat-card { background: #1e293b; border-color: #334155; }
 html.dark .feature-card { background: #1e293b; }
 html.dark .cta-section { background: linear-gradient(135deg,#1e3a5f,#312e81); }
