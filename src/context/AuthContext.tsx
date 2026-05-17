@@ -16,6 +16,8 @@ type AuthState = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (data: { nombre: string; email: string; password: string; telefono?: string }) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Actualiza el usuario en memoria y en AsyncStorage (sin llamar al server). */
+  updateUser: (cambios: Partial<Usuario>) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState>({} as AuthState);
@@ -82,8 +84,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await persist(null, null);
   };
 
+  /**
+   * Mezcla `cambios` con el usuario actual y guarda en AsyncStorage.
+   * Útil después de actualizar nombre o avatar contra el backend.
+   */
+  const updateUser = async (cambios: Partial<Usuario>) => {
+    if (!user) return;
+    const nuevo: Usuario = { ...user, ...cambios };
+    setUser(nuevo);
+    if (token) await persist(nuevo, token);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, token, loading, signIn, signUp, signOut, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

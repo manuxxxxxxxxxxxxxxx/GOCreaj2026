@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, FlatList, Image, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAuth } from '../../context/AuthContext';
 import { BANNERS, CATS, DEALS, NEARBY, TRENDING } from './HomeData';
 import { s } from './styles';
 
@@ -11,6 +12,7 @@ const BANNER_W = SCREEN_W - 32;
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
   const [activeBanner, setActiveBanner] = useState(0);
   const [activeCat, setActiveCat] = useState(0);
   const [favs, setFavs] = useState<number[]>([]);
@@ -47,7 +49,9 @@ export default function HomeScreen() {
               <Text style={s.locationText}>San Salvador, SV</Text>
               <Text style={s.locationChevron}>▾</Text>
             </TouchableOpacity>
-            <Text style={s.greeting}>¡Buenas! 👋</Text>
+            <Text style={s.greeting}>
+              ¡Buenas, {user?.nombre || 'invitado'}! 👋
+            </Text>
           </View>
           <View style={s.headerActions}>
             <TouchableOpacity style={s.iconWrap}>

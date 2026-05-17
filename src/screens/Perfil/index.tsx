@@ -1,17 +1,24 @@
 // src/screens/Perfil/index.tsx
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Pressable, ScrollView, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuth } from '../../context/AuthContext';
 import { ORDERS, SETTINGS_OPTIONS } from './ProfileData';
 import { s } from './styles';
 
+const AVATAR_PLACEHOLDER =
+  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80';
+
 export function ProfileScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { user, signOut } = useAuth();
   const [notifs, setNotifs] = useState(true);
   const [tab, setTab] = useState<'pedidos' | 'favoritos' | 'configuracion'>('pedidos');
+
+  const irAEditar = () => router.push('/editar-perfil');
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
@@ -19,14 +26,33 @@ export function ProfileScreen() {
 
         <View style={s.profileHeader}>
           <View style={s.avatarContainer}>
-            <Image
-              source={{ uri: user?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80' }}
-              style={s.avatar}
-            />
-            <TouchableOpacity style={s.editAvatarBtn}><Text>✏️</Text></TouchableOpacity>
+            <TouchableOpacity onPress={irAEditar} activeOpacity={0.85}>
+              <Image
+                source={{ uri: user?.avatar || AVATAR_PLACEHOLDER }}
+                style={s.avatar}
+              />
+            </TouchableOpacity>
+            <TouchableOpacity style={s.editAvatarBtn} onPress={irAEditar} hitSlop={6}>
+              <Text>✏️</Text>
+            </TouchableOpacity>
           </View>
           <Text style={s.name}>{user?.nombre || 'Usuario'}</Text>
           <Text style={s.handle}>{user?.email} • San Salvador, SV</Text>
+
+          {/* Botón "Editar perfil" — paleta verde, con feedback al press */}
+          <Pressable
+            onPress={irAEditar}
+            style={({ pressed }) => [
+              s.editProfileBtn,
+              pressed && s.editProfileBtnPressed,
+            ]}
+          >
+            {({ pressed }) => (
+              <Text style={[s.editProfileBtnTxt, pressed && s.editProfileBtnTxtPressed]}>
+                👤  Editar perfil
+              </Text>
+            )}
+          </Pressable>
 
           <View style={s.statsRow}>
             <View style={s.stat}><Text style={s.statNum}>47</Text><Text style={s.statLabel}>Pedidos</Text></View>

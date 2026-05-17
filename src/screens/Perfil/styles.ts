@@ -1,15 +1,46 @@
-// src/screens/Profile/ProfileStyles.ts
+// src/screens/Perfil/styles.ts
 import { StyleSheet } from 'react-native';
 
 export const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f7f8fa' },
   profileHeader: { backgroundColor: '#fff', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 24, marginBottom: 12 },
   avatarContainer: { position: 'relative', marginBottom: 12 },
-  avatar: { width: 90, height: 90, borderRadius: 999, borderWidth: 3, borderColor: '#059669' },
+  avatar: { width: 90, height: 90, borderRadius: 999, borderWidth: 3, borderColor: '#059669', backgroundColor: '#e5e7eb' },
   editAvatarBtn: { position: 'absolute', bottom: 0, right: 0, backgroundColor: '#fff', borderRadius: 999, padding: 4, borderWidth: 1, borderColor: '#e5e7eb' },
   name: { fontSize: 22, fontWeight: '900', color: '#111' },
-  handle: { fontSize: 13, color: '#9ca3af', marginTop: 2, marginBottom: 16 },
-  statsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
+  handle: { fontSize: 13, color: '#9ca3af', marginTop: 2, marginBottom: 12 },
+
+  // ─────────── Botón "Editar perfil" ───────────
+  // Paleta verde con borde, sombra suave y feedback al press
+  editProfileBtn: {
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1.5,
+    borderColor: '#a7f3d0',
+    paddingVertical: 9,
+    paddingHorizontal: 22,
+    borderRadius: 999,
+    marginBottom: 16,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  editProfileBtnPressed: {
+    backgroundColor: '#059669',
+    borderColor: '#047857',
+    transform: [{ scale: 0.96 }],
+    shadowOpacity: 0.3,
+  },
+  editProfileBtnTxt: {
+    color: '#059669',
+    fontWeight: '900',
+    fontSize: 13,
+    letterSpacing: 0.3,
+  },
+  editProfileBtnTxtPressed: { color: '#fff' },
+
+  statsRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   stat: { flex: 1, alignItems: 'center' },
   statNum: { fontSize: 18, fontWeight: '900', color: '#111' },
   statLabel: { fontSize: 11, color: '#9ca3af', marginTop: 2 },
