@@ -1,5 +1,5 @@
 import { DollarSign, Users as UsersIcon, Package, AlertCircle } from 'lucide-react';
-import { useGlobal } from '../context/GlobalContext';
+
 import './Dashboard.css';
 
 const STATS = [
@@ -10,7 +10,7 @@ const STATS = [
 ];
 
 export default function Dashboard() {
-  const { toggleTheme, cartCount } = useGlobal();
+
   return (
     <div className="dashboard">
       <div className="page-header">

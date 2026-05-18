@@ -1,5 +1,5 @@
 export default function Placeholder() {
-  const { toggleTheme, cartCount } = useGlobal();
+
   return (
     <div style={{ padding: '100px', textAlign: 'center', fontFamily: 'sans-serif' }}>
       <h1>Página en Construcción</h1>

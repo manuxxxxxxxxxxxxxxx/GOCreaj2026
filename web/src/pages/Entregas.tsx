@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
 import '../../css/entregas.css';
@@ -12,12 +12,21 @@ export default function Entregas() {
     <>
       <nav>
         <a onClick={() => navigate('/')} style={{cursor:'pointer'}} className="nav-logo">
-          <div className="logo-icon">
-            <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
+          <div className="logo-icon" style={{color: '#fff'}}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/>
+              <path d="M9 22V12h6v10M2 9l10-7 10 7"/>
+            </svg>
           </div>
           LocalMarket
         </a>
+        <ul className="nav-links">
+          <li><a onClick={() => navigate('/market')} style={{cursor:'pointer'}}>Marketplace</a></li>
+          <li><a onClick={() => navigate('/reels')} style={{cursor:'pointer'}}>Reels</a></li>
+          <li><a onClick={() => navigate('/chat')} style={{cursor:'pointer'}}>Mensajes</a></li>
+        </ul>
         <div className="nav-right">
+          <button className="lm-theme-toggle" onClick={toggleTheme} title="Cambiar tema"></button>
           <button className="cart-btn" onClick={() => navigate('/carritoypago')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
             <span className="cart-badge">{cartCount}</span>

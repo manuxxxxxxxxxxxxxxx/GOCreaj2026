@@ -1,18 +1,18 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --blue: #4f6ef7;
-    --blue-light: #6c8af7;
-    --purple: #8b3cf7;
+    --blue: #4A6D8C;
+    --blue-light: #eef4f8;
+    --purple: #4A6D8C;
     --pink: #e040a0;
-    --green: #22c55e;
+    --green: #2ecc71;
     --cyan: #38bdf8;
-    --text: #1a1a2e;
-    --text-muted: #64748b;
-    --bg: #f1f5f9;
+    --text: #111111;
+    --text-muted: #5e697a;
+    --bg: #F5F5F5;
     --white: #ffffff;
-    --card-shadow: 0 2px 16px rgba(0,0,0,0.07);
-    --radius: 16px;
+    --card-shadow: 0 4px 20px rgba(0,0,0,0.015);
+    --radius: 20px;
   }
 
   body {

@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, ShoppingCart, Store, Settings, LogOut } from 'lucide-react';
 import '../admin.css';
 import './AdminLayout.css';
@@ -12,12 +12,22 @@ const SIDEBAR_ITEMS = [
 ];
 
 export default function AdminLayout() {
+  const navigate = useNavigate();
+
   return (
     <div className="layout-container">
       {/* Sidebar */}
-      <aside className="sidebar">
-        <div className="sidebar-logo">
-          <h2>LocalMarket <span>Admin</span></h2>
+      <aside className="sidebar" style={{ background: '#355068' }}>
+        <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '24px 28px' }}>
+          <div style={{ background: '#FFFFFF', color: '#4A6D8C', width: '34px', height: '34px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '0.9rem', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
+            SV
+          </div>
+          <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#FFFFFF', letterSpacing: '-0.5px' }}>
+            GO 
+            <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', background: 'rgba(255,255,255,0.15)', padding: '2px 8px', borderRadius: '30px', marginLeft: '6px' }}>
+              Admin
+            </span>
+          </span>
         </div>
         
         <nav className="sidebar-nav">
@@ -34,7 +44,7 @@ export default function AdminLayout() {
         </nav>
 
         <div className="sidebar-footer">
-          <button className="nav-item logout-btn">
+          <button className="nav-item logout-btn" onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer', textAlign: 'left' }}>
             <LogOut size={20} />
             <span>Cerrar Sesión</span>
           </button>
@@ -47,8 +57,8 @@ export default function AdminLayout() {
           <div className="topbar-search">
             {/* Search or breadcrumbs could go here */}
           </div>
-          <div className="topbar-profile">
-            <div className="avatar">A</div>
+          <div className="topbar-profile" onClick={() => navigate('/perfil')} style={{ cursor: 'pointer' }}>
+            <div className="avatar" style={{ background: '#4A6D8C', color: '#fff', fontWeight: '800' }}>A</div>
             <div className="profile-info">
               <p className="name">Admin User</p>
               <p className="role">Master Admin</p>

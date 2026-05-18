@@ -1,6 +1,6 @@
-import React from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
+import Header from '../components/Header';
 import '../../css/perfil.css';
 import '../../css/dark.css';
 
@@ -10,29 +10,10 @@ export default function Perfil() {
 
   return (
     <>
-      <nav>
-  <a onClick={() => navigate('/')} style={{cursor:'pointer'}} className="nav-logo">
-    <div className="logo-icon">
-      <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
-    </div>
-    LocalMarket
-  </a>
-  <ul className="nav-links" id="main-nav-links"></ul>
-  <div className="nav-right">
-    <button className="lm-theme-toggle" onClick={toggleTheme} title="Cambiar tema"></button>
-    <button className="cart-btn" onClick={() => navigate('/carritoypago')}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-      <span className="cart-badge">{cartCount}</span>
-    </button>
-  </div>
-</nav>
-
-<input type="file" id="avatar-input" accept="image/*" style={{ display: 'none' }} />
-
-<div className="perfil-page">
-
-  {/* Hero */}
-  <div className="perfil-hero">
+      <Header activeTab="none" />
+      <div className="perfil-page">
+        <input type="file" id="avatar-input" accept="image/*" style={{ display: 'none' }} />
+        <div className="perfil-hero">
     <div className="perfil-avatar-wrap">
       <div className="perfil-avatar" id="perfil-avatar">👤</div>
       <button className="avatar-change-btn" id="avatar-change-btn" title="Cambiar foto">

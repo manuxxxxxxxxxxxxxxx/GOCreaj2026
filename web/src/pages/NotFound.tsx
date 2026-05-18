@@ -1,11 +1,10 @@
-import React from 'react';
-import { useGlobal } from "../context/GlobalContext";
+
 import { useNavigate } from 'react-router-dom';
 import '../../css/index.css';
 import '../../css/dark.css';
 
 export default function NotFound() {
-  const { toggleTheme } = useGlobal();
+
   const navigate = useNavigate();
 
   return (

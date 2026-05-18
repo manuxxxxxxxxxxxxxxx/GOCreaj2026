@@ -4,7 +4,6 @@ import AdminLayout from './components/AdminLayout';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 
-import Home from './pages/Home';
 import Login from './pages/Login';
 import Market from './pages/Market';
 import CarritoYpago from './pages/CarritoYpago';
@@ -22,9 +21,9 @@ function App() {
     <GlobalProvider>
       <BrowserRouter>
         <Routes>
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<Market />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/market" element={<Market />} />
+        <Route path="/market" element={<Navigate to="/" replace />} />
         <Route path="/carritoypago" element={<CarritoYpago />} />
         <Route path="/perfil" element={<Perfil />} />
         <Route path="/historial" element={<Historial />} />

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Search, Shield } from 'lucide-react';
-import { useGlobal } from '../context/GlobalContext';
+
 import './Users.css';
 
 // Mock data, to be replaced by API calls
@@ -14,7 +14,7 @@ const INITIAL_USERS = [
 
 
 export default function Users() {
-  const { toggleTheme, cartCount } = useGlobal();
+
   const [users, setUsers] = useState(INITIAL_USERS);
   const [search, setSearch] = useState('');
   
