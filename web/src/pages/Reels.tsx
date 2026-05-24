@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
@@ -28,6 +28,15 @@ export default function Reels() {
 
   const [reels, setReels] = useState<Reel[]>(MOCK_REELS);
 
+  useEffect(() => {
+    document.body.style.setProperty('overflow', 'hidden', 'important');
+    document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+    return () => {
+      document.body.style.removeProperty('overflow');
+      document.documentElement.style.removeProperty('overflow');
+    };
+  }, []);
+
   const handleLike = (id: number) => {
     setReels(prev => prev.map(r => {
       if (r.id === id) {
@@ -46,7 +55,7 @@ export default function Reels() {
   };
 
   return (
-    <div className="reels-main-wrapper" style={{ background: '#000', minHeight: '100vh' }}>
+    <div className="reels-main-wrapper" style={{ background: '#000', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <Header activeTab="reels" />
 
       {/* ══ REELS LAYOUT ══ */}

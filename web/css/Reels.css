@@ -25,6 +25,7 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
 }
+.reels-main-wrapper .svgo-header { position:relative !important; flex-shrink:0; }
 
 /* ── NAV (igual que market.html) ── */
 nav {
@@ -90,7 +91,8 @@ nav {
   grid-template-columns: 220px 1fr 360px;
   gap: 24px;
   padding: 24px 48px 48px;
-  min-height: calc(100vh - 60px);
+  flex: 1;
+  min-height: 0;
   align-items: start;
   color: white;
 }

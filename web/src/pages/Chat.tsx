@@ -57,11 +57,13 @@ export default function Chat() {
   const [conversations, setConversations] = useState<Record<number, Message[]>>(INITIAL_CONVERSATIONS);
   const [msgInput, setMsgInput] = useState('');
 
+  const messagesAreaRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Auto scroll to bottom
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesAreaRef.current) {
+      messagesAreaRef.current.scrollTop = messagesAreaRef.current.scrollHeight;
+    }
   };
 
   useEffect(() => {
@@ -198,7 +200,7 @@ export default function Chat() {
                 </div>
               </header>
 
-              <div className="messages-area">
+              <div className="messages-area" ref={messagesAreaRef}>
                 <div className="date-sep">Hoy</div>
                 {activeMessages.map(m => (
                   <div key={m.id} className={`msg-row ${m.sender}`}>
