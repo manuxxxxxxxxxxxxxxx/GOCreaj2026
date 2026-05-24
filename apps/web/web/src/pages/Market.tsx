@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import { api } from '../api';
 import '../../css/market.css';
 import '../../css/dark.css';
 
@@ -27,56 +28,6 @@ interface Product {
   specs: Record<string, string>;
   lastUnits?: boolean;
 }
-
-const PRODUCTS: Product[] = [
-  {
-    id: 1, name: "Pan Artesanal Integral", seller: "Panadería Don José", cat: "panaderia",
-    rating: 4.8, reviews: 124, sold: 456, price: 4.05, oldPrice: 4.50, discount: "-10%",
-    stock: 15, dist: "0.5 km", prep: "15-20 min",
-    img: "https://images.unsplash.com/photo-1608198093002-ad4e005484ec?w=640",
-    thumbs: ["https://images.unsplash.com/photo-1608198093002-ad4e005484ec?w=200", "https://images.unsplash.com/photo-1589367920969-ab8e050bbb04?w=200"],
-    desc: "Pan integral elaborado con masa madre natural y fermentación lenta de 24 horas. Crujiente por fuera y esponjoso por dentro.",
-    ingredients: ["Harina integral","Masa madre","Agua","Sal marina","Semillas de chía"],
-    allergens: ["Gluten"], specs: { "Peso": "500g", "Fermentación": "24h", "Tipo": "Artesanal" }, lastUnits: false,
-  },
-  {
-    id: 2, name: "Verduras Orgánicas Mix", seller: "Huerto Verde", cat: "alimentos",
-    rating: 4.9, reviews: 89, sold: 312, price: 12.00, oldPrice: null, discount: null, lastUnits: false,
-    stock: 23, dist: "1.2 km", prep: "5-10 min",
-    img: "https://images.unsplash.com/photo-1540420773420-3366772f4999?w=640",
-    thumbs: ["https://images.unsplash.com/photo-1540420773420-3366772f4999?w=200"],
-    desc: "Canasta de verduras de temporada cultivadas de forma 100% orgánica sin pesticidas.",
-    ingredients: ["Lechuga","Zanahoria","Tomate","Brócoli","Pimientos"],
-    allergens: [], specs: { "Peso": "2 kg", "Origen": "Local", "Cultivo": "Orgánico" }
-  },
-  {
-    id: 3, name: "Café Premium 250g", seller: "Café del Barrio", cat: "bebidas",
-    rating: 4.7, reviews: 156, sold: 621, price: 8.75, oldPrice: null, discount: null, lastUnits: false,
-    stock: 42, dist: "0.8 km", prep: "3-5 min",
-    img: "https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=640",
-    thumbs: ["https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=200"],
-    desc: "Granos de café seleccionados de altura con tostado medio artesanal.",
-    ingredients: ["Café 100% Arábica"], allergens: [], specs: { "Peso": "250g", "Tueste": "Medio", "Origen": "Montaña" }
-  },
-  {
-    id: 4, name: "Artesanías Decorativas", seller: "Manos Creativas", cat: "artesanias",
-    rating: 5, reviews: 67, sold: 189, price: 21.25, oldPrice: 25.00, discount: "-15%", lastUnits: true,
-    stock: 8, dist: "2.0 km", prep: "N/A",
-    img: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=640",
-    thumbs: ["https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=200"],
-    desc: "Piezas únicas de barro cocido pintadas a mano por artistas locales.",
-    ingredients: ["Barro","Pintura acrílica"], allergens: [], specs: { "Material": "Cerámica", "Técnica": "Pintado a mano" }
-  },
-  {
-    id: 5, name: "Croissant de Mantequilla", seller: "Panadería Don José", cat: "panaderia",
-    rating: 4.9, reviews: 201, sold: 834, price: 2.50, oldPrice: null, discount: null, lastUnits: false,
-    stock: 30, dist: "0.5 km", prep: "10 min",
-    img: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=640",
-    thumbs: ["https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=200"],
-    desc: "Croissant hojaldrado con mantequilla de alta calidad.",
-    ingredients: ["Harina","Mantequilla","Azúcar","Sal"], allergens: ["Gluten","Lácteos"], specs: { "Peso": "120g" }
-  }
-];
 
 const CAROUSEL_SLIDES = [
   {
@@ -109,27 +60,126 @@ const CAROUSEL_SLIDES = [
 ];
 
 export default function Market() {
-  const { toggleTheme, cartCount, addToCart } = useGlobal();
+  const { addToCart, user } = useGlobal();
   const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSort, setActiveSort] = useState('default');
+  const [filtroMunicipio, setFiltroMunicipio] = useState('');
+  const [municipios, setMunicipios] = useState<string[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [qty, setQty] = useState(1);
   const [toast, setToast] = useState('');
-  
+  const [products, setProducts] = useState<Product[]>([]);
+  const [likedIds, setLikedIds] = useState<Set<number>>(new Set());
+  const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
+
   // Slider state
   const [activeSlide, setActiveSlide] = useState(0);
 
   // Active thumb state for gallery
   const [activeThumbIndex, setActiveThumbIndex] = useState(0);
 
+  const mapProduct = (p: any): Product => ({
+    id: p.id,
+    name: p.nombre,
+    seller: p.tienda_nombre || 'Tienda',
+    cat: p.categoria || 'general',
+    rating: 5,
+    reviews: 1,
+    sold: 10,
+    price: parseFloat(p.precio_unitario) || 0,
+    oldPrice: null,
+    discount: null,
+    stock: p.stock || 10,
+    dist: '1.0 km',
+    prep: '10 min',
+    img: p.imagen_url || 'https://via.placeholder.com/640',
+    thumbs: [p.imagen_url || 'https://via.placeholder.com/640'],
+    desc: p.descripcion || '',
+    ingredients: [],
+    allergens: [],
+    specs: {}
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filtroMunicipio) params.set('municipio', filtroMunicipio);
+    if (activeCategory !== 'all') params.set('categoria', activeCategory);
+    api.get(`/productos.php?action=listar&${params.toString()}`).then(res => {
+      if (res.data.ok) setProducts(res.data.productos.map(mapProduct));
+    }).catch(console.error);
+  }, [filtroMunicipio, activeCategory]);
+
+  useEffect(() => {
+    api.get('/productos.php?action=municipios').then(res => {
+      if (res.data.ok) setMunicipios(res.data.municipios || []);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    api.get('/interacciones.php?action=mis_likes').then(res => {
+      if (res.data.ok) {
+        setLikedIds(new Set((res.data.productos || []).map((p: any) => p.id as number)));
+      }
+    }).catch(() => {});
+    api.get('/interacciones.php?action=mis_guardados').then(res => {
+      if (res.data.ok) {
+        setSavedIds(new Set((res.data.productos || []).map((p: any) => p.id as number)));
+      }
+    }).catch(() => {});
+  }, [user]);
+
+  const toggleLike = async (e: React.MouseEvent, productoId: number) => {
+    e.stopPropagation();
+    if (!user) { navigate('/login'); return; }
+    try {
+      await api.post('/interacciones.php?action=toggle_like', { producto_id: productoId });
+      setLikedIds(prev => {
+        const next = new Set(prev);
+        next.has(productoId) ? next.delete(productoId) : next.add(productoId);
+        return next;
+      });
+    } catch {}
+  };
+
+  const toggleSave = async (e: React.MouseEvent, productoId: number) => {
+    e.stopPropagation();
+    if (!user) { navigate('/login'); return; }
+    try {
+      await api.post('/interacciones.php?action=toggle_guardar', { producto_id: productoId });
+      setSavedIds(prev => {
+        const next = new Set(prev);
+        next.has(productoId) ? next.delete(productoId) : next.add(productoId);
+        return next;
+      });
+      showToast(savedIds.has(productoId) ? 'Eliminado de guardados' : 'Guardado correctamente');
+    } catch {}
+  };
+
+  const compartir = async (e: React.MouseEvent, producto: Product) => {
+    e.stopPropagation();
+    if (user) {
+      api.post('/interacciones.php?action=compartir', { producto_id: producto.id, canal: 'web' }).catch(() => {});
+    }
+    const shareData = { title: producto.name, text: `Mira este producto: ${producto.name}`, url: window.location.href };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        showToast('Enlace copiado al portapapeles');
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     // Si viene desde los Reels u otra parte, abre directamente el producto
     try {
       const pid = sessionStorage.getItem('localmarket_open_product');
-      if (pid) {
-        const product = PRODUCTS.find(p => p.id === parseInt(pid, 10));
+      if (pid && products.length > 0) {
+        const product = products.find(p => p.id === parseInt(pid, 10));
         if (product) {
           setSelectedProduct(product);
           setActiveThumbIndex(0);
@@ -141,7 +191,7 @@ export default function Market() {
     } catch (e) {
       console.error('Error reading sessionStorage', e);
     }
-  }, []);
+  }, [products]);
 
   // Automatic transition for slides
   useEffect(() => {
@@ -162,8 +212,7 @@ export default function Market() {
     { id: 'servicios', label: 'Servicios' }
   ];
 
-  let filtered = [...PRODUCTS];
-  if (activeCategory !== 'all') filtered = filtered.filter(p => p.cat === activeCategory);
+  let filtered = [...products];
   if (searchQuery) filtered = filtered.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.seller.toLowerCase().includes(searchQuery.toLowerCase()));
   
   if (activeSort === 'price_asc') filtered.sort((a, b) => a.price - b.price);
@@ -299,15 +348,26 @@ export default function Market() {
           
           <div className="mp-section-title-row">
             <h2>Ofertas y Productos Destacados</h2>
-            <div className="sort-select-wrapper">
-              <span className="sort-label">Ordenar por:</span>
-              <select className="sort-select" value={activeSort} onChange={e => setActiveSort(e.target.value)}>
-                <option value="default">Relevancia</option>
-                <option value="price_asc">Precio: de menor a mayor</option>
-                <option value="price_desc">Precio: de mayor a menor</option>
-                <option value="rating_desc">Mejor calificados</option>
-                <option value="reviews_desc">Más reseñados</option>
-              </select>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {municipios.length > 0 && (
+                <div className="sort-select-wrapper">
+                  <span className="sort-label">Municipio:</span>
+                  <select className="sort-select" value={filtroMunicipio} onChange={e => setFiltroMunicipio(e.target.value)}>
+                    <option value="">Todos</option>
+                    {municipios.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="sort-select-wrapper">
+                <span className="sort-label">Ordenar por:</span>
+                <select className="sort-select" value={activeSort} onChange={e => setActiveSort(e.target.value)}>
+                  <option value="default">Relevancia</option>
+                  <option value="price_asc">Precio: de menor a mayor</option>
+                  <option value="price_desc">Precio: de mayor a menor</option>
+                  <option value="rating_desc">Mejor calificados</option>
+                  <option value="reviews_desc">Más reseñados</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -331,17 +391,48 @@ export default function Market() {
           <div className="products-grid">
             {filtered.map(p => (
               <div key={p.id} className="product-card" onClick={() => { setSelectedProduct(p); setActiveThumbIndex(0); setQty(1); window.scrollTo(0,0); }}>
-                <div className="pc-img">
+                <div className="pc-img" style={{ position: 'relative' }}>
                   <img src={p.img} alt={p.name} loading="lazy" />
                   {p.discount && <span className="disc-badge">{p.discount} OFF</span>}
                   {p.lastUnits && <span className="last-badge">¡Últimas unidades!</span>}
+                  {/* Like + Save + Share overlay */}
+                  <div style={{ position: 'absolute', top: '8px', right: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <button
+                      onClick={e => toggleLike(e, p.id)}
+                      title={likedIds.has(p.id) ? 'Quitar like' : 'Dar like'}
+                      style={{ background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill={likedIds.has(p.id) ? '#ef4444' : 'none'} stroke={likedIds.has(p.id) ? '#ef4444' : '#6B7280'} strokeWidth="2">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                      </svg>
+                    </button>
+                    <button
+                      onClick={e => toggleSave(e, p.id)}
+                      title={savedIds.has(p.id) ? 'Quitar de guardados' : 'Guardar'}
+                      style={{ background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill={savedIds.has(p.id) ? '#4A6D8C' : 'none'} stroke={savedIds.has(p.id) ? '#4A6D8C' : '#6B7280'} strokeWidth="2">
+                        <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+                      </svg>
+                    </button>
+                    <button
+                      onClick={e => compartir(e, p)}
+                      title="Compartir"
+                      style={{ background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#6B7280" strokeWidth="2">
+                        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-                
+
                 <div className="pc-body">
                   <span className="pc-shipping-tag">Envío Rápido 🛵</span>
                   <div className="pc-name">{p.name}</div>
                   <div className="pc-seller">por {p.seller}</div>
-                  
+
                   <div className="pc-meta">
                     <span className="star">★</span>
                     <span className="rating-val">{p.rating}</span>

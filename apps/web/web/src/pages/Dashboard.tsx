@@ -1,25 +1,38 @@
-import { DollarSign, Users as UsersIcon, Package, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users as UsersIcon, Package, AlertCircle } from 'lucide-react';
+import { api } from '../api';
 
 import './Dashboard.css';
 
-const STATS = [
-  { label: 'Ingresos Totales', value: '$12,450.00', icon: <DollarSign size={24} />, color: 'var(--success)' },
-  { label: 'Usuarios Activos', value: '1,245', icon: <UsersIcon size={24} />, color: 'var(--primary)' },
-  { label: 'Pedidos Hoy', value: '45', icon: <Package size={24} />, color: '#8b5cf6' },
-  { label: 'Pendientes Verificación', value: '12', icon: <AlertCircle size={24} />, color: 'var(--danger)' },
-];
-
 export default function Dashboard() {
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    api.get('/admin_dashboard.php?action=stats')
+      .then(res => {
+        if (res.data.ok) setStats(res.data.stats);
+      })
+      .catch(err => console.error(err));
+  }, []);
+
+  const statCards = stats ? [
+    { label: 'Usuarios Totales', value: stats.usuarios, icon: <UsersIcon size={24} />, color: 'var(--primary)' },
+    { label: 'Vendedores', value: stats.vendedores, icon: <UsersIcon size={24} />, color: 'var(--success)' },
+    { label: 'Pedidos Totales', value: stats.pedidos, icon: <Package size={24} />, color: '#8b5cf6' },
+    { label: 'Solicitudes Pendientes', value: stats.solicitudes_pendientes, icon: <AlertCircle size={24} />, color: 'var(--danger)' },
+  ] : [
+    { label: 'Cargando...', value: '-', icon: <UsersIcon size={24} />, color: 'var(--primary)' },
+  ];
 
   return (
     <div className="dashboard">
       <div className="page-header">
         <h1>Resumen de la Plataforma</h1>
-        <p>Bienvenido de vuelta, aquí está el estado actual de LocalMarket.</p>
+        <p>Bienvenido de vuelta, aquí está el estado actual del sistema integrado.</p>
       </div>
 
       <div className="stats-grid">
-        {STATS.map((stat, i) => (
+        {statCards.map((stat, i) => (
           <div className="card stat-card" key={i}>
             <div className="stat-icon" style={{ backgroundColor: `${stat.color}15`, color: stat.color }}>
               {stat.icon}
@@ -34,26 +47,30 @@ export default function Dashboard() {
 
       <div className="dashboard-content">
         <div className="card recent-activity">
-          <h2>Actividad Reciente</h2>
-          <div className="activity-list">
-            {[1, 2, 3, 4].map(i => (
-              <div className="activity-item" key={i}>
-                <div className="activity-dot"></div>
-                <div className="activity-text">
-                  <p className="desc">Nuevo pedido <strong>#LM-842{i}</strong> fue creado.</p>
-                  <p className="time">Hace {i * 15} minutos</p>
+          <h2>Métricas Adicionales</h2>
+          <div className="activity-list" style={{ marginTop: '1rem' }}>
+            {stats ? (
+              <>
+                <div className="activity-item">
+                  <div className="activity-dot" style={{ background: 'var(--blue)' }}></div>
+                  <div className="activity-text">
+                    <p className="desc"><strong>{stats.compradores}</strong> compradores registrados.</p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card quick-actions">
-          <h2>Acciones Rápidas</h2>
-          <div className="actions-grid">
-            <button className="btn btn-outline">Aprobar Repartidores</button>
-            <button className="btn btn-outline">Revisar Productos</button>
-            <button className="btn btn-outline">Generar Reporte</button>
+                <div className="activity-item">
+                  <div className="activity-dot" style={{ background: 'var(--success)' }}></div>
+                  <div className="activity-text">
+                    <p className="desc"><strong>{stats.repartidores}</strong> repartidores en el sistema.</p>
+                  </div>
+                </div>
+                <div className="activity-item">
+                  <div className="activity-dot" style={{ background: 'var(--danger)' }}></div>
+                  <div className="activity-text">
+                    <p className="desc"><strong>{stats.soporte_abiertos}</strong> tickets de soporte abiertos.</p>
+                  </div>
+                </div>
+              </>
+            ) : <p>Cargando métricas...</p>}
           </div>
         </div>
       </div>

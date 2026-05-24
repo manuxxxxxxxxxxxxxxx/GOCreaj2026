@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, Plus, Edit2, Trash2, Eye, EyeOff, X } from 'lucide-react';
+import { api } from '../api';
 import './Dashboard.css';
 
 interface AdminProduct {
@@ -21,17 +22,8 @@ const STATUS_LABELS: Record<string, { label: string; color: string; bg: string }
   flagged:  { label: 'Reportado',  color: '#ef4444', bg: '#fee2e2' },
 };
 
-const INITIAL_PRODUCTS: AdminProduct[] = [
-  { id: 'P001', emoji: '🥖', name: 'Pan Artesanal Integral',  seller: 'Panadería Don José',   category: 'panadería', price: 4.05,  stock: 15, status: 'active'   },
-  { id: 'P002', emoji: '☕', name: 'Café Premium 250g',       seller: 'Panadería Don José',   category: 'bebidas',   price: 8.75,  stock: 42, status: 'active'   },
-  { id: 'P003', emoji: '🥦', name: 'Mix Verduras Orgánicas',  seller: 'Verduras Orgánicas',   category: 'verduras',  price: 12.00, stock: 23, status: 'active'   },
-  { id: 'P004', emoji: '🍌', name: 'Plátanos de Calidad',     seller: 'FrutaFresh Market',    category: 'frutas',    price: 3.20,  stock: 80, status: 'active'   },
-  { id: 'P005', emoji: '🥩', name: 'Carne Molida Premium',    seller: 'Carnes Premium',       category: 'carnes',    price: 14.00, stock: 18, status: 'flagged'  },
-  { id: 'P006', emoji: '🧀', name: 'Queso Manchego 200g',     seller: 'Lácteos Del Valle',    category: 'lácteos',   price: 6.50,  stock: 0,  status: 'inactive' },
-];
-
 export default function AdminProducts() {
-  const [products, setProducts] = useState<AdminProduct[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<AdminProduct[]>([]);
   const [search, setSearch] = useState('');
   const [filterCat, setFilterCat] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -40,6 +32,30 @@ export default function AdminProducts() {
 
   // Form state
   const [form, setForm] = useState({ emoji: '🛍️', name: '', seller: '', category: 'panadería', price: '', stock: '' });
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const fetchProducts = async () => {
+    try {
+      const res = await api.get('/admin_dashboard.php?action=productos');
+      if (res.data.ok) {
+        setProducts(res.data.productos.map((p: any) => ({
+          id: p.id.toString(),
+          emoji: '🛍️',
+          name: p.nombre,
+          seller: p.tienda_nombre || 'Tienda',
+          category: p.categoria || 'otros',
+          price: parseFloat(p.precio_unitario) || 0,
+          stock: p.stock || 0,
+          status: p.activo == '1' ? 'active' : 'inactive'
+        })));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const filtered = products.filter(p => {
     const ms = p.name.toLowerCase().includes(search.toLowerCase()) || p.seller.toLowerCase().includes(search.toLowerCase());

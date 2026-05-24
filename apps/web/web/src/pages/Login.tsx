@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { api } from '../api';
+import { useGlobal } from '../context/GlobalContext';
 
 import '../../css/auth.css';
 import '../../css/dark.css';
@@ -7,8 +9,9 @@ import '../../css/dark.css';
 export default function Login() {
   const [searchParams] = useSearchParams();
   const [isRegister, setIsRegister] = useState(searchParams.get('tab') === 'register');
-  const [role, setRole] = useState(searchParams.get('role') || 'buyer');
   const navigate = useNavigate();
+  const { login } = useGlobal();
+  const [loading, setLoading] = useState(false);
 
   // State for validation errors
   const [errors, setErrors] = useState({
@@ -17,12 +20,11 @@ export default function Login() {
     regName: '',
     regEmail: '',
     regPassword: '',
-    regRole: '',
     regTerms: '',
     general: ''
   });
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     let hasError = false;
     const newErrors = { ...errors, loginEmail: '', loginPassword: '', general: '' };
@@ -30,8 +32,8 @@ export default function Login() {
     const emailInput = (e.target as any).elements['login-email'].value;
     const passwordInput = (e.target as any).elements['login-password'].value;
 
-    if (!emailInput || !emailInput.includes('@')) {
-      newErrors.loginEmail = 'Ingresa un correo válido.';
+    if (!emailInput) {
+      newErrors.loginEmail = 'Ingresa tu correo, usuario o teléfono.';
       hasError = true;
     }
     if (!passwordInput) {
@@ -44,26 +46,42 @@ export default function Login() {
       return;
     }
 
-    // Dynamic redirection: If email contains "admin", log them in as Administrator immediately
-    if (emailInput.toLowerCase().includes('admin')) {
-      navigate('/admin/dashboard');
-      return;
-    }
+    setLoading(true);
+    try {
+      const res = await api.post('/auth.php?action=login', {
+        identificador: emailInput,
+        password: passwordInput
+      });
 
-    // Redirect based on selected role
-    if (role === 'seller') {
-      navigate('/dashboard-vendedor');
-    } else if (role === 'driver') {
-      navigate('/dashboard-repartidor');
-    } else {
-      navigate('/');
+      if (res.data.ok) {
+        localStorage.setItem('lm_token_v1', res.data.token);
+        login({ name: res.data.usuario.nombre, email: res.data.usuario.email, role: res.data.usuario.rol });
+
+        const userRole = res.data.usuario.rol;
+        if (userRole === 'admin' || userRole === 'master_admin') {
+          navigate('/admin/dashboard');
+        } else if (userRole === 'vendedor' || userRole === 'seller') {
+          navigate('/dashboard-vendedor');
+        } else if (userRole === 'repartidor' || userRole === 'driver') {
+          navigate('/dashboard-repartidor');
+        } else {
+          navigate('/');
+        }
+      } else {
+        setErrors({ ...newErrors, general: res.data.error || 'Credenciales incorrectas' });
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || 'No se pudo conectar. Verifica que XAMPP esté activo.';
+      setErrors({ ...newErrors, general: msg });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     let hasError = false;
-    const newErrors = { ...errors, regName: '', regEmail: '', regPassword: '', regRole: '', regTerms: '', general: '' };
+    const newErrors = { ...errors, regName: '', regEmail: '', regPassword: '', regTerms: '', general: '' };
 
     const nameInput = (e.target as any).elements['reg-name'].value;
     const emailInput = (e.target as any).elements['reg-email'].value;
@@ -82,10 +100,6 @@ export default function Login() {
       newErrors.regPassword = 'La contraseña debe tener al menos 6 caracteres.';
       hasError = true;
     }
-    if (!role) {
-      newErrors.regRole = 'Selecciona un tipo de cuenta.';
-      hasError = true;
-    }
     if (!termsInput) {
       newErrors.regTerms = 'Debes aceptar los términos y condiciones.';
       hasError = true;
@@ -96,19 +110,27 @@ export default function Login() {
       return;
     }
 
-    // Dynamic redirection: If email contains "admin", register & escalate to admin immediately
-    if (emailInput.toLowerCase().includes('admin')) {
-      navigate('/admin/dashboard');
-      return;
-    }
+    setLoading(true);
+    try {
+      const res = await api.post('/auth.php?action=register', {
+        nombre: nameInput,
+        email: emailInput,
+        password: passwordInput,
+        rol: 'comprador',
+      });
 
-    // Redirect based on selected role
-    if (role === 'seller') {
-      navigate('/dashboard-vendedor');
-    } else if (role === 'driver') {
-      navigate('/dashboard-repartidor');
-    } else {
-      navigate('/');
+      if (res.data.ok) {
+        localStorage.setItem('lm_token_v1', res.data.token);
+        login({ name: res.data.usuario.nombre, email: res.data.usuario.email, role: res.data.usuario.rol });
+        navigate('/');
+      } else {
+        setErrors({ ...newErrors, general: res.data.error || 'Error al registrar' });
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || 'No se pudo conectar. Verifica que XAMPP esté activo.';
+      setErrors({ ...newErrors, general: msg });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -144,42 +166,22 @@ export default function Login() {
           </button>
         </div>
 
-        {/* Interactive Role Selection Grid - 3 Roles: Comprador, Vendedor, Repartidor */}
-        <div className="field-group" style={{ marginBottom: '24px' }}>
-          <div className="role-selector-label" style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '8px', color: 'var(--text)' }}>
-            Selecciona tu perfil de usuario:
-          </div>
-          <div className="role-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-            <div className={`role-card ${role === 'buyer' ? 'selected' : ''}`} onClick={() => setRole('buyer')} style={{ padding: '10px 4px' }}>
-              <span className="role-card-emoji" style={{ fontSize: '1.4rem' }}>🛒</span>
-              <span className="role-card-label" style={{ fontSize: '0.65rem' }}>Comprador</span>
-            </div>
-            <div className={`role-card ${role === 'seller' ? 'selected' : ''}`} onClick={() => setRole('seller')} style={{ padding: '10px 4px' }}>
-              <span className="role-card-emoji" style={{ fontSize: '1.4rem' }}>🏪</span>
-              <span className="role-card-label" style={{ fontSize: '0.65rem' }}>Vendedor</span>
-            </div>
-            <div className={`role-card ${role === 'driver' ? 'selected' : ''}`} onClick={() => setRole('driver')} style={{ padding: '10px 4px' }}>
-              <span className="role-card-emoji" style={{ fontSize: '1.4rem' }}>🛵</span>
-              <span className="role-card-label" style={{ fontSize: '0.65rem' }}>Repartidor</span>
-            </div>
-          </div>
-        </div>
-
         {/* LOGIN FORM */}
         {!isRegister && (
           <form className="auth-form" id="login-form" onSubmit={handleLogin} noValidate>
             <div className="field-group">
-              <label className="field-label" htmlFor="login-email">Correo electrónico</label>
+              <label className="field-label" htmlFor="login-email">Correo, usuario o teléfono</label>
               <div className="auth-input-wrap">
                 <span className="field-icon">
-                  <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
+                  <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 </span>
                 <input
                   className="auth-input"
                   id="login-email"
                   name="login-email"
-                  type="email"
-                  placeholder="correo@ejemplo.com"
+                  type="text"
+                  placeholder="correo@ejemplo.com / @usuario / teléfono"
+                  autoCapitalize="none"
                 />
               </div>
               {errors.loginEmail && <span className="field-error show">{errors.loginEmail}</span>}
@@ -204,8 +206,14 @@ export default function Login() {
 
             <span className="auth-forgot">¿Olvidaste tu contraseña?</span>
 
-            <button className="auth-btn" type="submit" style={{ background: 'var(--blue)', border: 'none', borderRadius: '12px', height: '48px', color: '#fff', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer', boxShadow: '0 4px 14px rgba(74, 109, 140, 0.3)' }}>
-              Acceder como {role === 'buyer' ? 'Comprador' : role === 'seller' ? 'Vendedor' : 'Repartidor'}
+            {errors.general && (
+              <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '10px', padding: '10px 14px', color: '#DC2626', fontSize: '0.875rem', fontWeight: '600', marginBottom: '4px' }}>
+                {errors.general}
+              </div>
+            )}
+
+            <button className="auth-btn" type="submit" disabled={loading} style={{ background: 'var(--blue)', border: 'none', borderRadius: '12px', height: '48px', color: '#fff', fontWeight: '700', fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', boxShadow: '0 4px 14px rgba(74, 109, 140, 0.3)', opacity: loading ? 0.75 : 1 }}>
+              {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
             </button>
 
             <div className="auth-divider">o continúa con</div>
@@ -284,8 +292,14 @@ export default function Login() {
               {errors.regTerms && <span className="field-error show">{errors.regTerms}</span>}
             </div>
 
-            <button className="auth-btn" type="submit" style={{ background: 'var(--blue)', border: 'none', borderRadius: '12px', height: '48px', color: '#fff', fontWeight: '700', fontSize: '0.95rem', cursor: 'pointer', boxShadow: '0 4px 14px rgba(74, 109, 140, 0.3)' }}>
-              Registrar {role === 'buyer' ? 'Comprador' : role === 'seller' ? 'Vendedor' : 'Repartidor'}
+            {errors.general && (
+              <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '10px', padding: '10px 14px', color: '#DC2626', fontSize: '0.875rem', fontWeight: '600', marginBottom: '4px' }}>
+                {errors.general}
+              </div>
+            )}
+
+            <button className="auth-btn" type="submit" disabled={loading} style={{ background: 'var(--blue)', border: 'none', borderRadius: '12px', height: '48px', color: '#fff', fontWeight: '700', fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', boxShadow: '0 4px 14px rgba(74, 109, 140, 0.3)', opacity: loading ? 0.75 : 1 }}>
+              {loading ? 'Creando cuenta...' : 'Crear cuenta'}
             </button>
 
             <div className="auth-divider">o regístrate con</div>

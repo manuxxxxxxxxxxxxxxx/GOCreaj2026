@@ -27,10 +27,43 @@ import ChatScreen, { ChatListScreen } from '@/screens/ChatScreen';
 import SupportScreen from '@/screens/SupportScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const Tab = createBottomTabNavigator<TabParamList>();
+const Tab   = createBottomTabNavigator<TabParamList>();
+
+// ──────────────────────────────────────────────
+// 5to tab — cambia dinámicamente según el rol
+// ──────────────────────────────────────────────
+function LastTabScreen() {
+  const { usuario } = useAuth();
+  switch (usuario?.rol) {
+    case 'admin':      return <AdminScreen />;
+    case 'vendedor':   return <SellerScreen />;
+    case 'repartidor': return <DriverScreen />;
+    default:           return <ProfileScreen />;
+  }
+}
+
+type TabIconMap = Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]>;
 
 function MainTabs() {
   const { colors } = useTheme();
+  const { usuario } = useAuth();
+
+  const fifthTabMeta: Record<string, { label: string; active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap }> = {
+    admin:      { label: 'Admin',     active: 'shield-checkmark',         inactive: 'shield-checkmark-outline' },
+    vendedor:   { label: 'Mi Tienda', active: 'storefront',               inactive: 'storefront-outline' },
+    repartidor: { label: 'Entregas',  active: 'bicycle',                  inactive: 'bicycle-outline' },
+    comprador:  { label: 'Perfil',    active: 'person-circle',            inactive: 'person-circle-outline' },
+  };
+  const fMeta = fifthTabMeta[usuario?.rol ?? 'comprador'] ?? fifthTabMeta.comprador;
+
+  const icons: TabIconMap = {
+    Home:    ['home',           'home-outline'],
+    Reels:   ['play-circle',    'play-circle-outline'],
+    Cart:    ['cart',           'cart-outline'],
+    Chats:   ['chatbubbles',    'chatbubbles-outline'],
+    Profile: [fMeta.active,     fMeta.inactive],
+  };
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -51,14 +84,7 @@ function MainTabs() {
         },
         tabBarLabelStyle: { fontSize: 10, fontWeight: '700', letterSpacing: 0.1 },
         tabBarIcon: ({ color, size, focused }) => {
-          const icons: Record<keyof TabParamList, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]> = {
-            Home:    ['home',           'home-outline'],
-            Reels:   ['play-circle',    'play-circle-outline'],
-            Cart:    ['cart',           'cart-outline'],
-            Chats:   ['chatbubbles',    'chatbubbles-outline'],
-            Profile: ['person-circle',  'person-circle-outline'],
-          };
-          const [active, inactive] = icons[route.name];
+          const [active, inactive] = icons[route.name] ?? ['help-circle', 'help-circle-outline'];
           return <Ionicons name={focused ? active : inactive} size={size} color={color} />;
         },
       })}
@@ -67,7 +93,11 @@ function MainTabs() {
       <Tab.Screen name="Reels"   component={ReelsScreen}     options={{ title: 'Reels' }} />
       <Tab.Screen name="Cart"    component={CartScreen}      options={{ title: 'Carrito' }} />
       <Tab.Screen name="Chats"   component={ChatListScreen}  options={{ title: 'Chats' }} />
-      <Tab.Screen name="Profile" component={ProfileScreen}   options={{ title: 'Perfil' }} />
+      <Tab.Screen
+        name="Profile"
+        component={LastTabScreen}
+        options={{ title: fMeta.label }}
+      />
     </Tab.Navigator>
   );
 }
@@ -99,22 +129,17 @@ export default function AppNavigator() {
       >
         {!usuario ? (
           <>
-            {/* Bienvenida solo en la primera instalación — logout no la vuelve a mostrar */}
             {firstLaunch && <Stack.Screen name="Benefits" component={BenefitsSlider} />}
             <Stack.Screen name="Auth" component={AuthScreen} />
           </>
         ) : !tieneUsername ? (
           <>
-            {/* Setup de usuario nuevo: Teléfono → @usuario + foto */}
             {!telefonoVerificado && <Stack.Screen name="OnboardingPhone" component={OnboardingPhoneScreen} />}
             <Stack.Screen name="UsernameSetup" component={UsernameSetupScreen} />
           </>
         ) : (
           <>
-            {/* App principal según rol */}
-            {usuario.rol === 'admin'      && <Stack.Screen name="Admin"    component={AdminScreen} />}
-            {usuario.rol === 'vendedor'   && <Stack.Screen name="Seller"   component={SellerScreen} />}
-            {usuario.rol === 'repartidor' && <Stack.Screen name="Driver"   component={DriverScreen} />}
+            {/* MainTabs es la pantalla principal — el 5to tab cambia por rol */}
             <Stack.Screen name="Main"         component={MainTabs} />
             <Stack.Screen name="Product"      component={ProductScreen} />
             <Stack.Screen name="Cart"         component={CartScreen} />

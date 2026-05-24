@@ -31,36 +31,37 @@ switch ($action) {
         break;
 
     case 'actualizar_tienda':
-        require_fields($data, ['tienda_id','lat','lng']);
+        require_fields($data, ['tienda_id']);
         $portada = null;
+        $logo    = null;
         if (!empty($data['portada']) && str_starts_with($data['portada'], 'data:image'))
-            $portada = save_base64_image($data['portada'], 'tiendas', 't_' . $user['id']);
-        $st = db()->prepare("UPDATE tiendas SET
-            nombre         = COALESCE(?,nombre),
-            descripcion    = COALESCE(?,descripcion),
-            municipio      = COALESCE(?,municipio),
-            direccion      = COALESCE(?,direccion),
-            lat            = ?,
-            lng            = ?,
-            portada        = COALESCE(?,portada),
-            hora_apertura  = COALESCE(?,hora_apertura),
-            hora_cierre    = COALESCE(?,hora_cierre),
-            categoria      = COALESCE(?,categoria)
-            WHERE id = ? AND vendedor_id = ?");
-        $st->execute([
-            $data['nombre']        ?? null,
-            $data['descripcion']   ?? null,
-            $data['municipio']     ?? null,
-            $data['direccion']     ?? null,
-            $data['lat'],
-            $data['lng'],
-            $portada,
-            $data['hora_apertura'] ?? null,
-            $data['hora_cierre']   ?? null,
-            $data['categoria']     ?? null,
-            $data['tienda_id'],
-            $user['id']
-        ]);
+            $portada = save_base64_image($data['portada'], 'tiendas', 'portada_' . $user['id']);
+        if (!empty($data['logo']) && str_starts_with($data['logo'], 'data:image'))
+            $logo = save_base64_image($data['logo'], 'tiendas', 'logo_' . $user['id']);
+
+        $sets   = [];
+        $params = [];
+        $map = [
+            'nombre'       => $data['nombre']        ?? null,
+            'descripcion'  => $data['descripcion']   ?? null,
+            'municipio'    => $data['municipio']      ?? null,
+            'direccion'    => $data['direccion']      ?? null,
+            'hora_apertura'=> $data['hora_apertura']  ?? null,
+            'hora_cierre'  => $data['hora_cierre']    ?? null,
+            'categoria'    => $data['categoria']      ?? null,
+        ];
+        foreach ($map as $col => $val) {
+            if ($val !== null) { $sets[] = "$col = ?"; $params[] = $val; }
+        }
+        if (!empty($data['lat'])) { $sets[] = "lat = ?"; $params[] = $data['lat']; }
+        if (!empty($data['lng'])) { $sets[] = "lng = ?"; $params[] = $data['lng']; }
+        if ($portada)            { $sets[] = "portada = ?"; $params[] = $portada; }
+        if ($logo)               { $sets[] = "logo = ?";    $params[] = $logo; }
+        if (empty($sets)) jout(['ok' => false, 'error' => 'Nada que actualizar'], 400);
+        $params[] = $data['tienda_id'];
+        $params[] = $user['id'];
+        $st = db()->prepare("UPDATE tiendas SET " . implode(', ', $sets) . " WHERE id = ? AND vendedor_id = ?");
+        $st->execute($params);
         jout(['ok' => true]);
         break;
 

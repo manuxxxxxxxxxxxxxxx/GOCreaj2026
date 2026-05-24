@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
+import { api } from '../api';
 import '../../css/index.css';
 import '../../css/dashboards.css';
 import '../../css/dark.css';
@@ -12,7 +13,7 @@ interface Order {
   address: string;
   items: string;
   total: number;
-  status: 'pending' | 'active';
+  status: 'pending' | 'active' | 'completed';
   emoji: string;
 }
 
@@ -24,50 +25,64 @@ export default function RepartidorDashboard() {
   const [isAvailable, setIsAvailable] = useState(true);
 
   // Stats State
-  const [earnings, setEarnings] = useState(48.50);
-  const [deliveriesCount, setDeliveriesCount] = useState(8);
+  const [earnings, setEarnings] = useState(0);
+  const [deliveriesCount, setDeliveriesCount] = useState(0);
   const [timeAvg] = useState(24);
 
   // Available and Active Orders lists
-  const [availableOrders, setAvailableOrders] = useState<Order[]>([
-    {
-      id: '100453',
-      client: 'Laura Gómez',
-      store: 'Verdulería Doña María',
-      address: 'Calle Circunvalación #45, Escalón',
-      items: '1x Canasta Familiar de Verduras',
-      total: 12.00,
-      status: 'pending',
-      emoji: '🥦'
-    },
-    {
-      id: '100454',
-      client: 'Roberto Rivas',
-      store: 'Artesanías El Pulgarcito',
-      address: 'Paseo General Escalón #8',
-      items: '2x Jarrones de Barro Pintados',
-      total: 45.00,
-      status: 'pending',
-      emoji: '🏺'
-    }
-  ]);
-
-  const [activeDeliveries, setActiveDeliveries] = useState<Order[]>([
-    {
-      id: '100450',
-      client: 'Alejandro Cabrera',
-      store: 'Panadería Don José',
-      address: 'Av. Masferrer #102, Escalón',
-      items: '2x Pan Integral, 1x Café Premium',
-      total: 16.55,
-      status: 'active',
-      emoji: '🥖'
-    }
-  ]);
+  const [availableOrders, setAvailableOrders] = useState<Order[]>([]);
+  const [activeDeliveries, setActiveDeliveries] = useState<Order[]>([]);
 
   // Toast System
   const [toastMsg, setToastMsg] = useState('');
   const [showToast, setShowToast] = useState(false);
+
+  useEffect(() => {
+    fetchData();
+    // In a real app we would poll or use WebSockets
+    const interval = setInterval(fetchData, 15000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const resDisp = await api.get('/repartidor_dashboard.php?action=disponibles');
+      if (resDisp.data.ok) {
+        setAvailableOrders(resDisp.data.pedidos.map((p: any) => ({
+          id: p.id.toString(),
+          client: p.comprador_nombre || 'Cliente',
+          store: p.vendedor_nombre || 'Tienda',
+          address: p.direccion_entrega || 'Dirección no especificada',
+          items: 'Artículos varios',
+          total: parseFloat(p.total),
+          status: 'pending',
+          emoji: '📦'
+        })));
+      }
+
+      const resMis = await api.get('/repartidor_dashboard.php?action=mis_entregas');
+      if (resMis.data.ok) {
+        const myOrders = resMis.data.pedidos;
+        const active = myOrders.filter((p: any) => p.estado === 'en_camino').map((p: any) => ({
+          id: p.id.toString(),
+          client: p.comprador_nombre || 'Cliente',
+          store: p.vendedor_nombre || 'Tienda',
+          address: p.direccion_entrega || 'Dirección no especificada',
+          items: 'Artículos varios',
+          total: parseFloat(p.total),
+          status: 'active',
+          emoji: '🛵'
+        }));
+        setActiveDeliveries(active);
+
+        const completed = myOrders.filter((p: any) => p.estado === 'entregado');
+        setDeliveriesCount(completed.length);
+        setEarnings(completed.length * 3.50); // Simulated $3.50 per delivery
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const triggerToast = (msg: string) => {
     setToastMsg(msg);
@@ -77,25 +92,32 @@ export default function RepartidorDashboard() {
     }, 3000);
   };
 
-  const handleAcceptOrder = (order: Order) => {
+  const handleAcceptOrder = async (order: Order) => {
     if (!isAvailable) {
       triggerToast('⚠️ Activa tu disponibilidad para aceptar pedidos.');
       return;
     }
-    // Remove from available
-    setAvailableOrders(prev => prev.filter(o => o.id !== order.id));
-    // Add to active
-    setActiveDeliveries(prev => [...prev, { ...order, status: 'active' }]);
-    triggerToast('🛵 ¡Pedido aceptado! Recoge en la tienda.');
+    try {
+      const res = await api.post('/repartidor_dashboard.php?action=aceptar', { pedido_id: order.id });
+      if (res.data.ok) {
+        fetchData();
+        triggerToast('🛵 ¡Pedido aceptado! Recoge en la tienda.');
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const handleCompleteDelivery = (order: Order) => {
-    // Remove from active
-    setActiveDeliveries(prev => prev.filter(o => o.id !== order.id));
-    // Update metrics: Add delivery fee ($3.50 per delivery)
-    setEarnings(prev => prev + 3.50);
-    setDeliveriesCount(prev => prev + 1);
-    triggerToast('✅ ¡Pedido entregado con éxito! +$3.50');
+  const handleCompleteDelivery = async (order: Order) => {
+    try {
+      const res = await api.post('/repartidor_dashboard.php?action=completar', { pedido_id: order.id });
+      if (res.data.ok) {
+        fetchData();
+        triggerToast('✅ ¡Pedido entregado con éxito! +$3.50');
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (

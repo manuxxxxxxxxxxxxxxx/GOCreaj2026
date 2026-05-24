@@ -92,7 +92,13 @@ switch ($action) {
     case 'mis_pedidos':
         $st = db()->prepare("SELECT p.*, v.nombre as vendedor_nombre, r.nombre as repartidor_nombre FROM pedidos p JOIN usuarios v ON v.id = p.vendedor_id LEFT JOIN usuarios r ON r.id = p.repartidor_id WHERE p.comprador_id = ? ORDER BY p.created_at DESC");
         $st->execute([$user['id']]);
-        jout(['ok' => true, 'pedidos' => $st->fetchAll()]);
+        $pedidos = $st->fetchAll();
+        foreach ($pedidos as &$p) {
+            $items = db()->prepare("SELECT i.*, pr.nombre, pr.imagen, pr.categoria FROM pedido_items i JOIN productos pr ON pr.id = i.producto_id WHERE i.pedido_id = ?");
+            $items->execute([$p['id']]);
+            $p['items'] = $items->fetchAll();
+        }
+        jout(['ok' => true, 'pedidos' => $pedidos]);
         break;
 
     default:

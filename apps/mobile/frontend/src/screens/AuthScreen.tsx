@@ -28,10 +28,11 @@ export default function AuthScreen() {
   const [modo, setModo] = useState<Modo>('login');
   const [cargando, setCargando] = useState(false);
   const [identificador, setIdentificador] = useState('');
-  const [password, setPassword] = useState('');
+  const [passwordLogin, setPasswordLogin] = useState('');
   const [nombre, setNombre] = useState('');
   const [email, setEmail] = useState('');
   const [telefono, setTelefono] = useState('');
+  const [passwordRegistro, setPasswordRegistro] = useState('');
 
   const logoFloat = useRef(new Animated.Value(0)).current;
   const formOpacity = useRef(new Animated.Value(0)).current;
@@ -56,10 +57,10 @@ export default function AuthScreen() {
   }, [modo, formOpacity, formSlide]);
 
   const onLogin = async () => {
-    if (!identificador || !password) return Alert.alert(t.auth.datosRequeridos, t.auth.ingresaCredenciales);
+    if (!identificador || !passwordLogin) return Alert.alert(t.auth.datosRequeridos, t.auth.ingresaCredenciales);
     setCargando(true);
     try {
-      const r = await api<AuthResp>(Endpoints.authLogin, { body: { identificador, password } });
+      const r = await api<AuthResp>(Endpoints.authLogin, { body: { identificador, password: passwordLogin } });
       if (r?.ok && r.usuario && r.token) await iniciar(r.usuario, r.token);
       else Alert.alert(t.common.error, r?.error ?? t.auth.ingresaCredenciales);
     } catch {
@@ -68,12 +69,12 @@ export default function AuthScreen() {
   };
 
   const onRegistro = async () => {
-    if (!nombre || !password || (!email && !telefono))
+    if (!nombre || !passwordRegistro || (!email && !telefono))
       return Alert.alert(t.auth.datosRequeridos, t.auth.completaCampos);
     setCargando(true);
     try {
       const municipio = await AsyncStorage.getItem('svgo_municipio');
-      const r = await api<AuthResp>(Endpoints.authRegister, { body: { nombre, email, telefono, password, municipio } });
+      const r = await api<AuthResp>(Endpoints.authRegister, { body: { nombre, email, telefono, password: passwordRegistro, municipio } });
       if (r.ok && r.usuario && r.token) await iniciar(r.usuario, r.token);
       else Alert.alert(t.common.error, r.error ?? t.auth.completaCampos);
     } catch {
@@ -178,8 +179,8 @@ export default function AuthScreen() {
               <Input
                 label={t.auth.contrasena}
                 icon="lock-closed-outline"
-                value={password}
-                onChangeText={setPassword}
+                value={passwordLogin}
+                onChangeText={setPasswordLogin}
                 secureTextEntry
               />
               <Button label={t.auth.iniciarSesion} icon="log-in-outline" onPress={onLogin} loading={cargando} />
@@ -227,8 +228,8 @@ export default function AuthScreen() {
               <Input
                 label={t.auth.contrasena}
                 icon="lock-closed-outline"
-                value={password}
-                onChangeText={setPassword}
+                value={passwordRegistro}
+                onChangeText={setPasswordRegistro}
                 secureTextEntry
                 placeholder="Mínimo 6 caracteres"
               />

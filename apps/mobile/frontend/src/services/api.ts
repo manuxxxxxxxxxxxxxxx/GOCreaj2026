@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // EXPO_PUBLIC_API_URL se lee del archivo .env automáticamente (Expo SDK 49+)
 export const API_URL: string =
   process.env.EXPO_PUBLIC_API_URL ??
-  'http://192.168.0.11/GOCreaj2026/backend';
+  'http://192.168.0.11/GOCreaj2026/apps/mobile/backend';
 
 let cachedToken: string | null = null;
 
@@ -104,8 +104,20 @@ export const Endpoints = {
   trackingActualizar: 'pedidos_tracking.php?action=actualizar_ubicacion',
   trackingEstado: (pid: number): string => `pedidos_tracking.php?action=estado&pedido_id=${pid}`,
   chatConversaciones: 'chat_multi.php?action=conversaciones',
+  chatConversacionesTab: (tab: string, q?: string): string => {
+    let url = `chat_multi.php?action=conversaciones&tab=${tab}`;
+    if (q) url += `&q=${encodeURIComponent(q)}`;
+    return url;
+  },
   chatMensajes: (otroId: number): string => `chat_multi.php?action=mensajes&otro_id=${otroId}`,
   chatEnviar: 'chat_multi.php?action=enviar',
+  chatToggleArchivado: 'chat_multi.php?action=toggle_archivado',
+  chatToggleFavorito: 'chat_multi.php?action=toggle_favorito',
+  chatUnreadTotal: 'chat_multi.php?action=unread_total',
+  chatIniciarLlamada: 'chat_multi.php?action=iniciar_llamada',
+  chatResponderLlamada: 'chat_multi.php?action=responder_llamada',
+  chatFinalizarLlamada: 'chat_multi.php?action=finalizar_llamada',
+  chatLlamadasEntrantes: 'chat_multi.php?action=llamadas_entrantes',
   soporteCrear: 'soporte.php?action=crear',
   soporteMis: 'soporte.php?action=mis_tickets',
   authEnviarSms:           'auth.php?action=enviar_sms',
@@ -113,4 +125,16 @@ export const Endpoints = {
   authCheckUsername:       'auth.php?action=check_username',
   authActualizarPerfil:    'auth.php?action=actualizar_perfil',
   repartidorToggleEnLinea: 'repartidor_dashboard.php?action=toggle_en_linea',
+  adminUsuarios: (q?: string, rol?: string): string => {
+    let url = 'admin_dashboard.php?action=usuarios';
+    if (q) url += `&q=${encodeURIComponent(q)}`;
+    if (rol && rol !== 'todos') url += `&rol=${rol}`;
+    return url;
+  },
+  adminActualizarUsuario: 'admin_dashboard.php?action=actualizar_usuario',
+  adminPedidos: (estado?: string): string =>
+    estado && estado !== 'todos'
+      ? `admin_dashboard.php?action=pedidos&estado=${estado}`
+      : 'admin_dashboard.php?action=pedidos',
+  adminActualizarPedido: 'admin_dashboard.php?action=actualizar_pedido',
 } as const;

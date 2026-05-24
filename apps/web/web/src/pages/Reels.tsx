@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import { api } from '../api';
 import '../../css/Reels.css';
 import '../../css/dark.css';
 
@@ -17,41 +17,59 @@ interface Reel {
   isLiked?: boolean;
 }
 
-const MOCK_REELS: Reel[] = [
-  { id: 1, video: 'https://assets.mixkit.co/videos/preview/mixkit-fresh-bread-in-a-basket-4886-large.mp4', seller: 'Panadería Don José', desc: 'Pan recién horneado cada mañana 🥖 #artesanal', likes: '1.2k', likesCount: 1200, comments: 45, loc: 'San Salvador' },
-  { id: 2, video: 'https://assets.mixkit.co/videos/preview/mixkit-vegetables-in-a-market-4884-large.mp4', seller: 'Huerto Verde', desc: 'Nuestra cosecha de hoy es increíble 🥦 #organico #fresco', likes: '850', likesCount: 850, comments: 12, loc: 'Santa Tecla' },
-];
-
 export default function Reels() {
-  const { toggleTheme, cartCount } = useGlobal();
   const navigate = useNavigate();
 
-  const [reels, setReels] = useState<Reel[]>(MOCK_REELS);
+  const [reels, setReels] = useState<Reel[]>([]);
 
   useEffect(() => {
     document.body.style.setProperty('overflow', 'hidden', 'important');
     document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+
+    api.get('/productos.php?action=reels')
+      .then(res => {
+        if (res.data.ok) {
+          const mapped = res.data.reels.map((r: any) => ({
+            id: r.id,
+            video: r.video_url || '',
+            seller: r.tienda_nombre,
+            desc: r.descripcion || '',
+            likesCount: parseInt(r.likes_count) || 0,
+            likes: r.likes_count >= 1000 ? `${(r.likes_count / 1000).toFixed(1)}k` : `${r.likes_count || 0}`,
+            comments: parseInt(r.comentarios_count) || 0,
+            loc: r.municipio || ''
+          }));
+          setReels(mapped);
+        }
+      })
+      .catch(console.error);
+
     return () => {
       document.body.style.removeProperty('overflow');
       document.documentElement.style.removeProperty('overflow');
     };
   }, []);
 
-  const handleLike = (id: number) => {
-    setReels(prev => prev.map(r => {
-      if (r.id === id) {
-        const isLiked = !r.isLiked;
-        const diff = isLiked ? 1 : -1;
-        const newCount = r.likesCount + diff;
-        return {
-          ...r,
-          isLiked,
-          likesCount: newCount,
-          likes: newCount >= 1000 ? `${(newCount / 1000).toFixed(1)}k` : `${newCount}`
-        };
-      }
-      return r;
-    }));
+  const handleLike = async (id: number) => {
+    try {
+      await api.post('/interacciones.php?action=like_video', { producto_id: id });
+      setReels(prev => prev.map(r => {
+        if (r.id === id) {
+          const isLiked = !r.isLiked;
+          const diff = isLiked ? 1 : -1;
+          const newCount = r.likesCount + diff;
+          return {
+            ...r,
+            isLiked,
+            likesCount: newCount,
+            likes: newCount >= 1000 ? `${(newCount / 1000).toFixed(1)}k` : `${newCount}`
+          };
+        }
+        return r;
+      }));
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (

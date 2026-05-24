@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\xamppx\\\\htdocs\\\\GOCreaj2026\\\\apps\\\\web\\\\web\\\\src\\\\pages\" -File)",
+      "Bash(Select-Object Name)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\xamppx\" -Recurse -Depth 2 | Select-Object -ExpandProperty FullName | Where-Object { $_ -match \"GOCreaj\" })",
+      "PowerShell(Head -30)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\xamppx\\\\htdocs\\\\GOCreaj2026\" -Recurse | Where-Object { $_.Extension -eq \".php\" } | Select-Object FullName)",
+      "Bash(findstr /i \"axios\" \"c:\\\\xamppx\\\\htdocs\\\\GOCreaj2026\\\\apps\\\\web\\\\web\\\\package.json\")",
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:4040/api/tunnels\" -ErrorAction SilentlyContinue)"
+    ]
+  }
+}

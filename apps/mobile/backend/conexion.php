@@ -14,7 +14,7 @@ define('DB_NAME', 'svgo_db');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 define('UPLOAD_BASE', __DIR__ . '/uploads/');
-define('UPLOAD_URL', 'http://localhost/svgo/backend/uploads/');
+define('UPLOAD_URL', 'http://localhost/GOCreaj2026/apps/mobile/backend/uploads/');
 
 function db(): PDO {
     static $pdo = null;
@@ -40,14 +40,38 @@ function db(): PDO {
 
 function db_migrate(): void {
     $stmts = [
+        // usuarios
         "ALTER TABLE usuarios ADD COLUMN username_changed_at DATETIME NULL AFTER username",
         "ALTER TABLE usuarios ADD COLUMN telefono_verificado TINYINT(1) NOT NULL DEFAULT 0 AFTER telefono",
         "ALTER TABLE usuarios ADD COLUMN sms_code VARCHAR(6) NULL AFTER telefono_verificado",
         "ALTER TABLE usuarios ADD COLUMN en_linea TINYINT(1) NOT NULL DEFAULT 0 AFTER activo",
+        // tiendas
         "ALTER TABLE tiendas ADD COLUMN portada VARCHAR(255) NULL",
         "ALTER TABLE tiendas ADD COLUMN hora_apertura TIME NULL",
         "ALTER TABLE tiendas ADD COLUMN hora_cierre TIME NULL",
         "ALTER TABLE tiendas ADD COLUMN categoria VARCHAR(80) NULL",
+        "ALTER TABLE tiendas ADD COLUMN logo VARCHAR(255) NULL",
+        "ALTER TABLE tiendas ADD COLUMN calificacion_promedio DECIMAL(3,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE tiendas ADD COLUMN total_resenas INT NOT NULL DEFAULT 0",
+        "ALTER TABLE tiendas ADD COLUMN ventas_completadas INT NOT NULL DEFAULT 0",
+        // solicitudes_rol — nuevos campos para vendedor y repartidor
+        "ALTER TABLE solicitudes_rol ADD COLUMN nombre_negocio VARCHAR(120) NULL",
+        "ALTER TABLE solicitudes_rol ADD COLUMN foto_negocio VARCHAR(255) NULL",
+        "ALTER TABLE solicitudes_rol ADD COLUMN licencia_frente VARCHAR(255) NULL",
+        "ALTER TABLE solicitudes_rol ADD COLUMN licencia_reverso VARCHAR(255) NULL",
+        "ALTER TABLE solicitudes_rol ADD COLUMN tipo_vehiculo VARCHAR(40) NULL",
+        // chats — multimedia & location
+        "ALTER TABLE chats ADD COLUMN tipo VARCHAR(20) NOT NULL DEFAULT 'texto' AFTER mensaje",
+        "ALTER TABLE chats ADD COLUMN adjunto VARCHAR(500) NULL AFTER tipo",
+        "ALTER TABLE chats ADD COLUMN lat DECIMAL(10,7) NULL AFTER adjunto",
+        "ALTER TABLE chats ADD COLUMN lng DECIMAL(10,7) NULL AFTER lat",
+        // chat_meta — per-user archive/favorite state
+        "CREATE TABLE IF NOT EXISTS chat_meta (id INT PRIMARY KEY AUTO_INCREMENT, usuario_id INT NOT NULL, otro_id INT NOT NULL, archivado TINYINT(1) NOT NULL DEFAULT 0, favorito TINYINT(1) NOT NULL DEFAULT 0, UNIQUE KEY uk_chat_meta (usuario_id, otro_id))",
+        // llamadas — call history
+        "CREATE TABLE IF NOT EXISTS llamadas (id INT PRIMARY KEY AUTO_INCREMENT, emisor_id INT NOT NULL, receptor_id INT NOT NULL, tipo VARCHAR(10) NOT NULL DEFAULT 'voz', estado VARCHAR(20) NOT NULL DEFAULT 'iniciando', duracion INT NULL, webrtc_room VARCHAR(100) NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)",
+        // chats — reply & product context
+        "ALTER TABLE chats ADD COLUMN reply_to_id INT NULL AFTER lng",
+        "ALTER TABLE chats ADD COLUMN reply_snapshot TEXT NULL AFTER reply_to_id",
     ];
     foreach ($stmts as $sql) {
         try { db()->exec($sql); } catch (PDOException $e) {}

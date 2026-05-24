@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import { api } from '../api';
 import '../../css/carritoypago.css';
 import '../../css/dark.css';
 
@@ -23,14 +24,10 @@ function detectBrand(num: string): 'visa' | 'mastercard' | 'amex' | null {
 }
 
 export default function CarritoYpago() {
-  const { toggleTheme } = useGlobal();
+  const { cart, removeFromCart, updateCartQty, clearCart } = useGlobal();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);
-  const [cart, setCart] = useState([
-    { id: 1, name: "Pan Artesanal Integral", desc: "Panadería Don José", price: 4.05, qty: 1, img: "https://images.unsplash.com/photo-1608198093002-ad4e005484ec?w=640" },
-    { id: 3, name: "Café Premium 250g", desc: "Café del Barrio", price: 8.75, qty: 2, img: "https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=640" }
-  ]);
 
   const [shippingMode, setShippingMode] = useState(1);
   const [paymentMode, setPaymentMode] = useState(1);
@@ -42,28 +39,38 @@ export default function CarritoYpago() {
   const [cardCvv, setCardCvv] = useState('');
   const [showCvv, setShowCvv] = useState(false);
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const subtotal = cart.reduce((sum, item) => sum + item.price * (item.qty || 1), 0);
   const shippingCost = shippingMode === 1 ? 2.50 : 4.99;
   const total = subtotal + shippingCost;
   const brand = detectBrand(cardNum);
 
-  const handleQty = (id: number, delta: number) => {
-    setCart(prev => prev.map(item => {
-      if (item.id === id) {
-        const newQty = item.qty + delta;
-        return newQty > 0 ? { ...item, qty: newQty } : item;
+  const handleQty = (id: number | string, delta: number) => {
+    const item = cart.find(p => p.id === id);
+    if (item) {
+      updateCartQty(id, (item.qty || 1) + delta);
+    }
+  };
+
+  const handleRemove = (id: number | string) => {
+    removeFromCart(id);
+  };
+
+  const handleConfirm = async () => {
+    try {
+      const res = await api.post('/carrito_pagos.php?action=checkout', {
+        metodo_pago: paymentMode === 1 ? 'tarjeta' : 'efectivo',
+        direccion_entrega: 'Dirección por defecto' // Se puede agregar un form para esto si el usuario lo requiere
+      });
+      if (res.data.ok) {
+        setStep(3);
+        clearCart();
+      } else {
+        alert('Error al procesar el pago: ' + res.data.error);
       }
-      return item;
-    }).filter(item => item.qty > 0));
-  };
-
-  const handleRemove = (id: number) => {
-    setCart(prev => prev.filter(item => item.id !== id));
-  };
-
-  const handleConfirm = () => {
-    setStep(3);
-    setCart([]);
+    } catch (e) {
+      console.error(e);
+      alert('Hubo un error de conexión');
+    }
   };
 
   // Brand logo component
@@ -146,7 +153,7 @@ export default function CarritoYpago() {
               <div className="card">
                 <div className="card-title">
                   <span className="card-title-text">Mi carrito</span>
-                  <span className="badge">{cart.reduce((s, c) => s + c.qty, 0)} productos</span>
+                  <span className="badge">{cart.reduce((s, c) => s + (c.qty || 0), 0)} productos</span>
                 </div>
                 <div className="cart-items">
                   {cart.length === 0 ? (
@@ -169,7 +176,7 @@ export default function CarritoYpago() {
                             <span className="qty-val">{p.qty}</span>
                             <button className="qty-btn" onClick={() => handleQty(p.id, 1)}>+</button>
                           </div>
-                          <div className="prod-price">${(p.price * p.qty).toFixed(2)}</div>
+                          <div className="prod-price">${(p.price * (p.qty || 1)).toFixed(2)}</div>
                           <button className="trash-btn" onClick={() => handleRemove(p.id)}>🗑</button>
                         </div>
                       </div>

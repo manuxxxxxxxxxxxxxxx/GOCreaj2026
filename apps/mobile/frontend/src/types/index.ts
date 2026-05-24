@@ -147,6 +147,25 @@ export interface SolicitudRol {
   usuario_nombre?: string;
   email?: string;
   telefono?: string;
+  nombre_negocio?: string | null;
+  foto_negocio?: string | null;
+  licencia_frente?: string | null;
+  licencia_reverso?: string | null;
+  tipo_vehiculo?: string | null;
+}
+
+export interface UsuarioAdmin {
+  id: number;
+  nombre: string;
+  username?: string | null;
+  email?: string | null;
+  telefono?: string | null;
+  rol: string;
+  foto_perfil?: string | null;
+  municipio?: string | null;
+  activo: number;
+  en_linea: number;
+  created_at: string;
 }
 
 export interface ReporteSoporte {

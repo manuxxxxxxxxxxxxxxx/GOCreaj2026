@@ -1,109 +1,174 @@
-import { useState } from 'react';
-import { Search, Eye, CheckCircle, Clock, XCircle, Truck } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Search, Eye, RefreshCw, XCircle } from 'lucide-react';
+import { api } from '../api';
 import './Dashboard.css';
 
-type OrderStatus = 'pending' | 'preparing' | 'shipping' | 'delivered' | 'cancelled';
+type EstadoDB = 'preparacion' | 'en_camino' | 'entregado' | 'cancelado' | 'rechazado_repartidor';
+type EstadoFiltro = EstadoDB | 'todos';
 
-interface Order {
-  id: string;
-  customer: string;
-  seller: string;
-  driver: string | null;
-  items: string;
-  total: number;
-  status: OrderStatus;
-  date: string;
+interface PedidoItem {
+  id: number;
+  producto_id: number;
+  cantidad: number;
+  precio_unitario: number;
+  nombre?: string;
+  imagen?: string | null;
 }
 
-const STATUS_CONFIG: Record<OrderStatus, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  pending:   { label: 'Pendiente',   color: '#f59e0b', bg: '#fef3c7', icon: <Clock size={13} /> },
-  preparing: { label: 'Preparando',  color: '#3b82f6', bg: '#dbeafe', icon: <CheckCircle size={13} /> },
-  shipping:  { label: 'En Camino',   color: '#8b5cf6', bg: '#ede9fe', icon: <Truck size={13} /> },
-  delivered: { label: 'Entregado',   color: '#10b981', bg: '#d1fae5', icon: <CheckCircle size={13} /> },
-  cancelled: { label: 'Cancelado',   color: '#ef4444', bg: '#fee2e2', icon: <XCircle size={13} /> },
-};
+interface Pedido {
+  id: number;
+  comprador_nombre: string;
+  vendedor_nombre: string;
+  repartidor_nombre?: string | null;
+  total: number;
+  estado: EstadoDB;
+  metodo_pago: string;
+  direccion_entrega: string;
+  created_at: string;
+  items?: PedidoItem[];
+}
 
-const INITIAL_ORDERS: Order[] = [
-  { id: 'LM-0012', customer: 'Ana García',      seller: 'Panadería Don José',    driver: 'Luis Torres',  items: '2x Pan Integral, 1x Café 250g', total: 16.85, status: 'delivered', date: '24 May, 14:30' },
-  { id: 'LM-0013', customer: 'María Fernanda',  seller: 'FrutaFresh Market',     driver: null,           items: '3x Plátanos, 2x Manzanas',      total: 8.40,  status: 'pending',   date: '24 May, 15:00' },
-  { id: 'LM-0014', customer: 'Carlos Mendoza',  seller: 'Café & Co.',            driver: 'Repartidor 2', items: '1x Café Latte, 1x Croissant',   total: 6.75,  status: 'preparing', date: '24 May, 15:20' },
-  { id: 'LM-0015', customer: 'Laura Pérez',     seller: 'Carnes Premium',        driver: 'Luis Torres',  items: '500g Carne Molida',              total: 14.00, status: 'shipping',  date: '24 May, 13:50' },
-  { id: 'LM-0016', customer: 'Roberto Salinas', seller: 'Panadería Don José',    driver: null,           items: '1x Baguette',                   total: 3.50,  status: 'cancelled', date: '24 May, 12:10' },
-  { id: 'LM-0017', customer: 'Sofía Ramírez',   seller: 'Verduras Orgánicas',    driver: 'Repartidor 3', items: '1x Mix Verduras, 2x Aguacate',   total: 18.60, status: 'delivered', date: '24 May, 11:45' },
+const ESTADOS: { id: EstadoDB; label: string; bg: string; color: string }[] = [
+  { id: 'preparacion',  label: 'Preparando',  bg: '#fef3c7', color: '#92400e' },
+  { id: 'en_camino',    label: 'En camino',   bg: '#dbeafe', color: '#1e40af' },
+  { id: 'entregado',    label: 'Entregado',   bg: '#d1fae5', color: '#065f46' },
+  { id: 'cancelado',    label: 'Cancelado',   bg: '#fee2e2', color: '#991b1b' },
+  { id: 'rechazado_repartidor', label: 'Rechazado', bg: '#fee2e2', color: '#991b1b' },
 ];
 
+function estadoConfig(estado: string) {
+  return ESTADOS.find(e => e.id === estado) ?? { id: estado, label: estado, bg: '#f3f4f6', color: '#374151' };
+}
+
 export default function AdminOrders() {
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState<OrderStatus | 'all'>('all');
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [pedidos, setPedidos]           = useState<Pedido[]>([]);
+  const [search, setSearch]             = useState('');
+  const [filtroEstado, setFiltroEstado] = useState<EstadoFiltro>('todos');
+  const [verPedido, setVerPedido]       = useState<Pedido | null>(null);
+  const [loading, setLoading]           = useState(true);
+  const [lastRefresh, setLastRefresh]   = useState<Date>(new Date());
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const filtered = orders.filter(o => {
-    const matchSearch = o.id.toLowerCase().includes(search.toLowerCase()) ||
-                        o.customer.toLowerCase().includes(search.toLowerCase()) ||
-                        o.seller.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = filterStatus === 'all' || o.status === filterStatus;
-    return matchSearch && matchStatus;
-  });
+  const fetchPedidos = useCallback(async () => {
+    try {
+      const url = filtroEstado !== 'todos'
+        ? `/admin_dashboard.php?action=pedidos&estado=${filtroEstado}`
+        : '/admin_dashboard.php?action=pedidos';
+      const res = await api.get(url);
+      if (res.data.ok) {
+        setPedidos(res.data.pedidos ?? []);
+        setLastRefresh(new Date());
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [filtroEstado]);
 
-  const updateStatus = (id: string, status: OrderStatus) => {
-    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
-    if (selectedOrder?.id === id) setSelectedOrder(prev => prev ? { ...prev, status } : prev);
+  useEffect(() => {
+    setLoading(true);
+    void fetchPedidos();
+  }, [fetchPedidos]);
+
+  // Polling cada 10s
+  useEffect(() => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    pollingRef.current = setInterval(() => { void fetchPedidos(); }, 10000);
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, [fetchPedidos]);
+
+  const actualizarEstado = async (pedidoId: number, nuevoEstado: EstadoDB) => {
+    try {
+      const res = await api.post('/admin_dashboard.php?action=actualizar_pedido', {
+        pedido_id: pedidoId,
+        estado: nuevoEstado,
+      });
+      if (res.data.ok) {
+        setPedidos(prev => prev.map(p => p.id === pedidoId ? { ...p, estado: nuevoEstado } : p));
+        if (verPedido?.id === pedidoId) setVerPedido(prev => prev ? { ...prev, estado: nuevoEstado } : null);
+      }
+    } catch (e) {
+      alert('Error actualizando estado');
+    }
   };
 
-  const totalByStatus = (s: OrderStatus) => orders.filter(o => o.status === s).length;
+  const filteredPedidos = pedidos.filter(p => {
+    const q = search.toLowerCase();
+    return (
+      String(p.id).includes(q) ||
+      (p.comprador_nombre || '').toLowerCase().includes(q) ||
+      (p.vendedor_nombre || '').toLowerCase().includes(q)
+    );
+  });
+
+  const contarEstado = (e: EstadoDB) => pedidos.filter(p => p.estado === e).length;
 
   return (
     <div className="dashboard">
-      <div className="page-header">
-        <h1>Gestión de Pedidos</h1>
-        <p>Supervisa y actualiza el estado de todos los pedidos de la plataforma.</p>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <h1>Gestión de Pedidos</h1>
+          <p>Supervisa y actualiza el estado de todos los pedidos. Actualización automática cada 10s.</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+          <RefreshCw size={13} className={loading ? 'spin' : ''} />
+          {lastRefresh.toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+        </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px' }}>
-        {(Object.keys(STATUS_CONFIG) as OrderStatus[]).map(s => (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+        {ESTADOS.filter(e => e.id !== 'rechazado_repartidor').map(e => (
           <div
-            key={s}
-            className="stat-card"
-            style={{ padding: '18px', gap: '12px', cursor: 'pointer', border: filterStatus === s ? `2px solid ${STATUS_CONFIG[s].color}` : undefined }}
-            onClick={() => setFilterStatus(prev => prev === s ? 'all' : s)}
+            key={e.id}
+            style={{
+              background: 'var(--white, #fff)', borderRadius: '14px', padding: '18px',
+              border: `1.5px solid ${filtroEstado === e.id ? e.color : 'var(--border, #e2e8f0)'}`,
+              cursor: 'pointer', transition: 'all 0.15s',
+              boxShadow: filtroEstado === e.id ? `0 0 0 3px ${e.bg}` : 'none',
+            }}
+            onClick={() => setFiltroEstado(prev => prev === e.id ? 'todos' : e.id)}
           >
-            <div className="stat-icon" style={{ background: STATUS_CONFIG[s].bg, color: STATUS_CONFIG[s].color, width: 40, height: 40, borderRadius: 12 }}>
-              {STATUS_CONFIG[s].icon}
-            </div>
-            <div className="stat-info">
-              <h3 style={{ fontSize: '1.5rem' }}>{totalByStatus(s)}</h3>
-              <p>{STATUS_CONFIG[s].label}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ width: 40, height: 40, borderRadius: '12px', background: e.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: '1.1rem' }}>
+                  {e.id === 'preparacion' ? '🍳' : e.id === 'en_camino' ? '🚴' : e.id === 'entregado' ? '✅' : '❌'}
+                </span>
+              </div>
+              <div>
+                <div style={{ fontSize: '1.4rem', fontWeight: '900', color: e.color, lineHeight: 1 }}>{contarEstado(e.id)}</div>
+                <div style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted)', marginTop: '2px' }}>{e.label}</div>
+              </div>
             </div>
           </div>
         ))}
       </div>
 
       {/* Toolbar */}
-      <div className="card" style={{ padding: '20px 24px' }}>
+      <div className="card" style={{ padding: '16px 20px', marginBottom: '16px' }}>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative', flex: 1, minWidth: '200px', maxWidth: '360px' }}>
             <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
             <input
               type="text"
-              placeholder="Buscar por ID, cliente o tienda..."
+              placeholder="Buscar por ID, cliente o vendedor..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.88rem', outline: 'none', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit' }}
+              style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: '10px', border: '1.5px solid var(--border)', fontSize: '0.88rem', outline: 'none', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit', boxSizing: 'border-box' }}
             />
           </div>
           <select
-            value={filterStatus}
-            onChange={e => setFilterStatus(e.target.value as OrderStatus | 'all')}
-            style={{ padding: '8px 12px', borderRadius: 10, border: '1.5px solid var(--border)', fontSize: '0.88rem', background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer', fontFamily: 'inherit' }}
+            value={filtroEstado}
+            onChange={e => setFiltroEstado(e.target.value as EstadoFiltro)}
+            style={{ padding: '8px 12px', borderRadius: '10px', border: '1.5px solid var(--border)', fontSize: '0.88rem', background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer', fontFamily: 'inherit' }}
           >
-            <option value="all">Todos los estados</option>
-            {(Object.keys(STATUS_CONFIG) as OrderStatus[]).map(s => (
-              <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>
-            ))}
+            <option value="todos">Todos los estados</option>
+            {ESTADOS.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
           </select>
-          <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>{filtered.length} pedidos</span>
+          <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+            {filteredPedidos.length} pedido{filteredPedidos.length !== 1 ? 's' : ''}
+          </span>
         </div>
       </div>
 
@@ -113,112 +178,133 @@ export default function AdminOrders() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--bg)' }}>
-                {['ID', 'Cliente', 'Tienda', 'Artículos', 'Total', 'Estado', 'Fecha', 'Acciones'].map(h => (
-                  <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--border)' }}>{h}</th>
+                {['ID', 'Cliente', 'Vendedor', 'Total', 'Estado', 'Fecha', 'Acción'].map(h => (
+                  <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontSize: '0.72rem', fontWeight: '800', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--border)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map(order => {
-                const sc = STATUS_CONFIG[order.status];
+              {loading ? (
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>Cargando pedidos...</td></tr>
+              ) : filteredPedidos.map(p => {
+                const ec = estadoConfig(p.estado);
                 return (
-                  <tr key={order.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <td style={{ padding: '14px 16px', fontWeight: 800, color: 'var(--blue)', fontSize: '0.85rem' }}>{order.id}</td>
-                    <td style={{ padding: '14px 16px', fontWeight: 600, fontSize: '0.9rem', color: 'var(--text)' }}>{order.customer}</td>
-                    <td style={{ padding: '14px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{order.seller}</td>
-                    <td style={{ padding: '14px 16px', fontSize: '0.82rem', color: 'var(--text-muted)', maxWidth: '180px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{order.items}</td>
-                    <td style={{ padding: '14px 16px', fontWeight: 800, fontSize: '0.9rem', color: 'var(--text)' }}>${order.total.toFixed(2)}</td>
+                  <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '14px 16px', fontWeight: '800', color: '#4A6D8C', fontSize: '0.85rem' }}>#SV-{p.id}</td>
+                    <td style={{ padding: '14px 16px', fontWeight: '600', fontSize: '0.9rem', color: 'var(--text)' }}>{p.comprador_nombre}</td>
+                    <td style={{ padding: '14px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{p.vendedor_nombre}</td>
+                    <td style={{ padding: '14px 16px', fontWeight: '800', fontSize: '0.9rem', color: 'var(--text)' }}>${Number(p.total).toFixed(2)}</td>
                     <td style={{ padding: '14px 16px' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', padding: '4px 10px', borderRadius: '20px', background: sc.bg, color: sc.color, fontSize: '0.75rem', fontWeight: 700 }}>
-                        {sc.icon} {sc.label}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', borderRadius: '20px', background: ec.bg, color: ec.color, fontSize: '0.75rem', fontWeight: '700' }}>
+                        {ec.label}
                       </span>
                     </td>
-                    <td style={{ padding: '14px 16px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>{order.date}</td>
+                    <td style={{ padding: '14px 16px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                      {new Date(p.created_at).toLocaleDateString('es-SV')}
+                    </td>
                     <td style={{ padding: '14px 16px' }}>
-                      <div style={{ display: 'flex', gap: '6px' }}>
-                        <button
-                          onClick={() => setSelectedOrder(order)}
-                          style={{ padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text)', fontFamily: 'inherit' }}
-                        >
-                          <Eye size={13} /> Ver
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => setVerPedido(p)}
+                        style={{ padding: '6px 12px', borderRadius: '8px', border: '1.5px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.78rem', fontWeight: '700', color: 'var(--text)', fontFamily: 'inherit' }}
+                      >
+                        <Eye size={13} /> Ver
+                      </button>
                     </td>
                   </tr>
                 );
               })}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>
-                    No se encontraron pedidos.
-                  </td>
-                </tr>
+              {!loading && filteredPedidos.length === 0 && (
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>No se encontraron pedidos.</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Order Detail Modal */}
-      {selectedOrder && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: 'var(--white)', borderRadius: 24, width: '100%', maxWidth: '520px', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.25)' }}>
-            {/* Modal Header */}
-            <div style={{ background: 'linear-gradient(135deg, #355068, #4A6D8C)', padding: '28px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      {/* ── MODAL: Detalle pedido ── */}
+      {verPedido && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={e => e.target === e.currentTarget && setVerPedido(null)}>
+          <div style={{ background: 'var(--white, #fff)', borderRadius: '20px', width: '100%', maxWidth: '540px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 80px rgba(0,0,0,0.25)' }}>
+            {/* Header */}
+            <div style={{ background: 'linear-gradient(135deg, #355068, #4A6D8C)', padding: '24px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <h2 style={{ color: '#fff', fontWeight: 800, fontSize: '1.25rem', marginBottom: 4 }}>Pedido {selectedOrder.id}</h2>
-                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.85rem' }}>{selectedOrder.date}</p>
+                <h2 style={{ color: '#fff', fontWeight: '800', fontSize: '1.2rem', margin: 0 }}>Pedido #SV-{verPedido.id}</h2>
+                <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.82rem', margin: '4px 0 0' }}>
+                  {new Date(verPedido.created_at).toLocaleString('es-SV')}
+                </p>
               </div>
-              <button onClick={() => setSelectedOrder(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 10, width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+              <button onClick={() => setVerPedido(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '10px', width: '36px', height: '36px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
                 <XCircle size={18} />
               </button>
             </div>
-            {/* Modal Body */}
-            <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+            <div style={{ overflowY: 'auto', padding: '24px 28px', flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Info */}
               {[
-                ['Cliente', selectedOrder.customer],
-                ['Tienda', selectedOrder.seller],
-                ['Repartidor', selectedOrder.driver ?? 'Sin asignar'],
-                ['Artículos', selectedOrder.items],
-                ['Total', `$${selectedOrder.total.toFixed(2)}`],
+                ['Cliente', verPedido.comprador_nombre],
+                ['Vendedor', verPedido.vendedor_nombre],
+                ['Repartidor', verPedido.repartidor_nombre ?? 'Sin asignar'],
+                ['Total', `$${Number(verPedido.total).toFixed(2)}`],
+                ['Pago', verPedido.metodo_pago],
+                ['Dirección', verPedido.direccion_entrega],
               ].map(([label, value]) => (
-                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-muted)' }}>{label}</span>
-                  <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text)', textAlign: 'right', maxWidth: '60%' }}>{value}</span>
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border, #e2e8f0)' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-muted)' }}>{label}</span>
+                  <span style={{ fontSize: '0.88rem', fontWeight: '700', color: 'var(--text)', textAlign: 'right', maxWidth: '60%' }}>{value}</span>
                 </div>
               ))}
 
-              {/* Status Update */}
+              {/* Items */}
+              {verPedido.items && verPedido.items.length > 0 && (
+                <div>
+                  <p style={{ fontSize: '0.72rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: '10px' }}>Productos</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {verPedido.items.map(item => (
+                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', background: 'var(--bg)', borderRadius: '10px' }}>
+                        {item.imagen ? (
+                          <img src={item.imagen} alt={item.nombre} style={{ width: 40, height: 40, borderRadius: '8px', objectFit: 'cover' }} />
+                        ) : (
+                          <div style={{ width: 40, height: 40, borderRadius: '8px', background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>🛍️</div>
+                        )}
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontWeight: '700', fontSize: '0.88rem', margin: 0, color: 'var(--text)' }}>{item.nombre ?? `Producto #${item.producto_id}`}</p>
+                          <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: '2px 0 0' }}>x{item.cantidad} · ${Number(item.precio_unitario).toFixed(2)} c/u</p>
+                        </div>
+                        <span style={{ fontWeight: '800', fontSize: '0.9rem', color: 'var(--text)' }}>${(item.cantidad * Number(item.precio_unitario)).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Estado actual */}
               <div>
-                <p style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Actualizar Estado</p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {(Object.keys(STATUS_CONFIG) as OrderStatus[]).map(s => {
-                    const sc = STATUS_CONFIG[s];
-                    const isActive = selectedOrder.status === s;
+                <p style={{ fontSize: '0.72rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: '10px' }}>Estado actual</p>
+                <div style={{ marginBottom: '12px' }}>
+                  {(() => {
+                    const ec = estadoConfig(verPedido.estado);
                     return (
-                      <button
-                        key={s}
-                        onClick={() => updateStatus(selectedOrder.id, s)}
-                        style={{
-                          padding: '7px 14px', borderRadius: 20, border: `2px solid ${isActive ? sc.color : 'var(--border)'}`,
-                          background: isActive ? sc.bg : 'transparent', color: isActive ? sc.color : 'var(--text-muted)',
-                          fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', fontFamily: 'inherit', transition: 'all 0.2s'
-                        }}
-                      >
-                        {sc.icon} {sc.label}
-                      </button>
+                      <span style={{ padding: '6px 14px', borderRadius: '20px', background: ec.bg, color: ec.color, fontWeight: '800', fontSize: '0.85rem' }}>{ec.label}</span>
                     );
-                  })}
+                  })()}
+                </div>
+                <p style={{ fontSize: '0.72rem', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)', marginBottom: '10px' }}>Cambiar a</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {ESTADOS.filter(e => e.id !== verPedido.estado && e.id !== 'rechazado_repartidor').map(e => (
+                    <button
+                      key={e.id}
+                      onClick={() => actualizarEstado(verPedido.id, e.id)}
+                      style={{ padding: '7px 14px', borderRadius: '20px', border: `2px solid ${e.color}`, background: e.bg, color: e.color, fontSize: '0.78rem', fontWeight: '700', cursor: 'pointer', fontFamily: 'inherit', transition: 'opacity 0.15s' }}
+                    >
+                      {e.label}
+                    </button>
+                  ))}
                 </div>
               </div>
+            </div>
 
-              <button
-                onClick={() => setSelectedOrder(null)}
-                style={{ marginTop: '8px', padding: '12px', borderRadius: 12, border: 'none', background: '#355068', color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit' }}
-              >
+            <div style={{ padding: '16px 28px', borderTop: '1px solid var(--border, #e2e8f0)' }}>
+              <button onClick={() => setVerPedido(null)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: 'none', background: '#355068', color: '#fff', fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit' }}>
                 Cerrar
               </button>
             </div>
