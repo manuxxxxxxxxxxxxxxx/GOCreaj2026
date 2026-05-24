@@ -1,0 +1,116 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// EXPO_PUBLIC_API_URL se lee del archivo .env automáticamente (Expo SDK 49+)
+export const API_URL: string =
+  process.env.EXPO_PUBLIC_API_URL ??
+  'http://192.168.0.11/GOCreaj2026/backend';
+
+let cachedToken: string | null = null;
+
+export async function setToken(token: string | null): Promise<void> {
+  cachedToken = token;
+  if (token) {
+    await AsyncStorage.setItem('svgo_token', token);
+  } else {
+    await AsyncStorage.removeItem('svgo_token');
+  }
+}
+
+export async function getToken(): Promise<string | null> {
+  if (cachedToken) return cachedToken;
+  cachedToken = await AsyncStorage.getItem('svgo_token');
+  return cachedToken;
+}
+
+interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  body?: Record<string, unknown>;
+}
+
+export async function api<T = unknown>(
+  endpoint: string,
+  options: RequestOptions = {}
+): Promise<T> {
+  const token = await getToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    // ¡ESTO ES CLAVE! Salta la pantalla de advertencia de ngrok automáticamente
+    'ngrok-skip-browser-warning': 'true'
+  };
+  
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_URL}/${endpoint}`, {
+    method: options.method ?? (options.body ? 'POST' : 'GET'),
+    headers,
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    console.log(`[API] ${res.status} ${endpoint}:`, text.slice(0, 200));
+    throw new Error(`HTTP ${res.status}`);
+  }
+}
+
+export const Endpoints = {
+  authLogin: 'auth.php?action=login',
+  authRegister: 'auth.php?action=register',
+  authSocial: 'auth.php?action=social',
+  authSms: 'auth.php?action=telefono_sms',
+  authSmsVerify: 'auth.php?action=telefono_verificar',
+  authMe: 'auth.php?action=me',
+  authUbicacion: 'auth.php?action=actualizar_ubicacion',
+  productosListar: 'productos.php?action=listar',
+  productosReels: 'productos.php?action=reels',
+  productosDetalle: (id: number): string => `productos.php?action=detalle&id=${id}`,
+  productosMunicipios: 'productos.php?action=municipios',
+  carritoListar: 'carrito_pagos.php?action=listar',
+  carritoAgregar: 'carrito_pagos.php?action=agregar',
+  carritoActualizar: 'carrito_pagos.php?action=actualizar',
+  carritoEliminar: 'carrito_pagos.php?action=eliminar',
+  carritoCheckout: 'carrito_pagos.php?action=checkout',
+  misPedidos: 'carrito_pagos.php?action=mis_pedidos',
+  interToggleLike: 'interacciones.php?action=toggle_like',
+  interToggleGuardar: 'interacciones.php?action=toggle_guardar',
+  interCompartir: 'interacciones.php?action=compartir',
+  interComentar: 'interacciones.php?action=comentar',
+  interListarComentarios: (pid: number): string => `interacciones.php?action=listar_comentarios&producto_id=${pid}`,
+  misLikes: 'interacciones.php?action=mis_likes',
+  misGuardados: 'interacciones.php?action=mis_guardados',
+  misCompartidos: 'interacciones.php?action=mis_compartidos',
+  solicitudCrear: 'perfil_solicitudes.php?action=crear',
+  misSolicitudes: 'perfil_solicitudes.php?action=mis_solicitudes',
+  adminSolicitudes: (estado: string): string => `admin_dashboard.php?action=solicitudes&estado=${estado}`,
+  adminResolver: 'admin_dashboard.php?action=resolver',
+  adminStats: 'admin_dashboard.php?action=stats',
+  adminSoporte: 'admin_dashboard.php?action=soporte',
+  adminResponderSoporte: 'admin_dashboard.php?action=responder_soporte',
+  vendedorTiendas: 'vendedor_dashboard.php?action=mis_tiendas',
+  vendedorCrearTienda: 'vendedor_dashboard.php?action=crear_tienda',
+  vendedorActualizarTienda: 'vendedor_dashboard.php?action=actualizar_tienda',
+  vendedorProductos: 'vendedor_dashboard.php?action=mis_productos',
+  vendedorCrearProducto: 'vendedor_dashboard.php?action=crear_producto',
+  vendedorActualizarProducto: 'vendedor_dashboard.php?action=actualizar_producto',
+  vendedorVentas: 'vendedor_dashboard.php?action=mis_ventas',
+  vendedorPreparar: 'vendedor_dashboard.php?action=preparar_pedido',
+  repartidorDisponibles: 'repartidor_dashboard.php?action=disponibles',
+  repartidorAceptar: 'repartidor_dashboard.php?action=aceptar',
+  repartidorRechazar: 'repartidor_dashboard.php?action=rechazar',
+  repartidorEntregas: 'repartidor_dashboard.php?action=mis_entregas',
+  repartidorCompletar: 'repartidor_dashboard.php?action=completar',
+  trackingActualizar: 'pedidos_tracking.php?action=actualizar_ubicacion',
+  trackingEstado: (pid: number): string => `pedidos_tracking.php?action=estado&pedido_id=${pid}`,
+  chatConversaciones: 'chat_multi.php?action=conversaciones',
+  chatMensajes: (otroId: number): string => `chat_multi.php?action=mensajes&otro_id=${otroId}`,
+  chatEnviar: 'chat_multi.php?action=enviar',
+  soporteCrear: 'soporte.php?action=crear',
+  soporteMis: 'soporte.php?action=mis_tickets',
+  authEnviarSms:           'auth.php?action=enviar_sms',
+  authVerificarSms:        'auth.php?action=verificar_sms',
+  authCheckUsername:       'auth.php?action=check_username',
+  authActualizarPerfil:    'auth.php?action=actualizar_perfil',
+  repartidorToggleEnLinea: 'repartidor_dashboard.php?action=toggle_en_linea',
+} as const;
