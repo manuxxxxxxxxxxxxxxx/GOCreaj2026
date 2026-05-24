@@ -126,7 +126,7 @@ export default function CarritoYpago() {
         </header>
 
         {step < 3 && (
-          <nav className="stepper">
+          <div className="stepper">
             <button className={`step ${step === 1 ? 'active' : 'done'}`} onClick={() => setStep(1)}>
               <span className="step-num">1</span>
               <span className="step-label">Carrito</span>
@@ -136,7 +136,7 @@ export default function CarritoYpago() {
               <span className="step-num">2</span>
               <span className="step-label">Pago y entrega</span>
             </button>
-          </nav>
+          </div>
         )}
 
         {/* ── STEP 1: CART ── */}

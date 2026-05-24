@@ -3,6 +3,9 @@ import { GlobalProvider } from './context/GlobalContext';
 import AdminLayout from './components/AdminLayout';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
+import AdminOrders from './pages/AdminOrders';
+import AdminProducts from './pages/AdminProducts';
+import AdminSettings from './pages/AdminSettings';
 
 import Login from './pages/Login';
 import Market from './pages/Market';
@@ -37,6 +40,9 @@ function App() {
           <Route index element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="users" element={<Users />} />
+          <Route path="orders" element={<AdminOrders />} />
+          <Route path="products" element={<AdminProducts />} />
+          <Route path="settings" element={<AdminSettings />} />
         </Route>
 
         <Route path="*" element={<NotFound />} />
