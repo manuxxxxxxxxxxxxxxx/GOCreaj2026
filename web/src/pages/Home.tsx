@@ -3,7 +3,7 @@ import { useGlobal } from '../context/GlobalContext';
 import '../../css/index.css';
 
 export default function Home() {
-  const { toggleTheme, cartCount } = useGlobal();
+  const { theme, toggleTheme, cartCount } = useGlobal();
   const navigate = useNavigate();
 
   return (
@@ -26,7 +26,23 @@ export default function Home() {
         </ul>
 
         <div className="nav-right">
-          <button className="lm-theme-toggle" onClick={toggleTheme} title="Modo oscuro"></button>
+          <button 
+            className="lm-theme-toggle" 
+            onClick={toggleTheme} 
+            title={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            {theme === 'light' ? (
+              <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18">
+                <circle cx="12" cy="12" r="5" fill="currentColor"/>
+                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+              </svg>
+            )}
+          </button>
           <button className="cart-btn" onClick={() => navigate('/carritoypago')}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
             <span className="cart-badge">{cartCount}</span>
