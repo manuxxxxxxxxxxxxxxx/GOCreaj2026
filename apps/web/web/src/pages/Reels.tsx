@@ -74,7 +74,7 @@ export default function Reels() {
 
   return (
     <div className="reels-main-wrapper" style={{ background: '#000', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-      <Header activeTab="reels" />
+      <Header />
 
       {/* ══ REELS LAYOUT ══ */}
       <div className="reels-page">

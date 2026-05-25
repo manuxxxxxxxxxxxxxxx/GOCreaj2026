@@ -124,7 +124,7 @@ export default function CarritoYpago() {
 
   return (
     <>
-      <Header activeTab="none" />
+      <Header />
 
       <div className="page-wrapper">
         <header className="checkout-header">

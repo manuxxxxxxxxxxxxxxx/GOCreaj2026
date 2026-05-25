@@ -4,6 +4,7 @@ import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
 import { RootStackParamList, TabParamList } from '@/types';
 import { useTheme } from '@/context/ThemeContext';
@@ -14,7 +15,7 @@ import AuthScreen from '@/screens/AuthScreen';
 import OnboardingPhoneScreen from '@/screens/OnboardingPhoneScreen';
 import UsernameSetupScreen from '@/screens/UsernameSetupScreen';
 import HomeScreen from '@/screens/HomeScreen';
-import ReelsScreen from '@/screens/ReelsScreen';
+import ExploreScreen from '@/screens/ExploreScreen';
 import CartScreen from '@/screens/CartScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import ProductScreen from '@/screens/ProductScreen';
@@ -29,9 +30,7 @@ import SupportScreen from '@/screens/SupportScreen';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab   = createBottomTabNavigator<TabParamList>();
 
-// ──────────────────────────────────────────────
-// 5to tab — cambia dinámicamente según el rol
-// ──────────────────────────────────────────────
+// ── 4° tab — dinámico según rol ────────────────────────────────────────
 function LastTabScreen() {
   const { usuario } = useAuth();
   switch (usuario?.rol) {
@@ -42,27 +41,21 @@ function LastTabScreen() {
   }
 }
 
-type TabIconMap = Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]>;
-
 function MainTabs() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { usuario } = useAuth();
 
-  const fifthTabMeta: Record<string, { label: string; active: keyof typeof Ionicons.glyphMap; inactive: keyof typeof Ionicons.glyphMap }> = {
-    admin:      { label: 'Admin',     active: 'shield-checkmark',         inactive: 'shield-checkmark-outline' },
-    vendedor:   { label: 'Mi Tienda', active: 'storefront',               inactive: 'storefront-outline' },
-    repartidor: { label: 'Entregas',  active: 'bicycle',                  inactive: 'bicycle-outline' },
-    comprador:  { label: 'Perfil',    active: 'person-circle',            inactive: 'person-circle-outline' },
+  const fourthTabMeta: Record<string, {
+    label: string;
+    active: keyof typeof Ionicons.glyphMap;
+    inactive: keyof typeof Ionicons.glyphMap;
+  }> = {
+    admin:      { label: 'Admin',     active: 'shield-checkmark',      inactive: 'shield-checkmark-outline' },
+    vendedor:   { label: 'Mi Tienda', active: 'storefront',            inactive: 'storefront-outline' },
+    repartidor: { label: 'Entregas',  active: 'bicycle',               inactive: 'bicycle-outline' },
+    comprador:  { label: 'Perfil',    active: 'person-circle',         inactive: 'person-circle-outline' },
   };
-  const fMeta = fifthTabMeta[usuario?.rol ?? 'comprador'] ?? fifthTabMeta.comprador;
-
-  const icons: TabIconMap = {
-    Home:    ['home',           'home-outline'],
-    Reels:   ['play-circle',    'play-circle-outline'],
-    Cart:    ['cart',           'cart-outline'],
-    Chats:   ['chatbubbles',    'chatbubbles-outline'],
-    Profile: [fMeta.active,     fMeta.inactive],
-  };
+  const fMeta = fourthTabMeta[usuario?.rol ?? 'comprador'] ?? fourthTabMeta.comprador;
 
   return (
     <Tab.Navigator
@@ -71,28 +64,54 @@ function MainTabs() {
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
-          backgroundColor: colors.card,
+          backgroundColor: colors.tabBar,
           borderTopColor: colors.border,
-          height: 68,
-          paddingBottom: 12,
-          paddingTop: 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.04,
-          shadowRadius: 8,
-          elevation: 12,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          height: 72,
+          paddingBottom: 14,
+          paddingTop: 10,
+          shadowColor: colors.shadow,
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: isDark ? 0.30 : 0.06,
+          shadowRadius: 16,
+          elevation: 20,
         },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '700', letterSpacing: 0.1 },
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '700',
+          letterSpacing: 0.2,
+          marginTop: 2,
+        },
         tabBarIcon: ({ color, size, focused }) => {
+          const icons: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]> = {
+            Home:    ['home',          'home-outline'],
+            Explore: ['compass',       'compass-outline'],
+            Chats:   ['chatbubbles',   'chatbubbles-outline'],
+            Profile: [fMeta.active,    fMeta.inactive],
+          };
           const [active, inactive] = icons[route.name] ?? ['help-circle', 'help-circle-outline'];
-          return <Ionicons name={focused ? active : inactive} size={size} color={color} />;
+          const iconSize = focused ? size + 1 : size;
+          if (focused) {
+            return (
+              <View style={{
+                width: 44,
+                height: 30,
+                borderRadius: 15,
+                backgroundColor: colors.accentLight,
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}>
+                <Ionicons name={active} size={iconSize} color={color} />
+              </View>
+            );
+          }
+          return <Ionicons name={inactive} size={iconSize} color={color} />;
         },
       })}
     >
-      <Tab.Screen name="Home"    component={HomeScreen}      options={{ title: 'Inicio' }} />
-      <Tab.Screen name="Reels"   component={ReelsScreen}     options={{ title: 'Reels' }} />
-      <Tab.Screen name="Cart"    component={CartScreen}      options={{ title: 'Carrito' }} />
-      <Tab.Screen name="Chats"   component={ChatListScreen}  options={{ title: 'Chats' }} />
+      <Tab.Screen name="Home"    component={HomeScreen}    options={{ title: 'Inicio' }} />
+      <Tab.Screen name="Explore" component={ExploreScreen} options={{ title: 'Explorar' }} />
+      <Tab.Screen name="Chats"   component={ChatListScreen} options={{ title: 'Chats' }} />
       <Tab.Screen
         name="Profile"
         component={LastTabScreen}
@@ -104,7 +123,7 @@ function MainTabs() {
 
 export default function AppNavigator() {
   const { usuario, cargando } = useAuth();
-  const { isDark, colors } = useTheme();
+  const { isDark, colors }    = useTheme();
   const [firstLaunch, setFirstLaunch] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -139,7 +158,6 @@ export default function AppNavigator() {
           </>
         ) : (
           <>
-            {/* MainTabs es la pantalla principal — el 5to tab cambia por rol */}
             <Stack.Screen name="Main"         component={MainTabs} />
             <Stack.Screen name="Product"      component={ProductScreen} />
             <Stack.Screen name="Cart"         component={CartScreen} />

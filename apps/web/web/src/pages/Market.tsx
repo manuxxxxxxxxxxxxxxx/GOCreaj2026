@@ -35,7 +35,7 @@ const CAROUSEL_SLIDES = [
     title: "¡Lo mejor está llegando!",
     subtitle: "MÁS DE 30 MILLONES DE PRODUCTOS LOCALES PARA ELEGIR.",
     desc: "Envíos express en minutos por tus repartidores locales favoritos. Seguro y garantizado.",
-    badge: "SVGO Express 🛵",
+    badge: "SVGO Express",
     color: "linear-gradient(135deg, #355068 0%, #4A6D8C 100%)",
     textColor: "#ffffff"
   },
@@ -44,7 +44,7 @@ const CAROUSEL_SLIDES = [
     title: "Apoya a los comercios de tu zona",
     subtitle: "PRODUCTOS 100% FRESCOS Y ARTESANALES CULTIVADOS CON AMOR.",
     desc: "Conoce a los panaderos, agricultores y artesanos que dan vida a tu comunidad.",
-    badge: "Comunidad 🏪",
+    badge: "Comunidad",
     color: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
     textColor: "#ffffff"
   },
@@ -53,7 +53,7 @@ const CAROUSEL_SLIDES = [
     title: "Artesanías y regalos únicos",
     subtitle: "PIEZAS EXCLUSIVAS DECORADAS Y PINTADAS A MANO.",
     desc: "Sorprende a tus seres queridos con productos con identidad e historia local.",
-    badge: "Exclusivo 🏺",
+    badge: "Exclusivo",
     color: "linear-gradient(135deg, #111827 0%, #1f2937 100%)",
     textColor: "#ffffff"
   }
@@ -241,7 +241,7 @@ export default function Market() {
 
   return (
     <>
-      <Header activeTab="categories" searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+      <Header />
 
       {/* ══ MARKETPLACE LIST VIEW ══ */}
       <div id="page-marketplace" style={{ display: selectedProduct ? 'none' : 'block' }}>

@@ -325,37 +325,84 @@ function IncomingCallModal({ llamada, onAccept, onDecline }: {
   );
 }
 
-// ─── OutgoingCallModal ────────────────────────────────────────────────────────
+// ─── OutgoingCallModal (con Mute + Altavoz) ──────────────────────────────────
 
 function OutgoingCallModal({ nombre, tipo, duracion, onEnd }: {
   nombre: string; tipo: 'voz' | 'video'; duracion: number; onEnd: () => void;
 }) {
-  const pulse = useRef(new Animated.Value(0.96)).current;
+  const pulse    = useRef(new Animated.Value(0.96)).current;
+  const [muted,   setMuted]   = useState(false);
+  const [speaker, setSpeaker] = useState(false);
+
   useEffect(() => {
     Animated.loop(Animated.sequence([
       Animated.timing(pulse, { toValue: 1.05, duration: 950, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
       Animated.timing(pulse, { toValue: 0.96, duration: 950, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
     ])).start();
   }, [pulse]);
-  const secs = duracion % 60;
-  const mins = Math.floor(duracion / 60);
-  const timeStr = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+  const secs      = duracion % 60;
+  const mins      = Math.floor(duracion / 60);
+  const timeStr   = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  const connected = duracion > 0;
+
   return (
     <Modal transparent animationType="fade" statusBarTranslucent>
       <View style={S.callOverlay}>
         <View style={S.callCard}>
-          <Text style={S.callInLabel}>{duracion > 0 ? timeStr : tipo === 'video' ? 'Videollamada…' : 'Llamando…'}</Text>
-          <Animated.View style={[S.callRing, { borderColor: '#3B82F6', transform: [{ scale: pulse }] }]}>
-            <View style={[S.callAvatarCircle, { backgroundColor: '#3B82F6' }]}>
+          {/* Indicador de estado */}
+          <View style={[S.callStatusPill, { backgroundColor: connected ? '#10B98120' : '#3B82F620' }]}>
+            <View style={[S.callStatusDot, { backgroundColor: connected ? '#10B981' : '#3B82F6' }]} />
+            <Text style={[S.callStatusTxt, { color: connected ? '#10B981' : '#3B82F6' }]}>
+              {connected ? timeStr : tipo === 'video' ? 'Videollamada…' : 'Llamando…'}
+            </Text>
+          </View>
+
+          {/* Avatar pulsante */}
+          <Animated.View style={[S.callRing, { borderColor: connected ? '#10B981' : '#3B82F6', transform: [{ scale: pulse }] }]}>
+            <View style={[S.callAvatarCircle, { backgroundColor: connected ? '#10B981' : '#3B82F6' }]}>
               <Text style={S.callAvatarTxt}>{getInitials(nombre)}</Text>
             </View>
           </Animated.View>
+
           <Text style={S.callName}>{nombre}</Text>
-          {duracion === 0 && <Text style={[S.callInLabel, { color: '#94A3B8', marginTop: 4 }]}>Esperando respuesta…</Text>}
-          <TouchableOpacity style={[S.callBtn, { backgroundColor: '#EF4444', marginTop: 32 }]} onPress={onEnd} activeOpacity={0.8}>
-            <Ionicons name="call" size={28} color="#FFF" style={{ transform: [{ rotate: '135deg' }] }} />
-          </TouchableOpacity>
-          <Text style={[S.callBtnLabel, { marginTop: 8 }]}>Colgar</Text>
+          {!connected && <Text style={[S.callInLabel, { color: '#64748B', marginTop: 4, marginBottom: 8 }]}>Esperando respuesta…</Text>}
+
+          {/* Controles: Mute | Colgar | Altavoz */}
+          <View style={S.callControls}>
+            <View style={S.callControlItem}>
+              <TouchableOpacity
+                style={[S.callControlBtn, { backgroundColor: muted ? '#EF4444' : 'rgba(255,255,255,0.12)' }]}
+                onPress={() => { setMuted(v => !v); Vibration.vibrate(15); }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name={muted ? 'mic-off' : 'mic-outline'} size={24} color="#FFF" />
+              </TouchableOpacity>
+              <Text style={S.callControlLbl}>{muted ? 'Activar mic' : 'Silenciar'}</Text>
+            </View>
+
+            <View style={S.callControlItem}>
+              <TouchableOpacity
+                style={[S.callHangBtn]}
+                onPress={onEnd}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="call" size={28} color="#FFF" style={{ transform: [{ rotate: '135deg' }] }} />
+              </TouchableOpacity>
+              <Text style={S.callControlLbl}>Colgar</Text>
+            </View>
+
+            <View style={S.callControlItem}>
+              <TouchableOpacity
+                style={[S.callControlBtn, { backgroundColor: speaker ? '#3B82F6' : 'rgba(255,255,255,0.12)' }]}
+                onPress={() => { setSpeaker(v => !v); Vibration.vibrate(15); }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name={speaker ? 'volume-high' : 'volume-medium-outline'} size={24} color="#FFF" />
+              </TouchableOpacity>
+              <Text style={S.callControlLbl}>{speaker ? 'Altavoz ON' : 'Altavoz'}</Text>
+            </View>
+          </View>
         </View>
       </View>
     </Modal>
@@ -907,16 +954,27 @@ const S = StyleSheet.create({
   sendBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
 
   // Calls
-  callOverlay: { flex: 1, backgroundColor: 'rgba(2,8,23,0.93)', justifyContent: 'center', alignItems: 'center' },
-  callCard: { width: 300, alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 },
-  callInLabel: { fontSize: 14, fontWeight: '700', color: '#94A3B8', marginBottom: 28 },
-  callRing: { width: 120, height: 120, borderRadius: 60, borderWidth: 3, borderColor: '#22C55E', justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
-  callAvatarCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#4A6D8C', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
-  callAvatarImg: { width: 100, height: 100, borderRadius: 50 },
-  callAvatarTxt: { color: '#FFF', fontSize: 36, fontWeight: '800' },
-  callName: { fontSize: 24, fontWeight: '800', color: '#F1F5F9', marginBottom: 8 },
-  callBtnRow: { flexDirection: 'row', gap: 44, marginTop: 32 },
-  callBtn: { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center' },
+  callOverlay:    { flex: 1, backgroundColor: 'rgba(2,8,23,0.95)', justifyContent: 'center', alignItems: 'center' },
+  callBg:         { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(2,8,23,0.95)' },
+  callCard:       { width: 300, alignItems: 'center', paddingVertical: 36, paddingHorizontal: 24 },
+  callStatusPill: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 14, paddingVertical: 6, borderRadius: 99, marginBottom: 28 },
+  callStatusDot:  { width: 8, height: 8, borderRadius: 4 },
+  callStatusTxt:  { fontSize: 13, fontWeight: '700' },
+  callInLabel:    { fontSize: 14, fontWeight: '700', color: '#94A3B8', marginBottom: 28 },
+  callRing:       { width: 120, height: 120, borderRadius: 60, borderWidth: 3, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  callAvatarCircle: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  callAvatarImg:  { width: 100, height: 100, borderRadius: 50 },
+  callAvatarTxt:  { color: '#FFF', fontSize: 36, fontWeight: '800' },
+  callName:       { fontSize: 24, fontWeight: '800', color: '#F1F5F9', marginBottom: 6 },
+  // Controles de llamada
+  callControls:    { flexDirection: 'row', gap: 28, marginTop: 36, justifyContent: 'center' },
+  callControlItem: { alignItems: 'center', gap: 8 },
+  callControlBtn:  { width: 58, height: 58, borderRadius: 29, justifyContent: 'center', alignItems: 'center' },
+  callHangBtn:     { width: 68, height: 68, borderRadius: 34, backgroundColor: '#EF4444', justifyContent: 'center', alignItems: 'center', shadowColor: '#EF4444', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8 },
+  callControlLbl:  { color: '#94A3B8', fontSize: 11, fontWeight: '600', textAlign: 'center' },
+  // Legacy (por compatibilidad con IncomingCallModal)
+  callBtnRow:    { flexDirection: 'row', gap: 44, marginTop: 32 },
+  callBtn:       { width: 64, height: 64, borderRadius: 32, justifyContent: 'center', alignItems: 'center' },
   callBtnLabels: { flexDirection: 'row', gap: 66, marginTop: 10 },
-  callBtnLabel: { color: '#94A3B8', fontSize: 12, fontWeight: '600' },
+  callBtnLabel:  { color: '#94A3B8', fontSize: 12, fontWeight: '600' },
 });

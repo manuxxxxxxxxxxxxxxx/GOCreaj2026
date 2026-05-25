@@ -131,10 +131,11 @@ export default function AdminOrders() {
             onClick={() => setFiltroEstado(prev => prev === e.id ? 'todos' : e.id)}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: 40, height: 40, borderRadius: '12px', background: e.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: '1.1rem' }}>
-                  {e.id === 'preparacion' ? '🍳' : e.id === 'en_camino' ? '🚴' : e.id === 'entregado' ? '✅' : '❌'}
-                </span>
+              <div style={{ width: 40, height: 40, borderRadius: '12px', background: e.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: e.color }}>
+                {e.id === 'preparacion' && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12"/><polyline points="12 6 12 12 16 14"/></svg>}
+                {e.id === 'en_camino' && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>}
+                {e.id === 'entregado' && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="20" height="20"><polyline points="20 6 9 17 4 12"/></svg>}
+                {e.id === 'cancelado' && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="20" height="20"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>}
               </div>
               <div>
                 <div style={{ fontSize: '1.4rem', fontWeight: '900', color: e.color, lineHeight: 1 }}>{contarEstado(e.id)}</div>

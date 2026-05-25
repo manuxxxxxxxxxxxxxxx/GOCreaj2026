@@ -18,6 +18,7 @@ import Historial from './pages/Historial';
 import VendedorDashboard from './pages/VendedorDashboard';
 import RepartidorDashboard from './pages/RepartidorDashboard';
 import BecomeSeller from './pages/BecomeSeller';
+import Explorar from './pages/Explorar';
 import NotFound from './pages/NotFound';
 
 function App() {
@@ -37,6 +38,7 @@ function App() {
         <Route path="/dashboard-vendedor" element={<VendedorDashboard />} />
         <Route path="/dashboard-repartidor" element={<RepartidorDashboard />} />
         <Route path="/become-seller" element={<BecomeSeller />} />
+        <Route path="/explorar" element={<Explorar />} />
 
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Navigate to="/admin/dashboard" replace />} />

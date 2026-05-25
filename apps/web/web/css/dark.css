@@ -6,11 +6,13 @@
 
 html.dark {
   /* Colores base */
-  --bg:        #0f172a;
-  --white:     #1e293b;
-  --border:    #334155;
-  --text:      #f1f5f9;
-  --text-muted:#94a3b8;
+  --bg:           #0f172a;
+  --white:        #1e293b;
+  --border:       #334155;
+  --text:         #f1f5f9;
+  --text-muted:   #94a3b8;
+  --card:         #1e293b;
+  --bg-secondary: #0f172a;
 
   /* Colores de acento (ligeramente más brillantes en oscuro) */
   --blue:      #60a5fa;

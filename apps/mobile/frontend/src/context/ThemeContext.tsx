@@ -3,50 +3,73 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface ColorPalette {
   background: string;
+  surface: string;
+  card: string;
+  elevated: string;
   text: string;
+  textSecondary: string;
   accent: string;
   accentLight: string;
+  accentDark: string;
   contrast: string;
   border: string;
+  borderLight: string;
   muted: string;
   danger: string;
   success: string;
   warning: string;
-  card: string;
   overlay: string;
   inputBg: string;
+  tabBar: string;
+  shadow: string;
 }
 
-export const lightColors: ColorPalette = {
-  background: '#F3F0FA',
-  text: '#111827',
-  accent: '#4A6D8C',
-  accentLight: 'rgba(74,109,140,0.10)',
-  contrast: '#FFFFFF',
-  border: '#E2DCEF',
-  muted: '#6B7280',
-  danger: '#EF4444',
-  success: '#22C55E',
-  warning: '#F59E0B',
-  card: '#FFFFFF',
-  overlay: 'rgba(17,17,17,0.50)',
-  inputBg: '#FFFFFF',
+// ─── Modo Oscuro: grises oscuros profundos + azul eléctrico ──────────
+export const darkColors: ColorPalette = {
+  background:    '#080D18',   // negro azulado profundo
+  surface:       '#0D1321',   // superficie principal
+  card:          '#111827',   // tarjetas elevadas nivel 1
+  elevated:      '#1A2236',   // tarjetas elevadas nivel 2
+  text:          '#F1F5F9',   // blanco suave principal
+  textSecondary: '#94A3B8',   // texto secundario
+  accent:        '#3B82F6',   // azul eléctrico vibrante
+  accentLight:   'rgba(59,130,246,0.14)',
+  accentDark:    '#1D4ED8',   // azul más profundo para hover
+  contrast:      '#080D18',
+  border:        '#1E293B',   // borde sutil oscuro
+  borderLight:   '#2D3D55',   // borde para inputs activos
+  muted:         '#64748B',   // texto atenuado
+  danger:        '#F87171',
+  success:       '#4ADE80',
+  warning:       '#FCD34D',
+  overlay:       'rgba(0,0,0,0.80)',
+  inputBg:       '#1E293B',
+  tabBar:        '#0D1321',
+  shadow:        '#000000',
 };
 
-export const darkColors: ColorPalette = {
-  background: '#0D1117',
-  text: '#F3F4F6',
-  accent: '#60A5D8',
-  accentLight: 'rgba(96,165,216,0.12)',
-  contrast: '#0D1117',
-  border: '#21262D',
-  muted: '#8B949E',
-  danger: '#F87171',
-  success: '#4ADE80',
-  warning: '#FCD34D',
-  card: '#161B22',
-  overlay: 'rgba(0,0,0,0.75)',
-  inputBg: '#21262D',
+// ─── Modo Claro: blanco sofisticado + azul eléctrico vibrante ────────
+export const lightColors: ColorPalette = {
+  background:    '#F8FAFC',   // fondo gris muy claro
+  surface:       '#FFFFFF',
+  card:          '#FFFFFF',
+  elevated:      '#F1F5F9',
+  text:          '#0F172A',   // negro azulado
+  textSecondary: '#475569',
+  accent:        '#2563EB',   // azul eléctrico intenso
+  accentLight:   'rgba(37,99,235,0.10)',
+  accentDark:    '#1D4ED8',
+  contrast:      '#FFFFFF',
+  border:        '#E2E8F0',
+  borderLight:   '#CBD5E1',
+  muted:         '#64748B',
+  danger:        '#DC2626',
+  success:       '#16A34A',
+  warning:       '#D97706',
+  overlay:       'rgba(15,23,42,0.55)',
+  inputBg:       '#FFFFFF',
+  tabBar:        '#FFFFFF',
+  shadow:        '#0F172A',
 };
 
 interface ThemeCtx {

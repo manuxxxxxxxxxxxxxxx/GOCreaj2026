@@ -72,12 +72,99 @@ function db_migrate(): void {
         // chats — reply & product context
         "ALTER TABLE chats ADD COLUMN reply_to_id INT NULL AFTER lng",
         "ALTER TABLE chats ADD COLUMN reply_snapshot TEXT NULL AFTER reply_to_id",
+        // pedidos — municipio entrega
+        "ALTER TABLE pedidos ADD COLUMN municipio_entrega VARCHAR(120) NULL",
+        "ALTER TABLE pedidos ADD COLUMN departamento_entrega VARCHAR(80) NULL",
+        // municipios_sv — catálogo de 39 municipios de El Salvador
+        "CREATE TABLE IF NOT EXISTS municipios_sv (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            nombre VARCHAR(120) NOT NULL,
+            departamento VARCHAR(80) NOT NULL,
+            lat DECIMAL(10,7) NOT NULL DEFAULT 13.6929,
+            lng DECIMAL(10,7) NOT NULL DEFAULT -89.2182,
+            INDEX idx_nombre (nombre),
+            INDEX idx_departamento (departamento)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        // direcciones_usuario — direcciones guardadas por usuario
+        "CREATE TABLE IF NOT EXISTS direcciones_usuario (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            alias VARCHAR(80) NOT NULL DEFAULT 'Casa',
+            municipio VARCHAR(120) NOT NULL,
+            departamento VARCHAR(80) NOT NULL DEFAULT 'San Salvador',
+            direccion VARCHAR(255) NOT NULL,
+            referencia VARCHAR(255) NULL,
+            lat DECIMAL(10,7) NULL,
+            lng DECIMAL(10,7) NULL,
+            es_principal TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_usuario (usuario_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        // tiendas — lat/lng si no existen
+        "ALTER TABLE tiendas ADD COLUMN lat DECIMAL(10,7) NULL",
+        "ALTER TABLE tiendas ADD COLUMN lng DECIMAL(10,7) NULL",
+        // productos — índice FULLTEXT para búsqueda
+        "ALTER TABLE productos ADD FULLTEXT INDEX idx_ft_nombre_desc (nombre, descripcion)",
+        // índices de rendimiento en chats
+        "CREATE INDEX IF NOT EXISTS idx_chats_conv ON chats (emisor_id, receptor_id, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_chats_unread ON chats (receptor_id, leido)",
     ];
     foreach ($stmts as $sql) {
         try { db()->exec($sql); } catch (PDOException $e) {}
     }
 }
 db_migrate();
+seed_municipios();
+
+function seed_municipios(): void {
+    $count = db()->query("SELECT COUNT(*) FROM municipios_sv")->fetchColumn();
+    if ((int)$count > 0) return;
+    $municipios = [
+        ['San Salvador','San Salvador',13.6929,-89.2182],
+        ['Soyapango','San Salvador',13.7153,-89.1692],
+        ['Mejicanos','San Salvador',13.7283,-89.2283],
+        ['Apopa','San Salvador',13.8028,-89.1792],
+        ['Delgado','San Salvador',13.7267,-89.1908],
+        ['Ilopango','San Salvador',13.7000,-89.1167],
+        ['San Marcos','San Salvador',13.6667,-89.2000],
+        ['Cuscatancingo','San Salvador',13.7333,-89.2167],
+        ['Villa Delgado','San Salvador',13.7267,-89.1908],
+        ['Santa Tecla','La Libertad',13.6742,-89.2803],
+        ['Antiguo Cuscatlán','La Libertad',13.6769,-89.2519],
+        ['San Juan Opico','La Libertad',13.8833,-89.3667],
+        ['Quezaltepeque','La Libertad',13.8333,-89.2667],
+        ['Zaragoza','La Libertad',13.5908,-89.2997],
+        ['Colón','La Libertad',13.7167,-89.3667],
+        ['Chalatenango','Chalatenango',14.0333,-88.9333],
+        ['Santa Ana','Santa Ana',13.9942,-89.5597],
+        ['San Ana','Santa Ana',13.9942,-89.5597],
+        ['Ahuachapán','Ahuachapán',13.9208,-89.8453],
+        ['Sonsonate','Sonsonate',13.7189,-89.7239],
+        ['La Libertad','La Libertad',13.4833,-89.3167],
+        ['San Miguel','San Miguel',13.4822,-88.1775],
+        ['Usulután','Usulután',13.3500,-88.4500],
+        ['San Vicente','San Vicente',13.6419,-88.7847],
+        ['Cojutepeque','Cuscatlán',13.7167,-88.9333],
+        ['Zacatecoluca','La Paz',13.5000,-88.8667],
+        ['Sensuntepeque','Cabañas',13.8667,-88.6333],
+        ['La Unión','La Unión',13.3372,-87.8433],
+        ['Santa Rosa de Lima','La Unión',13.6269,-87.9956],
+        ['Metapán','Santa Ana',14.3333,-89.4500],
+        ['Acajutla','Sonsonate',13.5925,-89.8278],
+        ['Chalchuapa','Santa Ana',13.9833,-89.6833],
+        ['Ciudad Arce','La Libertad',13.8333,-89.4000],
+        ['San Pablo Tacachico','La Libertad',13.9667,-89.3500],
+        ['Tonacatepeque','San Salvador',13.7833,-89.1167],
+        ['Panchimalco','San Salvador',13.6167,-89.1833],
+        ['Rosario de Mora','San Salvador',13.5667,-89.1833],
+        ['Aguilares','San Salvador',13.9500,-89.1833],
+        ['Guazapa','San Salvador',13.9167,-89.1167],
+    ];
+    $ins = db()->prepare("INSERT IGNORE INTO municipios_sv (nombre,departamento,lat,lng) VALUES (?,?,?,?)");
+    foreach ($municipios as [$n,$d,$lat,$lng]) {
+        try { $ins->execute([$n,$d,$lat,$lng]); } catch (PDOException $e) {}
+    }
+}
 
 function jread(): array {
     $raw = file_get_contents('php://input');

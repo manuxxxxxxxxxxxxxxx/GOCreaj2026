@@ -14,7 +14,6 @@ interface Order {
   items: string;
   total: number;
   status: 'pending' | 'active' | 'completed';
-  emoji: string;
 }
 
 export default function RepartidorDashboard() {
@@ -55,8 +54,7 @@ export default function RepartidorDashboard() {
           address: p.direccion_entrega || 'Dirección no especificada',
           items: 'Artículos varios',
           total: parseFloat(p.total),
-          status: 'pending',
-          emoji: '📦'
+          status: 'pending'
         })));
       }
 
@@ -70,8 +68,7 @@ export default function RepartidorDashboard() {
           address: p.direccion_entrega || 'Dirección no especificada',
           items: 'Artículos varios',
           total: parseFloat(p.total),
-          status: 'active',
-          emoji: '🛵'
+          status: 'active'
         }));
         setActiveDeliveries(active);
 
@@ -94,14 +91,14 @@ export default function RepartidorDashboard() {
 
   const handleAcceptOrder = async (order: Order) => {
     if (!isAvailable) {
-      triggerToast('⚠️ Activa tu disponibilidad para aceptar pedidos.');
+      triggerToast('Activa tu disponibilidad para aceptar pedidos.');
       return;
     }
     try {
       const res = await api.post('/repartidor_dashboard.php?action=aceptar', { pedido_id: order.id });
       if (res.data.ok) {
         fetchData();
-        triggerToast('🛵 ¡Pedido aceptado! Recoge en la tienda.');
+        triggerToast('Pedido aceptado. Recoge en la tienda.');
       }
     } catch (e) {
       console.error(e);
@@ -113,7 +110,7 @@ export default function RepartidorDashboard() {
       const res = await api.post('/repartidor_dashboard.php?action=completar', { pedido_id: order.id });
       if (res.data.ok) {
         fetchData();
-        triggerToast('✅ ¡Pedido entregado con éxito! +$3.50');
+        triggerToast('Pedido entregado exitosamente. +$3.50');
       }
     } catch (e) {
       console.error(e);
@@ -263,7 +260,9 @@ export default function RepartidorDashboard() {
                   <div key={o.id} className="dash-item-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div className="dash-item-left">
-                        <span className="dash-item-emoji">{o.emoji}</span>
+                        <span className="dash-item-emoji">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                        </span>
                         <div className="dash-item-info">
                           <h4>Pedido #{o.id} - {o.store}</h4>
                           <p>{o.items}</p>
@@ -272,14 +271,20 @@ export default function RepartidorDashboard() {
                       <span className="dash-item-status active">En camino</span>
                     </div>
                     <div style={{ padding: '8px 12px', background: 'var(--bg)', borderRadius: '10px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      📍 <strong>Entregar a:</strong> {o.client} <br />
-                      🏡 <strong>Dirección:</strong> {o.address}
+                      <strong>Entregar a:</strong> {o.client} <br />
+                      <strong>Dirección:</strong> {o.address}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                       <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text)' }}>Monto: ${o.total.toFixed(2)}</span>
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="btn-primary" onClick={() => navigate('/chat')} style={{ padding: '6px 12px', fontSize: '0.78rem' }}>💬 Chat</button>
-                        <button className="btn-primary" onClick={() => handleCompleteDelivery(o)} style={{ padding: '6px 12px', fontSize: '0.78rem', background: 'var(--green)' }}>✓ Entregar</button>
+                        <button className="btn-primary" onClick={() => navigate('/chat')} style={{ padding: '6px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                          Chat
+                        </button>
+                        <button className="btn-primary" onClick={() => handleCompleteDelivery(o)} style={{ padding: '6px 12px', fontSize: '0.78rem', background: 'var(--green)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
+                          Entregar
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -311,7 +316,9 @@ export default function RepartidorDashboard() {
                   <div key={o.id} className="dash-item-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div className="dash-item-left">
-                        <span className="dash-item-emoji">{o.emoji}</span>
+                        <span className="dash-item-emoji">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                        </span>
                         <div className="dash-item-info">
                           <h4>Pedido #{o.id} - {o.store}</h4>
                           <p>{o.items}</p>
@@ -320,12 +327,15 @@ export default function RepartidorDashboard() {
                       <span className="dash-item-status avail">Disponible</span>
                     </div>
                     <div style={{ padding: '8px 12px', background: 'var(--bg)', borderRadius: '10px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      🏢 <strong>Tienda:</strong> {o.store} <br />
-                      📍 <strong>Destino:</strong> {o.address}
+                      <strong>Tienda:</strong> {o.store} <br />
+                      <strong>Destino:</strong> {o.address}
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                       <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text)' }}>Monto: ${o.total.toFixed(2)}</span>
-                      <button className="btn-primary" onClick={() => handleAcceptOrder(o)} style={{ padding: '8px 14px', fontSize: '0.8rem' }}>🛵 Aceptar Entrega</button>
+                      <button className="btn-primary" onClick={() => handleAcceptOrder(o)} style={{ padding: '8px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+                        Aceptar Entrega
+                      </button>
                     </div>
                   </div>
                 ))

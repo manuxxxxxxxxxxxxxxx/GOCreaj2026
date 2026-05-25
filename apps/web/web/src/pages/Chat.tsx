@@ -104,7 +104,7 @@ function formatDuration(s: number): string {
 
 function ReplyCard({ snap, mine }: { snap: ReplySnap; mine: boolean }) {
   const isImg  = snap.tipo === 'imagen';
-  const preview = isImg ? '📷 Imagen' : (snap.mensaje ?? '').slice(0, 80);
+  const preview = isImg ? '[Imagen]' : (snap.mensaje ?? '').slice(0, 80);
   return (
     <div style={{ borderLeft: '3px solid #3B82F6', padding: '5px 8px', marginBottom: 6, background: mine ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.06)', borderRadius: '0 6px 6px 0', display: 'flex', gap: 8, alignItems: 'center' }}>
       {isImg && snap.adjunto && (
@@ -120,7 +120,7 @@ function ReplyCard({ snap, mine }: { snap: ReplySnap; mine: boolean }) {
 // ─── ReplyBar ──────────────────────────────────────────────────────────────────
 
 function ReplyBar({ target, onCancel }: { target: Message; onCancel: () => void }) {
-  const preview = target.tipo === 'imagen' ? '📷 Imagen' : target.mensaje.slice(0, 70);
+  const preview = target.tipo === 'imagen' ? '[Imagen]' : target.mensaje.slice(0, 70);
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#0F172A', borderTop: '1px solid #334155', borderLeft: '3px solid #3B82F6', padding: '8px 16px' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
@@ -159,37 +159,157 @@ function LocationMsg({ lat, lng, mine }: { lat: number | null | undefined; lng: 
   );
 }
 
+// ─── Static call UI styles (dark overlay, not theme-dependent) ─────────────────
+const CS: Record<string, React.CSSProperties> = {
+  callOverlay:   { position: 'fixed', inset: 0, background: 'rgba(2,8,23,0.94)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  callCard:      { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 32px', gap: 12 },
+  callAvatarRing:{ width: 120, height: 120, borderRadius: 60, border: '3px solid #3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  callAvatar:    { width: 100, height: 100, borderRadius: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  callAvatarTxt: { color: '#FFF', fontSize: 38, fontWeight: 800 },
+  callName:      { fontSize: 26, fontWeight: 800, color: '#F1F5F9', letterSpacing: -0.5 },
+  callStatus:    { fontSize: 18, fontWeight: 700, color: '#3B82F6' },
+  callWait:      { fontSize: 13, color: '#475569', fontWeight: 600 },
+  hangupBtn:     { width: 64, height: 64, borderRadius: 32, background: '#EF4444', display: 'grid', placeItems: 'center', cursor: 'pointer', marginTop: 20, transition: 'transform 0.15s' },
+  avatarImg:     { width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' },
+};
+
 // ─── Active Call Modal ─────────────────────────────────────────────────────────
 
-function ActiveCallModal({ call, contacto, onHangup }: {
+function ActiveCallModal({ call, contacto, onHangup, muted, speakerOn, onMuteToggle, onSpeakerToggle }: {
   call: ActiveCall;
   contacto: Contact | null;
   onHangup: () => void;
+  muted: boolean;
+  speakerOn: boolean;
+  onMuteToggle: () => void;
+  onSpeakerToggle: () => void;
 }) {
   const name  = contacto?.nombre ?? 'Desconocido';
   const color = contacto ? (ROLE_COLOR[contacto.rol] ?? '#3B82F6') : '#3B82F6';
   return (
-    <div style={S.callOverlay}>
-      <div style={S.callCard}>
-        <div style={{ ...S.callAvatarRing, borderColor: call.connected ? '#22C55E' : '#3B82F6' }}>
-          <div style={{ ...S.callAvatar, background: color }}>
+    <div style={CS.callOverlay}>
+      <div style={CS.callCard}>
+        {/* Avatar with animated ring when connected */}
+        <div style={{
+          ...CS.callAvatarRing,
+          borderColor: call.connected ? '#22C55E' : '#3B82F6',
+          boxShadow: call.connected ? '0 0 0 8px rgba(34,197,94,0.15), 0 0 0 16px rgba(34,197,94,0.07)' : 'none',
+          transition: 'box-shadow 0.4s',
+        }}>
+          <div style={{ ...CS.callAvatar, background: color }}>
             {imgUri(contacto?.foto_perfil)
               ? <img src={imgUri(contacto?.foto_perfil)} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-              : <span style={S.callAvatarTxt}>{getInitials(name)}</span>
+              : <span style={CS.callAvatarTxt}>{getInitials(name)}</span>
             }
           </div>
         </div>
-        <div style={S.callName}>{name}</div>
-        <div style={S.callStatus}>
+
+        <div style={CS.callName}>{name}</div>
+
+        {/* Status pill */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          background: call.connected ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.15)',
+          borderRadius: 20, padding: '6px 16px',
+          fontSize: 14, fontWeight: 700,
+          color: call.connected ? '#22C55E' : '#3B82F6',
+        }}>
+          <span style={{
+            width: 7, height: 7, borderRadius: '50%',
+            background: call.connected ? '#22C55E' : '#3B82F6',
+            animation: call.connected ? 'none' : 'callPulse 1.2s ease infinite',
+          }} />
           {call.connected
             ? formatDuration(call.elapsed)
             : call.tipo === 'video' ? 'Videollamada...' : 'Llamando...'
           }
         </div>
-        {!call.connected && <div style={S.callWait}>Esperando respuesta...</div>}
-        <button style={S.hangupBtn} onClick={onHangup}><span style={{ fontSize: 24 }}>📞</span></button>
-        <div style={{ color: '#64748B', fontSize: 12, marginTop: 8 }}>Colgar</div>
+        {!call.connected && (
+          <div style={CS.callWait}>Esperando respuesta...</div>
+        )}
+
+        {/* Controls row: Mute | Hangup | Speaker */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 20, marginTop: 28 }}>
+          {/* Mute */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={onMuteToggle}
+              title={muted ? 'Activar micrófono' : 'Silenciar'}
+              style={{
+                width: 54, height: 54, borderRadius: 27,
+                background: muted ? '#EF4444' : 'rgba(255,255,255,0.08)',
+                border: `2px solid ${muted ? '#EF4444' : 'rgba(255,255,255,0.15)'}`,
+                cursor: 'pointer', display: 'grid', placeItems: 'center',
+                transition: 'all 0.2s',
+              }}
+            >
+              {muted ? (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                  <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>
+                  <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"/>
+                  <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                  <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+                </svg>
+              )}
+            </button>
+            <span style={{ fontSize: 11, color: muted ? '#EF4444' : '#64748B', fontWeight: 600 }}>
+              {muted ? 'Silenciado' : 'Micro'}
+            </span>
+          </div>
+
+          {/* Hangup */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <button
+              style={{ ...CS.hangupBtn, marginTop: 0 }}
+              onClick={onHangup}
+              title="Colgar"
+            >
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="#fff">
+                <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z" transform="rotate(135 12 12)"/>
+              </svg>
+            </button>
+            <span style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>Colgar</span>
+          </div>
+
+          {/* Speaker */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={onSpeakerToggle}
+              title={speakerOn ? 'Altavoz activo' : 'Activar altavoz'}
+              style={{
+                width: 54, height: 54, borderRadius: 27,
+                background: speakerOn ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.08)',
+                border: `2px solid ${speakerOn ? '#3B82F6' : 'rgba(255,255,255,0.15)'}`,
+                cursor: 'pointer', display: 'grid', placeItems: 'center',
+                transition: 'all 0.2s',
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                stroke={speakerOn ? '#3B82F6' : '#fff'} strokeWidth="2.5" strokeLinecap="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                {speakerOn ? (
+                  <>
+                    <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                  </>
+                ) : (
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                )}
+              </svg>
+            </button>
+            <span style={{ fontSize: 11, color: speakerOn ? '#3B82F6' : '#64748B', fontWeight: 600 }}>
+              Altavoz
+            </span>
+          </div>
+        </div>
       </div>
+      <style>{`@keyframes callPulse{0%,100%{opacity:1}50%{opacity:0.3}}`}</style>
     </div>
   );
 }
@@ -202,28 +322,33 @@ function IncomingCallModal({ call, onAccept, onReject }: {
   onReject: () => void;
 }) {
   return (
-    <div style={S.callOverlay}>
-      <div style={S.callCard}>
-        <div style={{ ...S.callAvatarRing, borderColor: '#22C55E' }}>
-          <div style={{ ...S.callAvatar, background: '#4A6D8C' }}>
+    <div style={CS.callOverlay}>
+      <div style={CS.callCard}>
+        <div style={{ ...CS.callAvatarRing, borderColor: '#22C55E' }}>
+          <div style={{ ...CS.callAvatar, background: '#4A6D8C' }}>
             {call.foto_perfil
               ? <img src={imgUri(call.foto_perfil)} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-              : <span style={S.callAvatarTxt}>{getInitials(call.nombre)}</span>
+              : <span style={CS.callAvatarTxt}>{getInitials(call.nombre)}</span>
             }
           </div>
         </div>
-        <div style={S.callName}>{call.nombre}</div>
-        <div style={S.callStatus}>{call.tipo === 'video' ? '📹 Videollamada entrante' : '📞 Llamada entrante'}</div>
+        <div style={CS.callName}>{call.nombre}</div>
+        <div style={CS.callStatus}>
+          {call.tipo === 'video'
+            ? <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: 5 }}><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>Videollamada entrante</>
+            : <><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" style={{ marginRight: 5 }}><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.61 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17z"/></svg>Llamada entrante</>
+          }
+        </div>
         <div style={{ display: 'flex', gap: 24, marginTop: 24 }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-            <button style={{ ...S.hangupBtn, background: '#EF4444' }} onClick={onReject}>
-              <span style={{ fontSize: 24 }}>📞</span>
+            <button style={{ ...CS.hangupBtn, background: '#EF4444' }} onClick={onReject}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" width="24" height="24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.61 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17z"/></svg>
             </button>
             <div style={{ color: '#64748B', fontSize: 12 }}>Rechazar</div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-            <button style={{ ...S.hangupBtn, background: '#22C55E' }} onClick={onAccept}>
-              <span style={{ fontSize: 24 }}>📞</span>
+            <button style={{ ...CS.hangupBtn, background: '#22C55E' }} onClick={onAccept}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" width="24" height="24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.61 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6 6l.91-.91a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 17z"/></svg>
             </button>
             <div style={{ color: '#64748B', fontSize: 12 }}>Aceptar</div>
           </div>
@@ -236,7 +361,9 @@ function IncomingCallModal({ call, onAccept, onReject }: {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Chat() {
-  const { user } = useGlobal();
+  const { user, theme } = useGlobal();
+  const isDark = theme === 'dark';
+  const S = makeStyles(isDark);
 
   const [contacts, setContacts]           = useState<Contact[]>([]);
   const [selected, setSelected]           = useState<Contact | null>(null);
@@ -248,6 +375,8 @@ export default function Chat() {
   const [sending, setSending]             = useState(false);
   const [activeCall, setActiveCall]       = useState<ActiveCall | null>(null);
   const [incomingCall, setIncomingCall]   = useState<IncomingCall | null>(null);
+  const [callMuted, setCallMuted]         = useState(false);
+  const [callSpeaker, setCallSpeaker]     = useState(false);
   const [replyTarget, setReplyTarget]     = useState<Message | null>(null);
   const [imgFullscreen, setImgFullscreen] = useState<string | null>(null);
 
@@ -261,8 +390,16 @@ export default function Chat() {
   const localStreamRef   = useRef<MediaStream | null>(null);
   const remoteAudioRef   = useRef<HTMLAudioElement>(null);
   const pendingCandidates= useRef<RTCIceCandidateInit[]>([]);
+  const callAcceptedRef  = useRef(false);
 
   const scrollBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+
+  // Lock body scroll while on Chat page
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
 
   // ── WebRTC helpers ──────────────────────────────────────────────────────────
 
@@ -311,8 +448,11 @@ export default function Chat() {
 
   const closeCallCleanup = useCallback(async () => {
     closePeerConnection();
+    callAcceptedRef.current = false;
     setActiveCall(null);
     setIncomingCall(null);
+    setCallMuted(false);
+    setCallSpeaker(false);
     if (callTimerRef.current) clearInterval(callTimerRef.current);
   }, []);
 
@@ -335,8 +475,20 @@ export default function Chat() {
     });
 
     socket.on('offer', async ({ sdp, from }: { sdp: RTCSessionDescriptionInit; from: string }) => {
-      // Update incoming call state with the SDP (callee receives offer when they join the room)
-      setIncomingCall(ic => ic ? { ...ic, sdp, fromSocketId: from } : ic);
+      const pc = pcRef.current;
+      // If we already accepted the call (callee), process the offer directly
+      if (pc && callAcceptedRef.current) {
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit('answer', { room: (pc as any)._room ?? '', sdp: answer, to: from });
+          await addPendingCandidates(pc);
+        } catch (e) { console.warn('[webrtc] callee offer error', e); }
+      } else {
+        // Still in incoming call modal — save SDP for when user accepts
+        setIncomingCall(ic => ic ? { ...ic, sdp, fromSocketId: from } : ic);
+      }
     });
 
     socket.on('answer', async ({ sdp }: { sdp: RTCSessionDescriptionInit }) => {
@@ -443,6 +595,7 @@ export default function Chat() {
         stream.getTracks().forEach(t => pc.addTrack(t, stream));
       }
 
+      callAcceptedRef.current = false;
       socketRef.current?.emit('join-call', { room, userId: user?.id });
       setActiveCall({ llamadaId: res.data.llamada_id, tipo, elapsed: 0, room, connected: false });
     } catch (e) { console.warn('[call] initCall error', e); }
@@ -453,6 +606,8 @@ export default function Chat() {
     try {
       await api.post('/chat_multi.php?action=responder_llamada', { llamada_id: incomingCall.llamadaId, aceptar: true });
       const room = incomingCall.room;
+      const savedSdp = incomingCall.sdp;
+      const savedFromId = incomingCall.fromSocketId;
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false }).catch(() => null);
       const pc = createPeerConnection(room);
@@ -462,32 +617,77 @@ export default function Chat() {
         stream.getTracks().forEach(t => pc.addTrack(t, stream));
       }
 
+      callAcceptedRef.current = true;
       socketRef.current?.emit('join-call', { room, userId: user?.id });
       setActiveCall({ llamadaId: incomingCall.llamadaId, tipo: incomingCall.tipo, elapsed: 0, room, connected: false });
       setIncomingCall(null);
 
-      // If offer already received, answer it
-      if (incomingCall.sdp && incomingCall.fromSocketId) {
-        await pc.setRemoteDescription(new RTCSessionDescription(incomingCall.sdp));
+      // If offer was already received before accept, process it now
+      if (savedSdp && savedFromId) {
+        await pc.setRemoteDescription(new RTCSessionDescription(savedSdp));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        socketRef.current?.emit('answer', { room, sdp: answer, to: incomingCall.fromSocketId });
+        socketRef.current?.emit('answer', { room, sdp: answer, to: savedFromId });
         await addPendingCandidates(pc);
       }
+      // Otherwise, the offer socket listener will handle it when it arrives
     } catch (e) { console.warn('[call] acceptCall error', e); }
+  };
+
+  const sendMissedCallMessage = async (otroId: number) => {
+    const time = new Date().toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit' });
+    await api.post('/chat_multi.php?action=enviar', {
+      receptor_id: otroId,
+      mensaje: `📞 Llamada perdida a las ${time}`,
+      tipo: 'texto',
+    }).catch(() => {});
   };
 
   const rejectCall = async () => {
     if (!incomingCall) return;
+    const emisorId = incomingCall.emisor_id;
     await api.post('/chat_multi.php?action=responder_llamada', { llamada_id: incomingCall.llamadaId, aceptar: false }).catch(() => {});
     setIncomingCall(null);
+    await sendMissedCallMessage(emisorId);
+    void fetchContacts(tab, search);
+    if (selected?.id === emisorId) void fetchMessages(emisorId);
   };
 
   const hangup = async () => {
     if (!activeCall) return;
+    const wasConnected = activeCall.connected;
+    const otroId = selected?.id;
     socketRef.current?.emit('hang-up', { room: activeCall.room });
     await api.post('/chat_multi.php?action=finalizar_llamada', { llamada_id: activeCall.llamadaId, duracion: activeCall.elapsed }).catch(() => {});
     closeCallCleanup();
+    if (!wasConnected && otroId) {
+      await sendMissedCallMessage(otroId);
+      void fetchContacts(tab, search);
+      void fetchMessages(otroId);
+    }
+  };
+
+  const toggleMute = () => {
+    const tracks = localStreamRef.current?.getAudioTracks() ?? [];
+    const next = !callMuted;
+    tracks.forEach(t => { t.enabled = !next; });
+    setCallMuted(next);
+  };
+
+  const toggleSpeaker = async () => {
+    const next = !callSpeaker;
+    if (remoteAudioRef.current && 'setSinkId' in remoteAudioRef.current) {
+      try {
+        if (next) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const speaker = devices.find(d => d.kind === 'audiooutput' && d.deviceId !== 'default');
+          if (speaker) await (remoteAudioRef.current as any).setSinkId(speaker.deviceId);
+        } else {
+          await (remoteAudioRef.current as any).setSinkId('default');
+        }
+      } catch { /* setSinkId not available */ }
+    }
+    setCallSpeaker(next);
   };
 
   // ── Send message ────────────────────────────────────────────────────────────
@@ -519,7 +719,7 @@ export default function Chat() {
     reader.onload = async () => {
       setSending(true);
       try {
-        await api.post('/chat_multi.php?action=enviar', { receptor_id: selected.id, tipo: 'imagen', mensaje: '📷 Imagen', adjunto: reader.result });
+        await api.post('/chat_multi.php?action=enviar', { receptor_id: selected.id, tipo: 'imagen', mensaje: '[Imagen]', adjunto: reader.result });
         void fetchMessages(selected.id);
         void fetchContacts(tab, search);
       } finally { setSending(false); }
@@ -533,7 +733,7 @@ export default function Chat() {
     navigator.geolocation.getCurrentPosition(async pos => {
       setSending(true);
       try {
-        await api.post('/chat_multi.php?action=enviar', { receptor_id: selected.id, tipo: 'ubicacion', mensaje: '📍 Ubicación compartida', lat: pos.coords.latitude, lng: pos.coords.longitude });
+        await api.post('/chat_multi.php?action=enviar', { receptor_id: selected.id, tipo: 'ubicacion', mensaje: '[Ubicación compartida]', lat: pos.coords.latitude, lng: pos.coords.longitude });
         void fetchMessages(selected.id);
         void fetchContacts(tab, search);
       } finally { setSending(false); }
@@ -559,13 +759,21 @@ export default function Chat() {
 
   return (
     <div style={S.page}>
-      <Header activeTab="chat" />
+      <Header />
 
       {/* Hidden audio element for remote WebRTC stream */}
       <audio ref={remoteAudioRef} autoPlay style={{ display: 'none' }} />
 
       {activeCall && (
-        <ActiveCallModal call={activeCall} contacto={selected} onHangup={() => void hangup()} />
+        <ActiveCallModal
+          call={activeCall}
+          contacto={selected}
+          onHangup={() => void hangup()}
+          muted={callMuted}
+          speakerOn={callSpeaker}
+          onMuteToggle={toggleMute}
+          onSpeakerToggle={() => void toggleSpeaker()}
+        />
       )}
       {incomingCall && !activeCall && (
         <IncomingCallModal call={incomingCall} onAccept={() => void acceptCall()} onReject={() => void rejectCall()} />
@@ -625,8 +833,8 @@ export default function Chat() {
               const uri      = imgUri(c.foto_perfil);
               const isActive = selected?.id === c.id;
               const unread   = c.no_leidos ?? 0;
-              const lastMsg  = c.ultimo_mensaje?.tipo === 'imagen' ? '📷 Imagen'
-                             : c.ultimo_mensaje?.tipo === 'ubicacion' ? '📍 Ubicación'
+              const lastMsg  = c.ultimo_mensaje?.tipo === 'imagen' ? '[Imagen]'
+                             : c.ultimo_mensaje?.tipo === 'ubicacion' ? '[Ubicación]'
                              : (c.ultimo_mensaje?.mensaje ?? 'Iniciar conversación');
               return (
                 <div
@@ -655,8 +863,12 @@ export default function Chat() {
                     </div>
                   </div>
                   <div style={S.hoverActions} className="hover-actions">
-                    <button style={S.hoverBtn} onClick={e => { e.stopPropagation(); toggleFavorito(c); }} title={c.favorito ? 'Quitar' : 'Favorito'}>{c.favorito ? '★' : '☆'}</button>
-                    <button style={S.hoverBtn} onClick={e => { e.stopPropagation(); toggleArchivado(c); }} title={c.archivado ? 'Desarchivar' : 'Archivar'}>{c.archivado ? '📂' : '🗂'}</button>
+                    <button style={S.hoverBtn} onClick={e => { e.stopPropagation(); toggleFavorito(c); }} title={c.favorito ? 'Quitar' : 'Favorito'}>
+                      <svg viewBox="0 0 24 24" fill={c.favorito ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" width="14" height="14"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </button>
+                    <button style={S.hoverBtn} onClick={e => { e.stopPropagation(); toggleArchivado(c); }} title={c.archivado ? 'Desarchivar' : 'Archivar'}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+                    </button>
                   </div>
                 </div>
               );
@@ -695,7 +907,7 @@ export default function Chat() {
                     </svg>
                   </button>
                   <button style={S.headerBtn} title={selected.favorito ? 'Quitar favorito' : 'Marcar favorito'} onClick={() => toggleFavorito(selected)}>
-                    <span style={{ fontSize: 16 }}>{selected.favorito ? '★' : '☆'}</span>
+                    <svg viewBox="0 0 24 24" fill={selected.favorito ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" width="17" height="17"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                   </button>
                   <button style={S.headerBtn} title={selected.archivado ? 'Desarchivar' : 'Archivar'} onClick={() => toggleArchivado(selected)}>
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="17" height="17">
@@ -708,7 +920,10 @@ export default function Chat() {
               <div style={S.messagesArea}>
                 <div style={S.dateSep}>Conversación</div>
                 {messages.map(m => {
-                  const mine    = m.emisor_id === Number(user?.id);
+                  const mine    = !!user?.id && (
+                    m.emisor_id === Number(user.id) ||
+                    String(m.emisor_id) === String(user.id)
+                  );
                   const tipo    = m.tipo ?? 'texto';
                   const isMedia = tipo === 'imagen' || tipo === 'ubicacion';
                   return (
@@ -718,11 +933,11 @@ export default function Chat() {
                       onContextMenu={e => { e.preventDefault(); setReplyTarget(m); }}
                       title="Clic derecho para responder"
                     >
-                      <div style={S.bubbleWrap}>
+                      <div style={{ ...S.bubbleWrap, ...(mine ? { marginLeft: 'auto' } : { marginRight: 'auto' }) }}>
                         <div style={{
                           ...S.bubble,
-                          background: mine ? 'linear-gradient(135deg,#4f6ef7,#7c3aed)' : '#1E293B',
-                          color: mine ? '#FFF' : '#F1F5F9',
+                          background: mine ? 'linear-gradient(135deg,#4f6ef7,#7c3aed)' : (S.bubbleOther.background as string),
+                          color: mine ? '#FFF' : (S.bubbleOther.color as string),
                           borderRadius: mine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
                           padding: isMedia ? 4 : '10px 14px',
                         }}>
@@ -812,75 +1027,84 @@ export default function Chat() {
   );
 }
 
-// ─── Inline styles ────────────────────────────────────────────────────────────
+// ─── Inline styles (theme-aware) ─────────────────────────────────────────────
 
-const S: Record<string, React.CSSProperties> = {
-  page:   { display: 'flex', flexDirection: 'column', height: '100vh', background: '#020817', fontFamily: 'system-ui,-apple-system,sans-serif' },
-  layout: { display: 'flex', flex: 1, overflow: 'hidden' },
+function makeStyles(isDark: boolean): Record<string, React.CSSProperties> {
+  const pageBg       = isDark ? '#020817' : '#F0F4F8';
+  const sidebarBg    = isDark ? '#0A0F1E' : '#FFFFFF';
+  const sideBorder   = isDark ? '#1E293B' : '#E2E8F0';
+  const chatBg       = isDark ? '#020817' : '#F0F4F8';
+  const headerBg     = isDark ? '#0A0F1E' : '#FFFFFF';
+  const inputBg      = isDark ? '#1E293B' : '#F1F5F9';
+  const inputBorder  = isDark ? '#334155' : '#CBD5E1';
+  const textPrimary  = isDark ? '#F1F5F9' : '#0F172A';
+  const textMuted    = isDark ? '#64748B' : '#94A3B8';
+  const activeBg     = isDark ? '#0F172A' : '#EFF6FF';
+  const dividerColor = isDark ? '#0F172A' : '#F1F5F9';
+  const otherBubble  = isDark ? '#1E293B' : '#FFFFFF';
+  const otherText    = isDark ? '#F1F5F9' : '#111827';
+  const emptyIconBg  = isDark ? '#1E293B' : '#E2E8F0';
 
-  sidebar:          { width: 320, minWidth: 260, display: 'flex', flexDirection: 'column', background: '#0A0F1E', borderRight: '1px solid #1E293B' },
-  sidebarHeader:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 16px 12px', borderBottom: '1px solid #1E293B' },
-  sidebarTitle:     { fontSize: 20, fontWeight: 900, color: '#F1F5F9', letterSpacing: -0.5 },
-  sidebarSub:       { fontSize: 12, color: '#3B82F6', fontWeight: 600, marginTop: 2 },
-  iconBtn:          { width: 36, height: 36, borderRadius: 18, background: '#1E293B', color: '#94A3B8', display: 'grid', placeItems: 'center', cursor: 'pointer' },
-  searchWrap:       { display: 'flex', alignItems: 'center', gap: 8, margin: '10px 12px', background: '#1E293B', borderRadius: 10, padding: '8px 12px' },
-  searchInput:      { flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#F1F5F9', fontSize: 14, fontWeight: 500 },
-  tabRow:           { display: 'flex', overflowX: 'auto', borderBottom: '1px solid #1E293B', padding: '0 4px' },
-  tabBtn:           { flexShrink: 0, padding: '10px 12px', fontSize: 13, fontWeight: 700, color: '#475569', background: 'none', cursor: 'pointer', borderBottom: '2px solid transparent', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 6 },
-  tabBtnActive:     { color: '#3B82F6', borderBottomColor: '#3B82F6' },
-  tabBadge:         { background: '#3B82F6', color: '#FFF', fontSize: 10, fontWeight: 900, borderRadius: 9, padding: '1px 5px' },
-  contactList:      { flex: 1, overflowY: 'auto' },
-  emptyList:        { display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 60, color: '#475569' },
-  contactItem:      { display: 'flex', alignItems: 'center', padding: '12px 14px', cursor: 'pointer', transition: 'background 0.15s', borderBottom: '1px solid #0F172A', position: 'relative', gap: 10 },
-  contactItemActive:{ background: '#0F172A' },
-  contactAvatar:    { width: 44, height: 44, borderRadius: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800, color: '#FFF', flexShrink: 0, position: 'relative', overflow: 'hidden' },
-  avatarImg:        { width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' },
-  onlineDot:        { width: 10, height: 10, borderRadius: 5, background: '#22C55E', position: 'absolute', bottom: 1, right: 1, border: '2px solid #0A0F1E' },
-  contactInfo:      { flex: 1, minWidth: 0 },
-  contactTop:       { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
-  contactName:      { fontSize: 14, color: '#F1F5F9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 },
-  contactTime:      { fontSize: 11, fontWeight: 600, flexShrink: 0 },
-  contactBot:       { display: 'flex', alignItems: 'center', gap: 6 },
-  contactPreview:   { fontSize: 12, color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 },
-  unreadBadge:      { background: '#3B82F6', color: '#FFF', fontSize: 10, fontWeight: 900, borderRadius: 9, padding: '1px 6px', flexShrink: 0 },
-  hoverActions:     { position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4, background: '#0A0F1E', borderRadius: 8, padding: '2px 4px' },
-  hoverBtn:         { background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', fontSize: 14, padding: '2px 4px', borderRadius: 4, transition: 'color 0.15s' },
+  return {
+    page:   { display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: pageBg, fontFamily: 'system-ui,-apple-system,sans-serif' },
+    layout: { display: 'flex', flex: 1, overflow: 'hidden' },
 
-  chatMain:     { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#020817' },
-  chatWindow:   { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' },
-  chatHeader:   { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: '#0A0F1E', borderBottom: '1px solid #1E293B', flexShrink: 0 },
-  headerAvatar: { width: 40, height: 40, borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#FFF', flexShrink: 0, position: 'relative', overflow: 'hidden' },
-  headerMeta:   { flex: 1 },
-  headerName:   { fontSize: 16, fontWeight: 800, color: '#F1F5F9', display: 'flex', alignItems: 'center', gap: 8 },
-  rolePill:     { fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, textTransform: 'capitalize' as const },
-  headerActions:{ display: 'flex', gap: 8 },
-  headerBtn:    { width: 36, height: 36, borderRadius: 10, background: '#1E293B', color: '#94A3B8', display: 'grid', placeItems: 'center', cursor: 'pointer', fontSize: 14, transition: 'background 0.15s' },
+    sidebar:          { width: 320, minWidth: 260, display: 'flex', flexDirection: 'column', background: sidebarBg, borderRight: `1px solid ${sideBorder}` },
+    sidebarHeader:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 16px 12px', borderBottom: `1px solid ${sideBorder}` },
+    sidebarTitle:     { fontSize: 20, fontWeight: 900, color: textPrimary, letterSpacing: -0.5 },
+    sidebarSub:       { fontSize: 12, color: '#3B82F6', fontWeight: 600, marginTop: 2 },
+    iconBtn:          { width: 36, height: 36, borderRadius: 18, background: inputBg, color: textMuted, display: 'grid', placeItems: 'center', cursor: 'pointer' },
+    searchWrap:       { display: 'flex', alignItems: 'center', gap: 8, margin: '10px 12px', background: inputBg, borderRadius: 10, padding: '8px 12px' },
+    searchInput:      { flex: 1, background: 'transparent', border: 'none', outline: 'none', color: textPrimary, fontSize: 14, fontWeight: 500 },
+    tabRow:           { display: 'flex', overflowX: 'auto', borderBottom: `1px solid ${sideBorder}`, padding: '0 4px' },
+    tabBtn:           { flexShrink: 0, padding: '10px 12px', fontSize: 13, fontWeight: 700, color: textMuted, background: 'none', cursor: 'pointer', borderBottom: '2px solid transparent', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 6 },
+    tabBtnActive:     { color: '#3B82F6', borderBottomColor: '#3B82F6' },
+    tabBadge:         { background: '#3B82F6', color: '#FFF', fontSize: 10, fontWeight: 900, borderRadius: 9, padding: '1px 5px' },
+    contactList:      { flex: 1, overflowY: 'auto' },
+    emptyList:        { display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 60, color: textMuted },
+    contactItem:      { display: 'flex', alignItems: 'center', padding: '12px 14px', cursor: 'pointer', transition: 'background 0.15s', borderBottom: `1px solid ${dividerColor}`, position: 'relative', gap: 10 },
+    contactItemActive:{ background: activeBg },
+    contactAvatar:    { width: 44, height: 44, borderRadius: 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800, color: '#FFF', flexShrink: 0, position: 'relative', overflow: 'hidden' },
+    avatarImg:        { width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' },
+    onlineDot:        { width: 10, height: 10, borderRadius: 5, background: '#22C55E', position: 'absolute', bottom: 1, right: 1, border: `2px solid ${sidebarBg}` },
+    contactInfo:      { flex: 1, minWidth: 0 },
+    contactTop:       { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
+    contactName:      { fontSize: 14, color: textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 },
+    contactTime:      { fontSize: 11, fontWeight: 600, flexShrink: 0 },
+    contactBot:       { display: 'flex', alignItems: 'center', gap: 6 },
+    contactPreview:   { fontSize: 12, color: textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 },
+    unreadBadge:      { background: '#3B82F6', color: '#FFF', fontSize: 10, fontWeight: 900, borderRadius: 9, padding: '1px 6px', flexShrink: 0 },
+    hoverActions:     { position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4, background: sidebarBg, borderRadius: 8, padding: '2px 4px' },
+    hoverBtn:         { background: 'none', border: 'none', color: textMuted, cursor: 'pointer', fontSize: 14, padding: '2px 4px', borderRadius: 4, transition: 'color 0.15s' },
 
-  messagesArea: { flex: 1, overflowY: 'auto', padding: '20px 24px' },
-  dateSep:      { textAlign: 'center' as const, fontSize: 11, color: '#475569', fontWeight: 700, letterSpacing: 0.5, marginBottom: 20 },
-  msgRow:       { display: 'flex', marginBottom: 8, width: '100%' },
-  bubbleWrap:   { maxWidth: '70%' },
-  bubble:       { fontSize: 14, fontWeight: 500, lineHeight: 1.5, wordBreak: 'break-word' as const, overflow: 'hidden' },
-  msgMeta:      { display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, fontSize: 10, color: '#475569' },
+    chatMain:     { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: chatBg },
+    chatWindow:   { display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' },
+    chatHeader:   { display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', background: headerBg, borderBottom: `1px solid ${sideBorder}`, flexShrink: 0 },
+    headerAvatar: { width: 40, height: 40, borderRadius: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, color: '#FFF', flexShrink: 0, position: 'relative', overflow: 'hidden' },
+    headerMeta:   { flex: 1 },
+    headerName:   { fontSize: 16, fontWeight: 800, color: textPrimary, display: 'flex', alignItems: 'center', gap: 8 },
+    rolePill:     { fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, textTransform: 'capitalize' as const },
+    headerActions:{ display: 'flex', gap: 8 },
+    headerBtn:    { width: 36, height: 36, borderRadius: 10, background: inputBg, color: textMuted, display: 'grid', placeItems: 'center', cursor: 'pointer', fontSize: 14, transition: 'background 0.15s' },
 
-  inputBar:  { background: '#0A0F1E', borderTop: '1px solid #1E293B', padding: '12px 20px', flexShrink: 0 },
-  inputForm: { display: 'flex', alignItems: 'flex-end', gap: 10 },
-  barBtn:    { width: 38, height: 38, borderRadius: 10, background: '#1E293B', color: '#64748B', display: 'grid', placeItems: 'center', cursor: 'pointer', flexShrink: 0, transition: 'background 0.15s' },
-  textArea:  { flex: 1, background: '#1E293B', border: '1.5px solid #334155', borderRadius: 12, padding: '9px 14px', color: '#F1F5F9', fontSize: 14, fontWeight: 500, lineHeight: '20px', minHeight: 38, maxHeight: 120, overflow: 'auto' },
-  sendBtn:   { width: 40, height: 40, borderRadius: 12, display: 'grid', placeItems: 'center', flexShrink: 0, transition: 'all 0.2s cubic-bezier(0.175,0.885,0.32,1.275)' },
+    messagesArea: { flex: 1, overflowY: 'auto', padding: '20px 24px', background: chatBg },
+    dateSep:      { textAlign: 'center' as const, fontSize: 11, color: textMuted, fontWeight: 700, letterSpacing: 0.5, marginBottom: 20 },
+    msgRow:       { display: 'flex', marginBottom: 8, width: '100%', alignItems: 'flex-end' },
+    bubbleWrap:   { maxWidth: '70%' },
+    bubble:       { fontSize: 14, fontWeight: 500, lineHeight: 1.5, wordBreak: 'break-word' as const, overflow: 'hidden' },
+    bubbleOther:  { background: otherBubble, color: otherText },
+    msgMeta:      { display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, fontSize: 10, color: textMuted },
 
-  emptyMain:  { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 },
-  emptyIcon:  { width: 88, height: 88, borderRadius: 44, background: '#1E293B', display: 'grid', placeItems: 'center' },
-  emptyTitle: { fontSize: 20, fontWeight: 800, color: '#F1F5F9', letterSpacing: -0.3 },
-  emptySub:   { fontSize: 14, color: '#475569', fontWeight: 500 },
+    inputBar:  { background: headerBg, borderTop: `1px solid ${sideBorder}`, padding: '12px 20px', flexShrink: 0 },
+    inputForm: { display: 'flex', alignItems: 'flex-end', gap: 10 },
+    barBtn:    { width: 38, height: 38, borderRadius: 10, background: inputBg, color: textMuted, display: 'grid', placeItems: 'center', cursor: 'pointer', flexShrink: 0, transition: 'background 0.15s' },
+    textArea:  { flex: 1, background: inputBg, border: `1.5px solid ${inputBorder}`, borderRadius: 12, padding: '9px 14px', color: textPrimary, fontSize: 14, fontWeight: 500, lineHeight: '20px', minHeight: 38, maxHeight: 120, overflow: 'auto' },
+    sendBtn:   { width: 40, height: 40, borderRadius: 12, display: 'grid', placeItems: 'center', flexShrink: 0, transition: 'all 0.2s cubic-bezier(0.175,0.885,0.32,1.275)' },
 
-  callOverlay:   { position: 'fixed' as const, inset: 0, background: 'rgba(2,8,23,0.94)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  callCard:      { display: 'flex', flexDirection: 'column' as const, alignItems: 'center', padding: '48px 32px', gap: 12 },
-  callAvatarRing:{ width: 120, height: 120, borderRadius: 60, border: '3px solid #3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  callAvatar:    { width: 100, height: 100, borderRadius: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' as const },
-  callAvatarTxt: { color: '#FFF', fontSize: 38, fontWeight: 800 },
-  callName:      { fontSize: 26, fontWeight: 800, color: '#F1F5F9', letterSpacing: -0.5 },
-  callStatus:    { fontSize: 18, fontWeight: 700, color: '#3B82F6' },
-  callWait:      { fontSize: 13, color: '#475569', fontWeight: 600 },
-  hangupBtn:     { width: 64, height: 64, borderRadius: 32, background: '#EF4444', display: 'grid', placeItems: 'center', cursor: 'pointer', marginTop: 20, transition: 'transform 0.15s' },
-};
+    emptyMain:  { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 },
+    emptyIcon:  { width: 88, height: 88, borderRadius: 44, background: emptyIconBg, display: 'grid', placeItems: 'center' },
+    emptyTitle: { fontSize: 20, fontWeight: 800, color: textPrimary, letterSpacing: -0.3 },
+    emptySub:   { fontSize: 14, color: textMuted, fontWeight: 500 },
+
+  };
+}

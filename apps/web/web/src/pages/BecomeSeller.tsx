@@ -86,9 +86,11 @@ export default function BecomeSeller() {
   if (sent) {
     return (
       <>
-        <Header activeTab="none" />
+        <Header />
         <div style={{ maxWidth: '520px', margin: '60px auto', padding: '40px 24px', textAlign: 'center' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '16px' }}>✅</div>
+          <div style={{ width: '64px', height: '64px', borderRadius: '32px', background: 'rgba(34,197,94,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" width="32" height="32"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
           <h2 style={{ fontWeight: '800', fontSize: '1.5rem', marginBottom: '8px' }}>¡Solicitud enviada!</h2>
           <p style={{ color: '#6B7280', marginBottom: '28px' }}>
             El equipo SVGO revisará tu documentación y te notificará en 24–48 horas.
@@ -106,7 +108,7 @@ export default function BecomeSeller() {
 
   return (
     <>
-      <Header activeTab="none" />
+      <Header />
       <div style={{ maxWidth: '600px', margin: '0 auto', padding: '32px 20px 60px' }}>
         <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4A6D8C', fontWeight: '600', fontSize: '0.9rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
           ← Volver
@@ -131,7 +133,12 @@ export default function BecomeSeller() {
                 cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'
               }}
             >
-              <span style={{ fontSize: '2rem' }}>{r === 'vendedor' ? '🏪' : '🛵'}</span>
+              <div style={{ width: '48px', height: '48px', borderRadius: '24px', background: 'rgba(74,109,140,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4A6D8C' }}>
+                {r === 'vendedor'
+                  ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                  : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                }
+              </div>
               <span style={{ fontWeight: '700', fontSize: '0.95rem', color: rol === r ? '#4A6D8C' : 'inherit', textTransform: 'capitalize' }}>{r}</span>
               <span style={{ fontSize: '0.75rem', color: '#6B7280', textAlign: 'center' }}>
                 {r === 'vendedor' ? 'Publica y vende tus productos' : 'Entrega pedidos y genera ingresos'}
