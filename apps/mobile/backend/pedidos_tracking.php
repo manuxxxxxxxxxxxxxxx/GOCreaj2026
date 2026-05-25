@@ -39,8 +39,14 @@ switch ($action) {
             $info = calcular_trafico($km);
         }
 
-        $up = db()->prepare("UPDATE pedidos SET lat_repartidor = ?, lng_repartidor = ?, tiempo_estimado = ?, trafico = ? WHERE id = ?");
-        $up->execute([$data['lat'], $data['lng'], $info['tiempo_estimado'], $info['trafico'], $data['pedido_id']]);
+        // Compatibilidad: si existen columnas legacy las usa; siempre escribe repartidor_lat/lng nuevas
+        $up = db()->prepare("UPDATE pedidos SET repartidor_lat = ?, repartidor_lng = ?, tiempo_estimado = ?, trafico = ? WHERE id = ?");
+        try { $up->execute([$data['lat'], $data['lng'], $info['tiempo_estimado'], $info['trafico'], $data['pedido_id']]); }
+        catch (PDOException $e) {
+            // Fallback en esquemas viejos
+            db()->prepare("UPDATE pedidos SET repartidor_lat = ?, repartidor_lng = ? WHERE id = ?")
+                ->execute([$data['lat'], $data['lng'], $data['pedido_id']]);
+        }
         jout(['ok' => true, 'tracking' => $info]);
         break;
 

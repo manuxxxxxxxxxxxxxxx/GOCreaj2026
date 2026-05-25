@@ -202,6 +202,103 @@ switch ($action) {
         jout(['ok' => true, 'actividad' => $actividad]);
         break;
 
+    // ─────────── ÁRBOL DE CONTROL INTEGRAL ───────────
+    // Devuelve los conjuntos jerárquicos que renderiza el panel "Botón del Alma"
+    case 'arbol_control':
+        try {
+            $vendedores = db()->query(
+                "SELECT id, nombre, username, email, foto_perfil, activo, en_linea
+                 FROM usuarios WHERE rol = 'vendedor' ORDER BY activo DESC, nombre ASC LIMIT 200"
+            )->fetchAll();
+
+            $repartidores = db()->query(
+                "SELECT id, nombre, username, email, foto_perfil, activo, en_linea
+                 FROM usuarios WHERE rol = 'repartidor' ORDER BY activo DESC, nombre ASC LIMIT 200"
+            )->fetchAll();
+
+            $compradores = db()->query(
+                "SELECT id, nombre, username, email, foto_perfil, activo, en_linea
+                 FROM usuarios WHERE rol = 'comprador' ORDER BY activo DESC, nombre ASC LIMIT 200"
+            )->fetchAll();
+
+            $productos = db()->query(
+                "SELECT p.id, p.nombre, p.imagen, p.precio, p.stock, p.activo,
+                        p.es_reel, t.nombre AS tienda_nombre, t.id AS tienda_id,
+                        u.nombre AS vendedor_nombre
+                 FROM productos p
+                 JOIN tiendas t ON t.id = p.tienda_id
+                 JOIN usuarios u ON u.id = t.vendedor_id
+                 ORDER BY p.created_at DESC LIMIT 300"
+            )->fetchAll();
+
+            $reels = db()->query(
+                "SELECT p.id, p.nombre, p.imagen, p.video_url, p.activo, p.es_reel,
+                        t.nombre AS tienda_nombre, u.nombre AS vendedor_nombre,
+                        (SELECT COUNT(*) FROM productos_reportes WHERE producto_id = p.id) AS reportes
+                 FROM productos p
+                 JOIN tiendas t ON t.id = p.tienda_id
+                 JOIN usuarios u ON u.id = t.vendedor_id
+                 WHERE p.es_reel = 1
+                 ORDER BY reportes DESC, p.created_at DESC LIMIT 200"
+            )->fetchAll();
+
+            jout([
+                'ok' => true,
+                'arbol' => [
+                    'vendedores'   => $vendedores,
+                    'repartidores' => $repartidores,
+                    'compradores'  => $compradores,
+                    'productos'    => $productos,
+                    'reels'        => $reels,
+                ],
+            ]);
+        } catch (Throwable $e) {
+            jout(['ok' => false, 'error' => 'Error árbol: ' . $e->getMessage()], 500);
+        }
+        break;
+
+    // Mutación rápida: banear / activar cuentas (usuario/vendedor/repartidor)
+    case 'banear_usuario':
+        require_fields($data, ['usuario_id']);
+        $uid = (int)$data['usuario_id'];
+        if ($uid === (int)$user['id']) jout(['ok' => false, 'error' => 'No puedes banearte a ti mismo'], 400);
+        try {
+            db()->beginTransaction();
+            $st = db()->prepare("SELECT activo FROM usuarios WHERE id = ?");
+            $st->execute([$uid]);
+            $cur = $st->fetchColumn();
+            if ($cur === false) { db()->rollBack(); jout(['ok' => false, 'error' => 'Usuario no existe'], 404); }
+            $nuevo = $cur ? 0 : 1;
+            $up = db()->prepare("UPDATE usuarios SET activo = ? WHERE id = ?");
+            $up->execute([$nuevo, $uid]);
+
+            // Notificar al usuario en su buzón de chat
+            $msg = $nuevo
+                ? '✅ Tu cuenta ha sido reactivada por el administrador.'
+                : '⛔ Tu cuenta fue suspendida por el administrador.';
+            db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
+                ->execute([$user['id'], $uid, $msg]);
+
+            db()->commit();
+            jout(['ok' => true, 'activo' => $nuevo]);
+        } catch (Throwable $e) {
+            db()->rollBack();
+            jout(['ok' => false, 'error' => $e->getMessage()], 500);
+        }
+        break;
+
+    // Eliminación física/lógica de reel — desmarca es_reel y desactiva si corresponde
+    case 'eliminar_reel':
+        require_fields($data, ['producto_id']);
+        try {
+            $st = db()->prepare("UPDATE productos SET es_reel = 0, video_url = NULL WHERE id = ?");
+            $st->execute([(int)$data['producto_id']]);
+            jout(['ok' => true]);
+        } catch (Throwable $e) {
+            jout(['ok' => false, 'error' => $e->getMessage()], 500);
+        }
+        break;
+
     default:
         jout(['ok' => false, 'error' => 'Accion invalida'], 400);
 }

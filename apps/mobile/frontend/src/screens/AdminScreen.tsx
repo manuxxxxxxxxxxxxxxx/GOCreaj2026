@@ -10,10 +10,12 @@ import { Colors, Spacing, Radius, Fonts } from '@/theme/colors';
 import { SolicitudRol, ReporteSoporte, Pedido, UsuarioAdmin } from '@/types';
 import Button from '@/components/Button';
 import { useAuth } from '@/context/AuthContext';
+import { useNavigation, CommonActions } from '@react-navigation/native';
+import AdminArbolControl from '@/components/AdminArbolControl';
 
 const { width: W } = Dimensions.get('window');
 
-type Tab = 'solicitudes' | 'usuarios' | 'pedidos' | 'soporte';
+type Tab = 'arbol' | 'solicitudes' | 'usuarios' | 'pedidos' | 'soporte';
 type SolFiltro = 'pendiente' | 'aprobado' | 'rechazado' | 'todos';
 type EstadoFiltro = 'todos' | 'preparacion' | 'en_camino' | 'entregado' | 'cancelado';
 type RolFiltro = 'todos' | 'comprador' | 'vendedor' | 'repartidor' | 'admin';
@@ -97,6 +99,7 @@ function Avatar({ src, nombre, size = 42 }: { src?: string | null; nombre: strin
 
 export default function AdminScreen() {
   const { cerrarSesion, usuario } = useAuth();
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
 
   const [tab, setTab]           = useState<Tab>('solicitudes');
@@ -330,9 +333,26 @@ export default function AdminScreen() {
             <Text style={styles.headerSub}>{usuario?.nombre}</Text>
           </View>
         </View>
-        <TouchableOpacity onPress={cerrarSesion} style={styles.logoutBtn}>
-          <Ionicons name="log-out-outline" size={22} color={Colors.contrast} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => {
+              // Restablece la pila de navegación a Main → Home sin corromper la sesión
+              navigation.dispatch(
+                CommonActions.reset({
+                  index: 0,
+                  routes: [{ name: 'Main', state: { index: 0, routes: [{ name: 'Home' }] } }],
+                }),
+              );
+            }}
+            style={styles.logoutBtn}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="arrow-back-circle-outline" size={22} color={Colors.contrast} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={cerrarSesion} style={styles.logoutBtn}>
+            <Ionicons name="log-out-outline" size={22} color={Colors.contrast} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView refreshControl={<RefreshControl refreshing={cargando} onRefresh={cargar} tintColor={Colors.accent} />}>
@@ -350,12 +370,15 @@ export default function AdminScreen() {
 
         {/* ── Tabs ── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
-          {(['solicitudes', 'usuarios', 'pedidos', 'soporte'] as Tab[]).map(t => (
+          {(['arbol', 'solicitudes', 'usuarios', 'pedidos', 'soporte'] as Tab[]).map(t => (
             <TouchableOpacity key={t} style={[styles.tabPill, tab === t && styles.tabPillAct]} onPress={() => setTab(t)}>
               <Text style={[styles.tabPillTxt, tab === t && styles.tabPillTxtAct]}>{t.toUpperCase()}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
+
+        {/* ── ÁRBOL DE CONTROL ── */}
+        {tab === 'arbol' && <AdminArbolControl />}
 
         {/* ── Solicitudes ── */}
         {tab === 'solicitudes' && (

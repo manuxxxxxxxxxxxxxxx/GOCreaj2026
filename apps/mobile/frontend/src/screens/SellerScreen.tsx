@@ -13,6 +13,8 @@ import { Spacing, Radius, Fonts } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { Tienda, Producto, Pedido, EstadoPedido } from '@/types';
 import { useAuth } from '@/context/AuthContext';
+import { useLang } from '@/context/LangContext';
+import RepartidorAsignadoCard from '@/components/RepartidorAsignadoCard';
 
 const { width: W } = Dimensions.get('window');
 const BANNER_H = 200;
@@ -25,10 +27,20 @@ const MUNICIPIOS = [
   'Zacatecoluca','Ahuachapán','Usulután','Cojutepeque','San Vicente',
 ];
 
+/* Strings predeterminadas validadas en backend (vendedor_dashboard.php).
+   Estos valores se envían tal cual al servidor — son el contrato de API. */
 const CATEGORIAS = [
-  'Comida','Bebidas','Panadería','Artesanías','Ropa','Electrónica',
-  'Mascotas','Salud','Hogar','Deportes','Otro',
+  'comida', 'bebidas', 'panaderia', 'postres', 'frutas', 'verduras', 'general',
 ];
+const CATEGORIA_LABELS: Record<string, string> = {
+  comida:    'Comida Rápida',
+  bebidas:   'Bebidas',
+  panaderia: 'Panadería',
+  postres:   'Postres',
+  frutas:    'Frutas',
+  verduras:  'Verduras',
+  general:   'General',
+};
 
 const ESTADO_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
   preparacion:          { label: 'Preparando',  color: '#F59E0B', icon: 'time-outline' },
@@ -326,7 +338,7 @@ export default function SellerScreen() {
       body: {
         tienda_id: tienda.id, nombre: pNombre, descripcion: pDesc,
         precio: parseFloat(pPrecio), stock: parseInt(pStock, 10) || 0,
-        categoria: pCat || 'General', imagen: pImg, es_reel: pReel ? 1 : 0,
+        categoria: pCat || 'general', imagen: pImg, es_reel: pReel ? 1 : 0,
       }
     });
     setGuardando(false);
@@ -357,6 +369,29 @@ export default function SellerScreen() {
   async function cambiarEstado(pedidoId: number, estado: EstadoPedido) {
     await api<RespGen>(Endpoints.vendedorPreparar, { body: { pedido_id: pedidoId, estado } });
     await cargar();
+  }
+
+  async function rechazarPedido(pedidoId: number) {
+    Alert.alert(
+      'Rechazar pedido',
+      '¿Confirmas el rechazo? El pago será devuelto íntegramente al comprador.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Rechazar',
+          style: 'destructive',
+          onPress: async () => {
+            const r = await api<RespGen>(Endpoints.vendedorRechazar, { body: { pedido_id: pedidoId } });
+            if (r.ok) {
+              Alert.alert('Pedido rechazado', 'El pago ya fue devuelto al comprador.');
+              await cargar();
+            } else {
+              Alert.alert('Error', r.error ?? 'No se pudo rechazar');
+            }
+          },
+        },
+      ],
+    );
   }
 
   // ──────────────────────────── RENDER ──────────────────────────────────
@@ -543,9 +578,15 @@ export default function SellerScreen() {
                           <Text style={[S.prodPrice, { color: colors.accent }]}>${Number(p.precio).toFixed(2)}</Text>
                           <View style={S.prodMeta}>
                             <View style={[S.prodCatChip, { backgroundColor: colors.accentLight }]}>
-                              <Text style={[S.prodCatTxt, { color: colors.accent }]}>{p.categoria}</Text>
+                              <Text style={[S.prodCatTxt, { color: colors.accent }]}>{CATEGORIA_LABELS[p.categoria ?? 'general'] ?? p.categoria}</Text>
                             </View>
-                            <Text style={[S.prodStock, { color: colors.muted }]}>Stock: {p.stock}</Text>
+                            {p.stock <= 0 ? (
+                              <View style={[S.prodCatChip, { backgroundColor: '#FEE2E2' }]}>
+                                <Text style={[S.prodCatTxt, { color: '#B91C1C', fontWeight: '900' }]}>AGOTADO</Text>
+                              </View>
+                            ) : (
+                              <Text style={[S.prodStock, { color: colors.muted }]}>Stock: {p.stock}</Text>
+                            )}
                           </View>
                           <View style={S.prodActions}>
                             <TouchableOpacity
@@ -600,14 +641,27 @@ export default function SellerScreen() {
                         <Text style={[S.orderTotal, { color: colors.accent }]}>${Number(v.total).toFixed(2)}</Text>
                       </View>
                       {v.estado === 'preparacion' && (
-                        <TouchableOpacity
-                          style={[S.orderAction, { backgroundColor: colors.accent }]}
-                          onPress={() => cambiarEstado(v.id, 'en_camino')}
-                          activeOpacity={0.85}
-                        >
-                          <Ionicons name="checkmark-circle-outline" size={17} color="#FFF" style={{ marginRight: 6 }} />
-                          <Text style={S.orderActionTxt}>Marcar listo para envío</Text>
-                        </TouchableOpacity>
+                        <>
+                          <TouchableOpacity
+                            style={[S.orderAction, { backgroundColor: colors.accent }]}
+                            onPress={() => cambiarEstado(v.id, 'en_camino')}
+                            activeOpacity={0.85}
+                          >
+                            <Ionicons name="checkmark-circle-outline" size={17} color="#FFF" style={{ marginRight: 6 }} />
+                            <Text style={S.orderActionTxt}>Marcar listo para envío</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[S.orderAction, { backgroundColor: '#EF4444', marginTop: 6 }]}
+                            onPress={() => rechazarPedido(v.id)}
+                            activeOpacity={0.85}
+                          >
+                            <Ionicons name="close-circle-outline" size={17} color="#FFF" style={{ marginRight: 6 }} />
+                            <Text style={S.orderActionTxt}>Rechazar pedido</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+                      {(v.estado === 'en_camino' || v.estado === 'entregado') && (
+                        <RepartidorAsignadoCard pedidoId={v.id} />
                       )}
                     </View>
                   );

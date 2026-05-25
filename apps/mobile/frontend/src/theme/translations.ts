@@ -211,6 +211,70 @@ export interface Translations {
     aceptar: string;
     guardar: string;
     opcional: string;
+    confirmar: string;
+    eliminar: string;
+    si: string;
+    no: string;
+  };
+  network: { offline: string; reintentando: string; sinConexionTitulo: string };
+  admin: {
+    panel: string;
+    volverWeb: string;
+    arbolControl: string;
+    usuarios: string;
+    productos: string;
+    reels: string;
+    banear: string;
+    desbanear: string;
+    eliminar: string;
+    pedidos: string;
+    solicitudes: string;
+    confirmBan: string;
+    confirmDelete: string;
+  };
+  seller: {
+    tituloProducto: string;
+    descripcionProducto: string;
+    categoriaProducto: string;
+    precio: string;
+    stock: string;
+    agotado: string;
+    pedidoNuevo: string;
+    repartidorAsignado: string;
+    sinRepartidor: string;
+    contactarRepartidor: string;
+    vehiculo: string;
+    placa: string;
+    rechazarPedido: string;
+  };
+  pago: {
+    procesando: string;
+    pasarela: string;
+    pagar: string;
+    revertido: string;
+    canceladoPorVendedor: string;
+    sinRepartidorTimeout: string;
+    aceptadoPor: string;
+    esperandoRepartidor: string;
+    eta: string;
+    califica: string;
+    comentario: string;
+    gracias: string;
+    cancelar: string;
+  };
+  reels: {
+    seguir: string;
+    siguiendo: string;
+    comentar: string;
+    compartir: string;
+    responder: string;
+    sinComentarios: string;
+    msgAutomatico: string;
+  };
+  cart2: {
+    bloqueoTiendaTitulo: string;
+    bloqueoTiendaMsg: string;
+    vaciar: string;
   };
 }
 
@@ -443,6 +507,74 @@ const es: Translations = {
     aceptar: 'Aceptar',
     guardar: 'Guardar',
     opcional: 'opcional',
+    confirmar: 'Confirmar',
+    eliminar: 'Eliminar',
+    si: 'Sí',
+    no: 'No',
+  },
+  network: {
+    offline: 'Sin conexión; reintentando...',
+    reintentando: 'Reintentando conexión',
+    sinConexionTitulo: 'Sin conexión',
+  },
+  admin: {
+    panel: 'Panel del administrador',
+    volverWeb: 'Volver a la web',
+    arbolControl: 'Árbol de control',
+    usuarios: 'Usuarios',
+    productos: 'Productos',
+    reels: 'Reels',
+    banear: 'Banear',
+    desbanear: 'Activar',
+    eliminar: 'Eliminar',
+    pedidos: 'Pedidos',
+    solicitudes: 'Solicitudes',
+    confirmBan: '¿Confirmas el cambio de estado de esta cuenta?',
+    confirmDelete: '¿Eliminar este registro permanentemente?',
+  },
+  seller: {
+    tituloProducto: 'Nombre del producto',
+    descripcionProducto: 'Descripción',
+    categoriaProducto: 'Categoría',
+    precio: 'Precio (US$)',
+    stock: 'Stock disponible',
+    agotado: 'Agotado',
+    pedidoNuevo: '¡Nuevo pedido recibido!',
+    repartidorAsignado: 'Repartidor asignado',
+    sinRepartidor: 'Aún sin repartidor asignado',
+    contactarRepartidor: 'Chat con el repartidor',
+    vehiculo: 'Vehículo',
+    placa: 'Placa',
+    rechazarPedido: 'Rechazar pedido',
+  },
+  pago: {
+    procesando: 'Procesando pago seguro...',
+    pasarela: 'Pasarela de pagos',
+    pagar: 'Pagar ahora',
+    revertido: 'Saldo reintegrado a tu billetera',
+    canceladoPorVendedor: 'El vendedor rechazó el pedido. Se devolvió el pago.',
+    sinRepartidorTimeout: 'Ningún repartidor aceptó. Pago devuelto.',
+    aceptadoPor: 'Pedido aceptado por',
+    esperandoRepartidor: 'Esperando asignación de repartidor...',
+    eta: 'Llega en',
+    califica: 'Califica tu experiencia',
+    comentario: 'Cuéntanos cómo te fue (opcional)',
+    gracias: '¡Gracias por tu calificación!',
+    cancelar: 'Cancelar pedido',
+  },
+  reels: {
+    seguir: 'Seguir',
+    siguiendo: 'Siguiendo',
+    comentar: 'Comentar',
+    compartir: 'Compartir',
+    responder: 'Responder',
+    sinComentarios: 'Sé el primero en comentar',
+    msgAutomatico: 'Hola, vi tu producto en Reels y me interesa.',
+  },
+  cart2: {
+    bloqueoTiendaTitulo: 'Tienda diferente',
+    bloqueoTiendaMsg: 'Tu carrito ya contiene productos de otra tienda. ¿Deseas vaciarlo y continuar?',
+    vaciar: 'Vaciar y continuar',
   },
 };
 
@@ -675,6 +807,74 @@ const en: Translations = {
     aceptar: 'Accept',
     guardar: 'Save',
     opcional: 'optional',
+    confirmar: 'Confirm',
+    eliminar: 'Delete',
+    si: 'Yes',
+    no: 'No',
+  },
+  network: {
+    offline: 'No connection; retrying...',
+    reintentando: 'Retrying connection',
+    sinConexionTitulo: 'No connection',
+  },
+  admin: {
+    panel: 'Admin panel',
+    volverWeb: 'Back to the app',
+    arbolControl: 'Control tree',
+    usuarios: 'Users',
+    productos: 'Products',
+    reels: 'Reels',
+    banear: 'Ban',
+    desbanear: 'Enable',
+    eliminar: 'Delete',
+    pedidos: 'Orders',
+    solicitudes: 'Requests',
+    confirmBan: 'Confirm changing the status of this account?',
+    confirmDelete: 'Delete this record permanently?',
+  },
+  seller: {
+    tituloProducto: 'Product name',
+    descripcionProducto: 'Description',
+    categoriaProducto: 'Category',
+    precio: 'Price (US$)',
+    stock: 'Available stock',
+    agotado: 'Out of stock',
+    pedidoNuevo: 'New order received!',
+    repartidorAsignado: 'Assigned driver',
+    sinRepartidor: 'No driver assigned yet',
+    contactarRepartidor: 'Chat with the driver',
+    vehiculo: 'Vehicle',
+    placa: 'Plate',
+    rechazarPedido: 'Reject order',
+  },
+  pago: {
+    procesando: 'Processing secure payment...',
+    pasarela: 'Payment gateway',
+    pagar: 'Pay now',
+    revertido: 'Balance refunded to your wallet',
+    canceladoPorVendedor: 'The seller rejected the order. Payment refunded.',
+    sinRepartidorTimeout: 'No driver accepted. Payment refunded.',
+    aceptadoPor: 'Order accepted by',
+    esperandoRepartidor: 'Waiting for driver assignment...',
+    eta: 'Arrives in',
+    califica: 'Rate your experience',
+    comentario: 'Tell us how it went (optional)',
+    gracias: 'Thanks for your rating!',
+    cancelar: 'Cancel order',
+  },
+  reels: {
+    seguir: 'Follow',
+    siguiendo: 'Following',
+    comentar: 'Comment',
+    compartir: 'Share',
+    responder: 'Reply',
+    sinComentarios: 'Be the first to comment',
+    msgAutomatico: "Hi, I saw your product on Reels and I'm interested.",
+  },
+  cart2: {
+    bloqueoTiendaTitulo: 'Different store',
+    bloqueoTiendaMsg: 'Your cart already has products from another store. Empty it and continue?',
+    vaciar: 'Empty and continue',
   },
 };
 
@@ -907,6 +1107,74 @@ const fr: Translations = {
     aceptar: 'Accepter',
     guardar: 'Enregistrer',
     opcional: 'optionnel',
+    confirmar: 'Confirmer',
+    eliminar: 'Supprimer',
+    si: 'Oui',
+    no: 'Non',
+  },
+  network: {
+    offline: 'Sans connexion ; nouvelle tentative...',
+    reintentando: 'Nouvelle tentative de connexion',
+    sinConexionTitulo: 'Pas de connexion',
+  },
+  admin: {
+    panel: 'Panneau administrateur',
+    volverWeb: 'Retour à l\'application',
+    arbolControl: 'Arborescence de contrôle',
+    usuarios: 'Utilisateurs',
+    productos: 'Produits',
+    reels: 'Reels',
+    banear: 'Bannir',
+    desbanear: 'Activer',
+    eliminar: 'Supprimer',
+    pedidos: 'Commandes',
+    solicitudes: 'Demandes',
+    confirmBan: 'Confirmer le changement de statut de ce compte ?',
+    confirmDelete: 'Supprimer cet enregistrement définitivement ?',
+  },
+  seller: {
+    tituloProducto: 'Nom du produit',
+    descripcionProducto: 'Description',
+    categoriaProducto: 'Catégorie',
+    precio: 'Prix (US$)',
+    stock: 'Stock disponible',
+    agotado: 'Épuisé',
+    pedidoNuevo: 'Nouvelle commande reçue !',
+    repartidorAsignado: 'Livreur assigné',
+    sinRepartidor: 'Pas encore de livreur assigné',
+    contactarRepartidor: 'Discuter avec le livreur',
+    vehiculo: 'Véhicule',
+    placa: 'Plaque',
+    rechazarPedido: 'Refuser la commande',
+  },
+  pago: {
+    procesando: 'Paiement sécurisé en cours...',
+    pasarela: 'Passerelle de paiement',
+    pagar: 'Payer maintenant',
+    revertido: 'Solde remboursé sur votre portefeuille',
+    canceladoPorVendedor: 'Le vendeur a refusé la commande. Paiement remboursé.',
+    sinRepartidorTimeout: 'Aucun livreur n\'a accepté. Paiement remboursé.',
+    aceptadoPor: 'Commande acceptée par',
+    esperandoRepartidor: 'En attente d\'un livreur...',
+    eta: 'Arrive dans',
+    califica: 'Évaluez votre expérience',
+    comentario: 'Dites-nous comment ça s\'est passé (facultatif)',
+    gracias: 'Merci pour votre évaluation !',
+    cancelar: 'Annuler la commande',
+  },
+  reels: {
+    seguir: 'Suivre',
+    siguiendo: 'Suivi',
+    comentar: 'Commenter',
+    compartir: 'Partager',
+    responder: 'Répondre',
+    sinComentarios: 'Soyez le premier à commenter',
+    msgAutomatico: 'Bonjour, j\'ai vu votre produit sur Reels et il m\'intéresse.',
+  },
+  cart2: {
+    bloqueoTiendaTitulo: 'Boutique différente',
+    bloqueoTiendaMsg: 'Votre panier contient déjà des produits d\'une autre boutique. Le vider et continuer ?',
+    vaciar: 'Vider et continuer',
   },
 };
 

@@ -6,6 +6,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from '@/context/AuthContext';
 import { LangProvider } from '@/context/LangContext';
 import { ThemeProvider, useTheme } from '@/context/ThemeContext';
+import { NetworkProvider } from '@/context/NetworkContext';
 import AppNavigator from '@/navigation/AppNavigator';
 
 function Root() {
@@ -25,7 +26,9 @@ export default function App() {
         <ThemeProvider>
           <LangProvider>
             <AuthProvider>
-              <Root />
+              <NetworkProvider>
+                <Root />
+              </NetworkProvider>
             </AuthProvider>
           </LangProvider>
         </ThemeProvider>

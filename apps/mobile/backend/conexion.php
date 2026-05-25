@@ -108,6 +108,77 @@ function db_migrate(): void {
         // índices de rendimiento en chats
         "CREATE INDEX IF NOT EXISTS idx_chats_conv ON chats (emisor_id, receptor_id, created_at)",
         "CREATE INDEX IF NOT EXISTS idx_chats_unread ON chats (receptor_id, leido)",
+        // productos — video URL para Reels
+        "ALTER TABLE productos ADD COLUMN video_url VARCHAR(500) NULL",
+        // productos — estado AGOTADO automático
+        "ALTER TABLE productos ADD COLUMN estado_stock VARCHAR(20) NOT NULL DEFAULT 'disponible'",
+        // productos_reportes — moderación de reels
+        "CREATE TABLE IF NOT EXISTS productos_reportes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            producto_id INT NOT NULL,
+            usuario_id INT NOT NULL,
+            motivo VARCHAR(160) NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_producto (producto_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        // seguidores_tienda — sistema follow desde Reels
+        "CREATE TABLE IF NOT EXISTS seguidores_tienda (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            tienda_id INT NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_follow (usuario_id, tienda_id),
+            INDEX idx_tienda (tienda_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        // comentarios — hilos anidados (parent_id)
+        "ALTER TABLE comentarios ADD COLUMN parent_id INT NULL",
+        "ALTER TABLE comentarios ADD COLUMN likes_count INT NOT NULL DEFAULT 0",
+        // comentarios_likes — like de comentario
+        "CREATE TABLE IF NOT EXISTS comentarios_likes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            comentario_id INT NOT NULL,
+            usuario_id INT NOT NULL,
+            UNIQUE KEY uk_clike (comentario_id, usuario_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        // wallets — billeteras virtuales del negocio y repartidor
+        "CREATE TABLE IF NOT EXISTS wallets (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            saldo DECIMAL(10,2) NOT NULL DEFAULT 0,
+            UNIQUE KEY uk_wallet (usuario_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        // wallet_movimientos — auditoría
+        "CREATE TABLE IF NOT EXISTS wallet_movimientos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            tipo VARCHAR(20) NOT NULL,
+            monto DECIMAL(10,2) NOT NULL,
+            referencia VARCHAR(120) NULL,
+            pedido_id INT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_usuario (usuario_id),
+            INDEX idx_pedido (pedido_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        // pedidos — campos de pago/comisión
+        "ALTER TABLE pedidos ADD COLUMN pago_estado VARCHAR(20) NOT NULL DEFAULT 'pendiente'",
+        "ALTER TABLE pedidos ADD COLUMN pago_referencia VARCHAR(80) NULL",
+        "ALTER TABLE pedidos ADD COLUMN comision_plataforma DECIMAL(10,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE pedidos ADD COLUMN total_repartidor DECIMAL(10,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE pedidos ADD COLUMN total_vendedor DECIMAL(10,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE pedidos ADD COLUMN repartidor_lat DECIMAL(10,7) NULL",
+        "ALTER TABLE pedidos ADD COLUMN repartidor_lng DECIMAL(10,7) NULL",
+        // calificaciones — feedback loop de reputación
+        "CREATE TABLE IF NOT EXISTS calificaciones (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pedido_id INT NOT NULL,
+            comprador_id INT NOT NULL,
+            tienda_id INT NOT NULL,
+            estrellas TINYINT NOT NULL,
+            comentario TEXT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_cal (pedido_id, comprador_id),
+            INDEX idx_tienda (tienda_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     ];
     foreach ($stmts as $sql) {
         try { db()->exec($sql); } catch (PDOException $e) {}

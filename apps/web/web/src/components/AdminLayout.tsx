@@ -1,39 +1,70 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, ShoppingCart, Store, Settings, LogOut } from 'lucide-react';
+import { Users, ShoppingCart, Store, GitBranch, LogOut, ArrowLeftCircle } from 'lucide-react';
 import '../admin.css';
 import './AdminLayout.css';
 
+/* "Resumen" y "Configuración" ELIMINADOS según directiva del cliente.
+   Se añade "Árbol de Control" (Botón del Alma) como nodo principal. */
 const SIDEBAR_ITEMS = [
-  { path: '/admin/dashboard', label: 'Resumen', icon: <LayoutDashboard size={20} /> },
-  { path: '/admin/users', label: 'Usuarios y Roles', icon: <Users size={20} /> },
-  { path: '/admin/orders', label: 'Pedidos', icon: <ShoppingCart size={20} /> },
-  { path: '/admin/products', label: 'Productos', icon: <Store size={20} /> },
-  { path: '/admin/settings', label: 'Configuración', icon: <Settings size={20} /> },
+  { path: '/admin/arbol',    label: 'Árbol de Control', icon: <GitBranch size={20} /> },
+  { path: '/admin/users',    label: 'Usuarios y Roles', icon: <Users size={20} /> },
+  { path: '/admin/orders',   label: 'Pedidos',          icon: <ShoppingCart size={20} /> },
+  { path: '/admin/products', label: 'Productos',        icon: <Store size={20} /> },
 ];
 
 export default function AdminLayout() {
   const navigate = useNavigate();
 
+  // ── Botón "Volver a la web" ────────────────────────────────────────────────
+  // Limpia el estado de navegación administrativa y vuelve al flujo común
+  // sin invalidar la sesión (el token sigue en localStorage).
+  const volverWeb = (): void => {
+    // No tocamos lm_token_v1; sólo reseteamos URL y forzamos hash anti-caché
+    navigate('/', { replace: true });
+  };
+
   return (
     <div className="layout-container">
-      {/* Sidebar */}
-      <aside className="sidebar" style={{ background: '#355068' }}>
+      <aside className="sidebar" style={{ background: 'linear-gradient(180deg, #1E3A5F 0%, #355068 100%)' }}>
         <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '24px 28px' }}>
-          <div style={{ background: '#FFFFFF', color: '#4A6D8C', width: '34px', height: '34px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '0.9rem', boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
+          <div style={{ background: '#FFFFFF', color: '#2563EB', width: '38px', height: '38px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '0.95rem', boxShadow: '0 6px 16px rgba(0,0,0,0.18)' }}>
             SV
           </div>
-          <span style={{ fontSize: '1.4rem', fontWeight: '800', color: '#FFFFFF', letterSpacing: '-0.5px' }}>
-            GO 
-            <span style={{ fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', background: 'rgba(255,255,255,0.15)', padding: '2px 8px', borderRadius: '30px', marginLeft: '6px' }}>
+          <span style={{ fontSize: '1.4rem', fontWeight: '900', color: '#FFFFFF', letterSpacing: '-0.5px' }}>
+            GO
+            <span style={{ fontSize: '0.72rem', fontWeight: '800', textTransform: 'uppercase', background: 'rgba(255,255,255,0.18)', padding: '3px 10px', borderRadius: '30px', marginLeft: '8px' }}>
               Admin
             </span>
           </span>
         </div>
-        
+
+        <button
+          onClick={volverWeb}
+          className="nav-item"
+          style={{
+            background: 'rgba(255,255,255,0.10)',
+            border: '1px solid rgba(255,255,255,0.22)',
+            margin: '6px 16px 14px 16px',
+            borderRadius: '14px',
+            padding: '10px 14px',
+            width: 'calc(100% - 32px)',
+            color: '#FFFFFF',
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 10,
+            fontWeight: 700, fontSize: '.92rem',
+            transition: 'background .18s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.18)')}
+          onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.10)')}
+        >
+          <ArrowLeftCircle size={18} />
+          <span>Volver a la web</span>
+        </button>
+
         <nav className="sidebar-nav">
-          {SIDEBAR_ITEMS.map((item) => (
-            <NavLink 
-              key={item.path} 
+          {SIDEBAR_ITEMS.map(item => (
+            <NavLink
+              key={item.path}
               to={item.path}
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
             >
@@ -44,21 +75,22 @@ export default function AdminLayout() {
         </nav>
 
         <div className="sidebar-footer">
-          <button className="nav-item logout-btn" onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer', textAlign: 'left' }}>
+          <button
+            className="nav-item logout-btn"
+            onClick={() => { localStorage.removeItem('lm_token_v1'); navigate('/login'); }}
+            style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer', textAlign: 'left' }}
+          >
             <LogOut size={20} />
             <span>Cerrar Sesión</span>
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="main-content">
         <header className="topbar">
-          <div className="topbar-search">
-            {/* Search or breadcrumbs could go here */}
-          </div>
+          <div className="topbar-search" />
           <div className="topbar-profile" onClick={() => navigate('/perfil')} style={{ cursor: 'pointer' }}>
-            <div className="avatar" style={{ background: '#4A6D8C', color: '#fff', fontWeight: '800' }}>A</div>
+            <div className="avatar" style={{ background: '#2563EB', color: '#fff', fontWeight: '800' }}>A</div>
             <div className="profile-info">
               <p className="name">Admin User</p>
               <p className="role">Master Admin</p>

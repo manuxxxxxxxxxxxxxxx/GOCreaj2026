@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Image, RefreshControl, Alert, Animated, Easing, Dimensions, ScrollView,
+  Image, RefreshControl, Alert, Animated, Easing, Dimensions, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -9,63 +9,45 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
-import { api, Endpoints } from '@/services/api';
+import { api, Endpoints, API_URL, traducirError } from '@/services/api';
 import { Producto, RootStackParamList } from '@/types';
-import LoadingScreen from '@/components/LoadingScreen';
+import { SkeletonCard } from '@/components/Skeleton';
 import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 
 const { width: W } = Dimensions.get('window');
 
-const CARD_BG = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#A29BFE', '#FF9FF3', '#54A0FF'];
+const BANNER_COLORS = ['#2563EB', '#16A34A', '#7C3AED', '#DC2626', '#D97706'];
 
-const BANNER_COLORS = ['#4A6D8C', '#27AE8F', '#8E44AD', '#C0392B', '#1A73E8'];
-
-const MOCK: Producto[] = [
-  { id: 1, tienda_id: 1, nombre: 'Pupusas de Queso', precio: 0.75, stock: 50, es_reel: 0, activo: 1, tienda_nombre: 'Comedor Doña Rosa', descripcion: 'Ricas pupusas artesanales con queso', categoria: 'comida', municipio: 'San Salvador', likes_count: 145, vendedor_id: 1 },
-  { id: 2, tienda_id: 2, nombre: 'Horchata Fría', precio: 1.25, stock: 100, es_reel: 0, activo: 1, tienda_nombre: 'Bebidas El Chele', descripcion: 'Horchata natural de arroz con morro', categoria: 'bebidas', municipio: 'San Salvador', likes_count: 82, vendedor_id: 2 },
-  { id: 3, tienda_id: 3, nombre: 'Pan de Yema', precio: 0.50, stock: 80, es_reel: 0, activo: 1, tienda_nombre: 'Panadería La Hermosa', descripcion: 'Pan tradicional salvadoreño recién horneado', categoria: 'panaderia', municipio: 'Santa Ana', likes_count: 67, vendedor_id: 3 },
-  { id: 4, tienda_id: 1, nombre: 'Tamales de Elote', precio: 1.00, stock: 30, es_reel: 0, activo: 1, tienda_nombre: 'Comedor Doña Rosa', descripcion: 'Tamales artesanales de elote dulce', categoria: 'comida', municipio: 'San Salvador', likes_count: 189, vendedor_id: 1 },
-  { id: 5, tienda_id: 4, nombre: 'Café Molido Premium', precio: 3.50, stock: 200, es_reel: 0, activo: 1, tienda_nombre: 'Finca El Cafetal', descripcion: 'Café de altura 100% salvadoreño', categoria: 'bebidas', municipio: 'Ahuachapán', likes_count: 223, vendedor_id: 4 },
-  { id: 6, tienda_id: 5, nombre: 'Quesillo con Curtido', precio: 2.00, stock: 40, es_reel: 0, activo: 1, tienda_nombre: 'Antojitos El Salvador', descripcion: 'Quesillo fresco con loroco y curtido', categoria: 'comida', municipio: 'Santa Ana', likes_count: 178, vendedor_id: 5 },
-  { id: 7, tienda_id: 6, nombre: 'Arroz con Leche', precio: 1.50, stock: 60, es_reel: 0, activo: 1, tienda_nombre: 'Dulces Tradicionales', descripcion: 'Postre artesanal con canela y raisins', categoria: 'general', municipio: 'San Miguel', likes_count: 55, vendedor_id: 6 },
-  { id: 8, tienda_id: 7, nombre: 'Chicha de Maíz', precio: 0.75, stock: 150, es_reel: 0, activo: 1, tienda_nombre: 'Bebidas Típicas', descripcion: 'Bebida fermentada tradicional salvadoreña', categoria: 'bebidas', municipio: 'Sonsonate', likes_count: 41, vendedor_id: 7 },
-];
-
-const MOCK_TIENDAS = [
-  { id: 1, nombre: 'Comedor Doña Rosa', municipio: 'San Salvador', color: '#FF6B6B', rating: 4.8, icon: 'restaurant-outline' as const },
-  { id: 2, nombre: 'Finca El Cafetal', municipio: 'Ahuachapán', color: '#45B7D1', rating: 4.9, icon: 'cafe-outline' as const },
-  { id: 3, nombre: 'Panadería La Hermosa', municipio: 'Santa Ana', color: '#FECA57', rating: 4.7, icon: 'nutrition-outline' as const },
-  { id: 4, nombre: 'Antojitos El Salvador', municipio: 'Santa Ana', color: '#A29BFE', rating: 4.6, icon: 'fast-food-outline' as const },
-  { id: 5, nombre: 'Bebidas El Chele', municipio: 'San Salvador', color: '#4ECDC4', rating: 4.5, icon: 'beer-outline' as const },
-];
+interface TiendaNueva {
+  id: number;
+  nombre: string;
+  categoria?: string | null;
+  logo?: string | null;
+  portada?: string | null;
+  foto_negocio?: string | null;
+  municipio?: string | null;
+  calificacion_promedio?: number;
+  total_resenas?: number;
+  ventas_completadas?: number;
+}
 
 const CATS = [
-  { k: 'todas',    icon: 'grid-outline'        as const, label: 'Todas' },
-  { k: 'comida',   icon: 'restaurant-outline'  as const, label: 'Comida' },
-  { k: 'bebidas',  icon: 'cafe-outline'         as const, label: 'Bebidas' },
-  { k: 'panaderia',icon: 'nutrition-outline'    as const, label: 'Panadería' },
-  { k: 'general',  icon: 'storefront-outline'   as const, label: 'General' },
+  { k: 'todas',     icon: 'grid-outline'        as const, label: 'Todas' },
+  { k: 'comida',    icon: 'restaurant-outline'  as const, label: 'Comida' },
+  { k: 'bebidas',   icon: 'cafe-outline'        as const, label: 'Bebida' },
+  { k: 'panaderia', icon: 'nutrition-outline'   as const, label: 'Panadería' },
+  { k: 'general',   icon: 'storefront-outline'  as const, label: 'General' },
 ];
 
-function ShimmerBox({ width, height, radius = 12 }: { width: number | string; height: number; radius?: number }) {
-  const anim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(anim, { toValue: 1, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(anim, { toValue: 0, duration: 900, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-      ])
-    ).start();
-  }, [anim]);
-  const opacity = anim.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.7] });
-  return (
-    <Animated.View style={{ width, height, borderRadius: radius, backgroundColor: '#C8C0D8', opacity, marginBottom: 10 }} />
-  );
+function img(p?: string | null): string | undefined {
+  if (!p) return undefined;
+  if (p.startsWith('http') || p.startsWith('data:')) return p;
+  const m = p.match(/\/uploads\/(.+)$/);
+  return m ? `${API_URL}/uploads/${m[1]}` : `${API_URL}/uploads/${p}`;
 }
 
 function ProductCard({ item, index, onPress, onAdd, onSave }: {
-  item: Producto; index: number;
-  onPress: () => void; onAdd: () => void; onSave: () => void;
+  item: Producto; index: number; onPress: () => void; onAdd: () => void; onSave: () => void;
 }) {
   const { colors } = useTheme();
   const fade  = useRef(new Animated.Value(0)).current;
@@ -73,33 +55,25 @@ function ProductCard({ item, index, onPress, onAdd, onSave }: {
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fade,  { toValue: 1, duration: 380, delay: index * 55, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-      Animated.timing(slide, { toValue: 0, duration: 380, delay: index * 55, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(fade,  { toValue: 1, duration: 380, delay: index * 35, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(slide, { toValue: 0, duration: 380, delay: index * 35, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
   }, [fade, slide, index]);
-
-  const isHot = (item.likes_count ?? 0) > 100;
 
   return (
     <Animated.View style={{ flex: 1, opacity: fade, transform: [{ translateY: slide }] }}>
       <TouchableOpacity
-        style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+        style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}
         activeOpacity={0.92}
         onPress={onPress}
       >
-        <View style={[styles.imgBox, { backgroundColor: CARD_BG[index % CARD_BG.length] }]}>
-          {item.imagen
-            ? <Image source={{ uri: item.imagen }} style={styles.img} resizeMode="cover" />
-            : <Ionicons name="fast-food-outline" size={34} color="rgba(255,255,255,0.85)" />}
+        <View style={[styles.imgBox, { backgroundColor: colors.accentLight }]}>
+          {img(item.imagen)
+            ? <Image source={{ uri: `${img(item.imagen)}?v=${Date.now()}` }} style={styles.img} resizeMode="cover" />
+            : <Ionicons name="fast-food-outline" size={34} color={colors.accent} />}
           <TouchableOpacity onPress={onSave} style={styles.bookmarkBtn} activeOpacity={0.8}>
             <Ionicons name="bookmark-outline" size={14} color="#FFF" />
           </TouchableOpacity>
-          {isHot && (
-            <View style={[styles.hotBadge, { backgroundColor: '#FF3B30' }]}>
-              <Ionicons name="flame" size={10} color="#FFF" />
-              <Text style={styles.hotTxt}>HOT</Text>
-            </View>
-          )}
         </View>
         <View style={styles.cardBody}>
           <Text numberOfLines={1} style={[styles.nombre, { color: colors.text }]}>{item.nombre}</Text>
@@ -116,69 +90,139 @@ function ProductCard({ item, index, onPress, onAdd, onSave }: {
   );
 }
 
+function StoreCard({ s, destacada, onPress }: { s: TiendaNueva; destacada?: boolean; onPress: () => void }) {
+  const { colors } = useTheme();
+  const cover = img(s.portada ?? s.foto_negocio);
+  const logo = img(s.logo ?? s.foto_negocio);
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.88}
+      style={[styles.storeCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}
+    >
+      <View style={styles.storeCover}>
+        {cover
+          ? <Image source={{ uri: cover }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+          : <View style={[styles.storeCoverPlaceholder, { backgroundColor: colors.accentLight }]} />}
+        {destacada && (
+          <View style={styles.goldBadge}>
+            <Ionicons name="star" size={11} color="#FFF" />
+            <Text style={styles.goldBadgeTxt}>{Number(s.calificacion_promedio ?? 0).toFixed(1)}</Text>
+          </View>
+        )}
+      </View>
+      <View style={{ padding: 12 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {logo
+            ? <Image source={{ uri: logo }} style={styles.storeLogo} />
+            : <View style={[styles.storeLogo, { backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }]}>
+                <Text style={{ color: '#FFF', fontWeight: '900' }}>{s.nombre[0]}</Text>
+              </View>}
+          <View style={{ flex: 1 }}>
+            <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '800', fontSize: 13 }}>{s.nombre}</Text>
+            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11, fontWeight: '600' }}>
+              {s.categoria ?? 'Tienda'} · {s.municipio ?? '—'}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 export default function HomeScreen() {
   const nav = useNavigation<NavigationProp<RootStackParamList>>();
   const { colors } = useTheme();
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const insets = useSafeAreaInsets();
 
-  const [productos, setProductos] = useState<Producto[]>(MOCK);
-  const [cargando, setCargando]   = useState(false);
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [nuevas, setNuevas]       = useState<TiendaNueva[]>([]);
+  const [destacadas, setDestacadas] = useState<TiendaNueva[]>([]);
+  const [cargando, setCargando]   = useState(true);
   const [refrescando, setRefrescando] = useState(false);
   const [municipio, setMunicipio] = useState('');
   const [categoria, setCategoria] = useState<string | null>(null);
+  const [page, setPage]           = useState(1);
+  const [hasMore, setHasMore]     = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const bannerIndex = useRef(0);
-  const bannerAnim = useRef(new Animated.Value(0)).current;
   const bannerRef  = useRef<FlatList<any>>(null);
 
   useEffect(() => {
     const iv = setInterval(() => {
+      if (!t.home.banners.length) return;
       bannerIndex.current = (bannerIndex.current + 1) % t.home.banners.length;
       bannerRef.current?.scrollToIndex({ index: bannerIndex.current, animated: true });
     }, 4000);
     return () => clearInterval(iv);
   }, [t.home.banners.length]);
 
+  const cargarProductos = useCallback(async (pageNum: number, muni: string, cat: string | null, append = false) => {
+    if (pageNum === 1) setCargando(true); else setLoadingMore(true);
+    try {
+      let url = `${Endpoints.productosListar}&page=${pageNum}&limit=20`;
+      if (muni) url += `&municipio=${encodeURIComponent(muni)}`;
+      if (cat)  url += `&categoria=${cat}`;
+      const r = await api<{ ok: boolean; productos?: Producto[]; has_more?: boolean }>(url);
+      if (r.ok && r.productos) {
+        setProductos(prev => append ? [...prev, ...r.productos!] : r.productos!);
+        setHasMore(r.has_more ?? false);
+      }
+    } catch {
+      if (!append) setProductos([]);
+    } finally {
+      setCargando(false);
+      setLoadingMore(false);
+      setRefrescando(false);
+    }
+  }, []);
+
+  const cargarTiendas = useCallback(async (muni: string) => {
+    try {
+      const [rN, rD] = await Promise.all([
+        api<{ ok: boolean; tiendas?: TiendaNueva[] }>(`${Endpoints.productosNuevasTiendas}${muni ? `&municipio=${encodeURIComponent(muni)}` : ''}`),
+        api<{ ok: boolean; tiendas?: TiendaNueva[] }>(`${Endpoints.productosTiendasDestacadas}${muni ? `&municipio=${encodeURIComponent(muni)}` : ''}`),
+      ]);
+      if (rN.ok && rN.tiendas) setNuevas(rN.tiendas);
+      if (rD.ok && rD.tiendas) setDestacadas(rD.tiendas);
+    } catch { /* offline-safe */ }
+  }, []);
+
   const cargar = useCallback(async () => {
     const muni = (await AsyncStorage.getItem('svgo_municipio')) ?? '';
     setMunicipio(muni);
-    const url = `${Endpoints.productosListar}${muni ? `&municipio=${encodeURIComponent(muni)}` : ''}${categoria ? `&categoria=${categoria}` : ''}`;
-    try {
-      const r = await api<{ ok: boolean; productos?: Producto[] }>(url);
-      if (r.ok && r.productos && r.productos.length > 0) setProductos(r.productos);
-      else setProductos(MOCK);
-    } catch { setProductos(MOCK); }
-    setCargando(false);
-    setRefrescando(false);
-  }, [categoria]);
+    setPage(1);
+    await Promise.all([cargarProductos(1, muni, categoria, false), cargarTiendas(muni)]);
+  }, [categoria, cargarProductos, cargarTiendas]);
 
   useFocusEffect(useCallback(() => { void cargar(); }, [cargar]));
+
+  const cargarMas = async () => {
+    if (loadingMore || !hasMore) return;
+    const next = page + 1;
+    setPage(next);
+    await cargarProductos(next, municipio, categoria, true);
+  };
 
   const agregarCarrito = async (p: Producto) => {
     try {
       const r = await api<{ ok: boolean; error?: string }>(Endpoints.carritoAgregar, { body: { producto_id: p.id } });
       if (r.ok) Alert.alert(t.cart.miCarrito, `${p.nombre} — ${t.product.agregado}`);
-      else Alert.alert(t.common.error, r.error ?? t.common.falloRed);
+      else Alert.alert(t.common.error, traducirError(r.error, lang) || t.common.falloRed);
     } catch { Alert.alert(t.common.error, t.common.falloRed); }
   };
 
   const toggleGuardar = async (p: Producto) => {
-    try {
-      await api<{ ok: boolean; accion?: string }>(Endpoints.interToggleGuardar, { body: { producto_id: p.id } });
-    } catch { /**/ }
+    try { await api<{ ok: boolean }>(Endpoints.interToggleGuardar, { body: { producto_id: p.id } }); } catch {}
   };
-
-  const filtered = categoria ? productos.filter(p => p.categoria === categoria) : productos;
-
-  if (cargando) return <LoadingScreen mensaje={t.common.cargando} />;
 
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-
-      {/* HEADER */}
       <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity style={styles.locRow} onPress={() => nav.navigate('Location')} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.locRow} onPress={() => nav.navigate('Location' as never)} activeOpacity={0.7}>
           <View style={[styles.locIconBg, { backgroundColor: colors.accentLight }]}>
             <Ionicons name="location" size={16} color={colors.accent} />
           </View>
@@ -200,14 +244,19 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refrescando} onRefresh={() => { setRefrescando(true); void cargar(); }} tintColor={colors.accent} />}
+        onScroll={({ nativeEvent }) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 80) void cargarMas();
+        }}
+        scrollEventThrottle={400}
       >
-        {/* SEARCH */}
         <TouchableOpacity
           style={[styles.searchBar, { backgroundColor: colors.background, borderColor: colors.border }]}
           activeOpacity={0.9}
-          onPress={() => Alert.alert('Buscar', 'Búsqueda avanzada — próximamente')}
+          onPress={() => nav.navigate('Explore' as never)}
         >
           <View style={[styles.searchIconBg, { backgroundColor: colors.accentLight }]}>
             <Ionicons name="search" size={16} color={colors.accent} />
@@ -218,7 +267,6 @@ export default function HomeScreen() {
           </View>
         </TouchableOpacity>
 
-        {/* BANNER CAROUSEL */}
         <FlatList
           ref={bannerRef}
           data={t.home.banners}
@@ -233,17 +281,13 @@ export default function HomeScreen() {
               <View style={styles.bannerContent}>
                 <Text style={styles.bannerTitulo}>{item.titulo}</Text>
                 <Text style={styles.bannerSub}>{item.sub}</Text>
-                <View style={styles.bannerBtn}>
-                  <Text style={styles.bannerBtnTxt}>Ver ahora</Text>
-                  <Ionicons name="arrow-forward" size={12} color="#FFF" />
-                </View>
               </View>
               <View style={styles.bannerOrb} />
             </View>
           )}
         />
 
-        {/* CATEGORY CHIPS */}
+        {/* ── CATEGORÍAS (filtros que disparan fetch real) ── */}
         <FlatList
           horizontal
           data={CATS}
@@ -265,58 +309,68 @@ export default function HomeScreen() {
           }}
         />
 
-        {/* FEATURED STORES */}
-        {!categoria && (
+        {/* ── NUEVAS TIENDAS — carrusel dinámico (consume nuevas_tiendas) ── */}
+        {!categoria && nuevas.length > 0 && (
           <View style={{ marginBottom: Spacing.lg }}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t.home.tiendas}</Text>
-              <TouchableOpacity activeOpacity={0.7}>
-                <Text style={[styles.sectionLink, { color: colors.accent }]}>Ver todas</Text>
-              </TouchableOpacity>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t.home.nuevos}</Text>
             </View>
             <FlatList
               horizontal
-              data={MOCK_TIENDAS}
-              keyExtractor={s => String(s.id)}
+              data={nuevas}
+              keyExtractor={s => 'n-' + s.id}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: Spacing.md, gap: Spacing.sm }}
               renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[styles.storeCard, { backgroundColor: colors.card, borderColor: colors.border }]}
-                  activeOpacity={0.85}
-                >
-                  <View style={[styles.storeIconBg, { backgroundColor: item.color }]}>
-                    <Ionicons name={item.icon} size={22} color="#FFF" />
-                  </View>
-                  <Text numberOfLines={1} style={[styles.storeName, { color: colors.text }]}>{item.nombre}</Text>
-                  <Text style={[styles.storeMuni, { color: colors.muted }]}>{item.municipio}</Text>
-                  <View style={styles.storeRating}>
-                    <Ionicons name="star" size={10} color="#FECA57" />
-                    <Text style={[styles.storeRatingTxt, { color: colors.muted }]}>{item.rating}</Text>
-                  </View>
-                </TouchableOpacity>
+                <StoreCard s={item} onPress={() => nav.navigate('Explore' as never)} />
               )}
             />
           </View>
         )}
 
-        {/* PRODUCTS SECTION TITLE */}
+        {/* ── TIENDAS DESTACADAS — badge dorado, orden por estrellas ── */}
+        {!categoria && destacadas.length > 0 && (
+          <View style={{ marginBottom: Spacing.lg }}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t.home.tiendas}</Text>
+            </View>
+            <FlatList
+              horizontal
+              data={destacadas}
+              keyExtractor={s => 'd-' + s.id}
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: Spacing.md, gap: Spacing.sm }}
+              renderItem={({ item }) => (
+                <StoreCard s={item} destacada onPress={() => nav.navigate('Explore' as never)} />
+              )}
+            />
+          </View>
+        )}
+
         <View style={[styles.sectionHeader, { paddingHorizontal: Spacing.md }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             {categoria ? `${CATS.find(c => c.k === categoria)?.label ?? ''}` : t.home.populares}
           </Text>
-          <Text style={[styles.sectionCount, { color: colors.muted }]}>{filtered.length} items</Text>
+          <Text style={[styles.sectionCount, { color: colors.muted }]}>{productos.length} items</Text>
         </View>
 
-        {/* PRODUCT GRID */}
-        <View style={styles.grid}>
-          {filtered.length === 0 ? (
-            <View style={styles.emptyBlock}>
-              <Ionicons name="cube-outline" size={48} color={colors.muted} />
-              <Text style={[styles.emptyTxt, { color: colors.muted }]}>{t.home.sinProductos}</Text>
-            </View>
-          ) : (
-            filtered.map((item, index) => (
+        {/* ── GRID DE PRODUCTOS + SKELETONS ── */}
+        {cargando ? (
+          <View style={styles.grid}>
+            {Array.from({ length: 6 }).map((_, i) => (
+              <View key={i} style={styles.gridCell}>
+                <SkeletonCard height={140} />
+              </View>
+            ))}
+          </View>
+        ) : productos.length === 0 ? (
+          <View style={styles.emptyBlock}>
+            <Ionicons name="cube-outline" size={48} color={colors.muted} />
+            <Text style={[styles.emptyTxt, { color: colors.muted }]}>{t.home.sinProductos}</Text>
+          </View>
+        ) : (
+          <View style={styles.grid}>
+            {productos.map((item, index) => (
               <View key={item.id} style={styles.gridCell}>
                 <ProductCard
                   item={item}
@@ -326,11 +380,17 @@ export default function HomeScreen() {
                   onSave={() => toggleGuardar(item)}
                 />
               </View>
-            ))
-          )}
-        </View>
+            ))}
+          </View>
+        )}
 
-        <View style={{ height: 32 }} />
+        {loadingMore && (
+          <View style={{ padding: 18, alignItems: 'center' }}>
+            <ActivityIndicator color={colors.accent} />
+          </View>
+        )}
+
+        <View style={{ height: 60 }} />
       </ScrollView>
     </View>
   );
@@ -341,108 +401,82 @@ const CARD_W = (W - Spacing.md * 2 - Spacing.sm) / 2;
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: Spacing.md, paddingBottom: Spacing.md,
     borderBottomWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 3,
   },
   locRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
-  locIconBg: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center' },
+  locIconBg: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
   entregarEn: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
   muniTxt: { fontSize: Fonts.regular, fontWeight: '800', letterSpacing: -0.2 },
-  iconBtn: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, position: 'relative' },
-  cartDot: { width: 8, height: 8, borderRadius: 4, position: 'absolute', top: 7, right: 7, borderWidth: 1.5, borderColor: '#FFF' },
+  iconBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, position: 'relative' },
+  cartDot: { width: 8, height: 8, borderRadius: 4, position: 'absolute', top: 8, right: 8, borderWidth: 1.5, borderColor: '#FFF' },
   searchBar: {
     flexDirection: 'row', alignItems: 'center',
     marginHorizontal: Spacing.md, marginTop: Spacing.md, marginBottom: Spacing.sm,
-    borderWidth: 1.5, borderRadius: Radius.pill,
-    paddingHorizontal: Spacing.sm, height: 48,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 3, elevation: 1,
+    borderWidth: 1.5, borderRadius: Radius.pill, paddingHorizontal: Spacing.sm, height: 48,
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 5, elevation: 2,
   },
   searchIconBg: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.sm },
   searchTxt: { flex: 1, fontSize: Fonts.regular, fontWeight: '500' },
-  filterBtn: {
-    width: 34, height: 34, borderRadius: 17,
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1.5,
-  },
+  filterBtn: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5 },
   banner: {
-    borderRadius: Radius.lg, padding: Spacing.md,
-    height: 130, overflow: 'hidden',
-    justifyContent: 'flex-end',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 4,
+    borderRadius: 20, padding: Spacing.md, height: 130, overflow: 'hidden', justifyContent: 'flex-end',
+    shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 14, elevation: 6,
   },
   bannerContent: { zIndex: 2 },
-  bannerTitulo: { color: '#FFF', fontWeight: '900', fontSize: Fonts.regular + 2, letterSpacing: -0.3 },
-  bannerSub: { color: 'rgba(255,255,255,0.85)', fontSize: Fonts.small, fontWeight: '500', marginTop: 2, marginBottom: 8 },
-  bannerBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: Radius.pill, paddingHorizontal: 10, paddingVertical: 4 },
-  bannerBtnTxt: { color: '#FFF', fontSize: 10, fontWeight: '800' },
-  bannerOrb: {
-    position: 'absolute', width: 120, height: 120, borderRadius: 60,
-    backgroundColor: 'rgba(255,255,255,0.07)', right: -20, top: -20,
-  },
+  bannerTitulo: { color: '#FFF', fontWeight: '900', fontSize: 17, letterSpacing: -0.3 },
+  bannerSub: { color: 'rgba(255,255,255,0.92)', fontSize: 12, fontWeight: '600', marginTop: 4 },
+  bannerOrb: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.10)', right: -30, top: -30 },
   chip: {
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 14, paddingVertical: 9,
+    paddingHorizontal: 16, paddingVertical: 10,
     borderRadius: Radius.pill, borderWidth: 1.5,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.02, shadowRadius: 2, elevation: 1,
+    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
   },
-  chipTxt: { fontSize: Fonts.small, fontWeight: '700' },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm, paddingHorizontal: Spacing.md },
-  sectionTitle: { fontSize: Fonts.regular + 1, fontWeight: '900', letterSpacing: -0.3 },
-  sectionLink: { fontSize: Fonts.small + 1, fontWeight: '700' },
-  sectionCount: { fontSize: Fonts.small, fontWeight: '600' },
+  chipTxt: { fontSize: 13, fontWeight: '800' },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: Spacing.md },
+  sectionTitle: { fontSize: 18, fontWeight: '900', letterSpacing: -0.5 },
+  sectionCount: { fontSize: 12, fontWeight: '700' },
   storeCard: {
-    width: 110, borderRadius: Radius.md, padding: Spacing.sm,
-    alignItems: 'center', borderWidth: 1.5,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 2,
+    width: 200, borderRadius: 20, borderWidth: 1, overflow: 'hidden',
+    shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 14, elevation: 4,
   },
-  storeIconBg: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.xs },
-  storeName: { fontWeight: '700', fontSize: Fonts.small, textAlign: 'center', letterSpacing: -0.2 },
-  storeMuni: { fontSize: 10, fontWeight: '500', textAlign: 'center', marginTop: 2 },
-  storeRating: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4 },
-  storeRatingTxt: { fontSize: 10, fontWeight: '700' },
-  grid: {
-    flexDirection: 'row', flexWrap: 'wrap',
-    paddingHorizontal: Spacing.md,
-    gap: Spacing.sm,
+  storeCover: { width: '100%', height: 90, position: 'relative' },
+  storeCoverPlaceholder: { width: '100%', height: '100%' },
+  goldBadge: {
+    position: 'absolute', top: 8, right: 8,
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    backgroundColor: '#D97706', paddingHorizontal: 9, paddingVertical: 4,
+    borderRadius: 14,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 5, elevation: 4,
   },
+  goldBadgeTxt: { color: '#FFF', fontWeight: '900', fontSize: 11 },
+  storeLogo: { width: 34, height: 34, borderRadius: 17 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: Spacing.md, gap: Spacing.sm },
   gridCell: { width: CARD_W },
   emptyBlock: { width: '100%', alignItems: 'center', paddingVertical: Spacing.xl },
   emptyTxt: { marginTop: Spacing.sm, fontWeight: '600', fontSize: Fonts.regular },
   card: {
-    borderRadius: Radius.md, borderWidth: 1.5, overflow: 'hidden',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
+    borderRadius: 18, borderWidth: 1, overflow: 'hidden',
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3,
   },
   imgBox: { height: 120, justifyContent: 'center', alignItems: 'center', position: 'relative' },
   img: { width: '100%', height: '100%', position: 'absolute' },
   bookmarkBtn: {
     position: 'absolute', top: 8, right: 8,
-    width: 26, height: 26, borderRadius: 13,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  hotBadge: {
-    position: 'absolute', top: 8, left: 8,
-    flexDirection: 'row', alignItems: 'center', gap: 2,
-    borderRadius: Radius.pill, paddingHorizontal: 6, paddingVertical: 2,
-  },
-  hotTxt: { color: '#FFF', fontSize: 9, fontWeight: '900', letterSpacing: 0.3 },
-  cardBody: { padding: Spacing.sm + 2 },
-  nombre: { fontWeight: '700', fontSize: Fonts.regular - 1, letterSpacing: -0.2 },
-  tienda: { fontSize: Fonts.small - 1, marginTop: 1, fontWeight: '500' },
-  priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
-  precio: { fontWeight: '900', fontSize: Fonts.regular },
-  addBtn: {
     width: 28, height: 28, borderRadius: 14,
+    backgroundColor: 'rgba(0,0,0,0.40)', justifyContent: 'center', alignItems: 'center',
+  },
+  cardBody: { padding: Spacing.sm + 4 },
+  nombre: { fontWeight: '800', fontSize: 14, letterSpacing: -0.2 },
+  tienda: { fontSize: 11, marginTop: 2, fontWeight: '600' },
+  priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  precio: { fontWeight: '900', fontSize: 15 },
+  addBtn: {
+    width: 30, height: 30, borderRadius: 15,
     justifyContent: 'center', alignItems: 'center',
-    shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 3, elevation: 2,
+    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.20, shadowRadius: 4, elevation: 3,
   },
 });

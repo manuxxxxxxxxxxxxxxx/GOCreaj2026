@@ -13,7 +13,6 @@ export default function Login() {
   const { login } = useGlobal();
   const [loading, setLoading] = useState(false);
 
-  // State for validation errors
   const [errors, setErrors] = useState({
     loginEmail: '',
     loginPassword: '',
@@ -40,17 +39,13 @@ export default function Login() {
       newErrors.loginPassword = 'Ingresa tu contraseña.';
       hasError = true;
     }
-
-    if (hasError) {
-      setErrors(newErrors);
-      return;
-    }
+    if (hasError) { setErrors(newErrors); return; }
 
     setLoading(true);
     try {
       const res = await api.post('/auth.php?action=login', {
         identificador: emailInput,
-        password: passwordInput
+        password: passwordInput,
       });
 
       if (res.data.ok) {
@@ -58,15 +53,10 @@ export default function Login() {
         login({ name: res.data.usuario.nombre, email: res.data.usuario.email, role: res.data.usuario.rol });
 
         const userRole = res.data.usuario.rol;
-        if (userRole === 'admin' || userRole === 'master_admin') {
-          navigate('/admin/dashboard');
-        } else if (userRole === 'vendedor' || userRole === 'seller') {
-          navigate('/dashboard-vendedor');
-        } else if (userRole === 'repartidor' || userRole === 'driver') {
-          navigate('/dashboard-repartidor');
-        } else {
-          navigate('/');
-        }
+        if (userRole === 'admin' || userRole === 'master_admin') navigate('/admin/dashboard');
+        else if (userRole === 'vendedor' || userRole === 'seller') navigate('/dashboard-vendedor');
+        else if (userRole === 'repartidor' || userRole === 'driver') navigate('/dashboard-repartidor');
+        else navigate('/');
       } else {
         setErrors({ ...newErrors, general: res.data.error || 'Credenciales incorrectas' });
       }
@@ -88,27 +78,11 @@ export default function Login() {
     const passwordInput = (e.target as any).elements['reg-password'].value;
     const termsInput = (e.target as any).elements['reg-terms'].checked;
 
-    if (!nameInput) {
-      newErrors.regName = 'Ingresa tu nombre.';
-      hasError = true;
-    }
-    if (!emailInput || !emailInput.includes('@')) {
-      newErrors.regEmail = 'Ingresa un correo válido.';
-      hasError = true;
-    }
-    if (!passwordInput || passwordInput.length < 6) {
-      newErrors.regPassword = 'La contraseña debe tener al menos 6 caracteres.';
-      hasError = true;
-    }
-    if (!termsInput) {
-      newErrors.regTerms = 'Debes aceptar los términos y condiciones.';
-      hasError = true;
-    }
-
-    if (hasError) {
-      setErrors(newErrors);
-      return;
-    }
+    if (!nameInput) { newErrors.regName = 'Ingresa tu nombre.'; hasError = true; }
+    if (!emailInput || !emailInput.includes('@')) { newErrors.regEmail = 'Ingresa un correo válido.'; hasError = true; }
+    if (!passwordInput || passwordInput.length < 6) { newErrors.regPassword = 'La contraseña debe tener al menos 6 caracteres.'; hasError = true; }
+    if (!termsInput) { newErrors.regTerms = 'Debes aceptar los términos y condiciones.'; hasError = true; }
+    if (hasError) { setErrors(newErrors); return; }
 
     setLoading(true);
     try {
@@ -118,7 +92,6 @@ export default function Login() {
         password: passwordInput,
         rol: 'comprador',
       });
-
       if (res.data.ok) {
         localStorage.setItem('lm_token_v1', res.data.token);
         login({ name: res.data.usuario.nombre, email: res.data.usuario.email, role: res.data.usuario.rol });
@@ -136,37 +109,36 @@ export default function Login() {
 
   return (
     <div className="auth-page-wrapper" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', position: 'relative' }}>
-      <div className="auth-card" style={{ maxWidth: '480px' }}>
-        {/* Logo matching SVGO style */}
-        <div className="auth-logo" onClick={() => navigate('/')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
-          <div className="auth-logo-icon" style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#4A6D8C', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', color: '#fff', fontSize: '1.1rem', boxShadow: '0 4px 12px rgba(74, 109, 140, 0.2)' }}>
+      <div className="auth-card" style={{ maxWidth: '480px', borderRadius: '24px', boxShadow: '0 20px 50px rgba(15,23,42,0.10)' }}>
+        <div
+          className="auth-logo"
+          onClick={() => navigate('/')}
+          style={{ cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}
+        >
+          <div className="auth-logo-icon" style={{ width: '44px', height: '44px', borderRadius: '14px', background: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', color: '#fff', fontSize: '1.1rem', boxShadow: '0 6px 18px rgba(37,99,235,0.30)' }}>
             SV
           </div>
           <div>
-            <div className="auth-logo-name" style={{ fontSize: '1.6rem', fontWeight: '800', color: '#111111', lineHeight: '1' }}>GO</div>
-            <span className="auth-logo-tagline" style={{ fontSize: '0.75rem', color: '#5e697a', fontWeight: '600' }}>Envíos y Mercado Express</span>
+            <div className="auth-logo-name" style={{ fontSize: '1.6rem', fontWeight: '900', color: '#000000', lineHeight: '1', letterSpacing: '-0.5px' }}>GO</div>
+            <span className="auth-logo-tagline" style={{ fontSize: '0.75rem', color: '#475569', fontWeight: '600' }}>Envíos y Mercado Express</span>
           </div>
         </div>
 
-        {/* Tab switcher */}
         <div className="auth-tabs" role="tablist">
-          <button 
-            className={`auth-tab ${!isRegister ? 'active' : ''}`} 
+          <button
+            className={`auth-tab ${!isRegister ? 'active' : ''}`}
             onClick={() => setIsRegister(false)}
             id="tab-login"
-          >
-            Iniciar Sesión
-          </button>
-          <button 
-            className={`auth-tab ${isRegister ? 'active' : ''}`} 
+            type="button"
+          >Iniciar Sesión</button>
+          <button
+            className={`auth-tab ${isRegister ? 'active' : ''}`}
             onClick={() => setIsRegister(true)}
             id="tab-register"
-          >
-            Registrarse
-          </button>
+            type="button"
+          >Registrarse</button>
         </div>
 
-        {/* LOGIN FORM */}
         {!isRegister && (
           <form className="auth-form" id="login-form" onSubmit={handleLogin} noValidate>
             <div className="field-group">
@@ -207,30 +179,22 @@ export default function Login() {
             <span className="auth-forgot">¿Olvidaste tu contraseña?</span>
 
             {errors.general && (
-              <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '10px', padding: '10px 14px', color: '#DC2626', fontSize: '0.875rem', fontWeight: '600', marginBottom: '4px' }}>
+              <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '12px', padding: '10px 14px', color: '#DC2626', fontSize: '0.875rem', fontWeight: '600', marginBottom: '4px' }}>
                 {errors.general}
               </div>
             )}
 
-            <button className="auth-btn" type="submit" disabled={loading} style={{ background: 'var(--blue)', border: 'none', borderRadius: '12px', height: '48px', color: '#fff', fontWeight: '700', fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', boxShadow: '0 4px 14px rgba(74, 109, 140, 0.3)', opacity: loading ? 0.75 : 1 }}>
+            <button
+              className="auth-btn"
+              type="submit"
+              disabled={loading}
+              style={{ background: '#2563EB', border: 'none', borderRadius: '14px', height: '50px', color: '#fff', fontWeight: '800', fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', boxShadow: '0 6px 18px rgba(37,99,235,0.30)', opacity: loading ? 0.75 : 1, transition: 'transform .15s, box-shadow .15s' }}
+            >
               {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
-            </button>
-
-            <div className="auth-divider">o continúa con</div>
-
-            <button className="social-btn" type="button">
-              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              Continuar con Google
             </button>
           </form>
         )}
 
-        {/* REGISTER FORM */}
         {isRegister && (
           <form className="auth-form" id="register-form" onSubmit={handleRegister} noValidate>
             <div className="field-group">
@@ -239,13 +203,7 @@ export default function Login() {
                 <span className="field-icon">
                   <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 </span>
-                <input
-                  className="auth-input"
-                  id="reg-name"
-                  name="reg-name"
-                  type="text"
-                  placeholder="Tu nombre completo"
-                />
+                <input className="auth-input" id="reg-name" name="reg-name" type="text" placeholder="Tu nombre completo" />
               </div>
               {errors.regName && <span className="field-error show">{errors.regName}</span>}
             </div>
@@ -256,13 +214,7 @@ export default function Login() {
                 <span className="field-icon">
                   <svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
                 </span>
-                <input
-                  className="auth-input"
-                  id="reg-email"
-                  name="reg-email"
-                  type="email"
-                  placeholder="correo@ejemplo.com"
-                />
+                <input className="auth-input" id="reg-email" name="reg-email" type="email" placeholder="correo@ejemplo.com" />
               </div>
               {errors.regEmail && <span className="field-error show">{errors.regEmail}</span>}
             </div>
@@ -273,13 +225,7 @@ export default function Login() {
                 <span className="field-icon">
                   <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 </span>
-                <input
-                  className="auth-input"
-                  id="reg-password"
-                  name="reg-password"
-                  type="password"
-                  placeholder="Mínimo 6 caracteres"
-                />
+                <input className="auth-input" id="reg-password" name="reg-password" type="password" placeholder="Mínimo 6 caracteres" />
               </div>
               {errors.regPassword && <span className="field-error show">{errors.regPassword}</span>}
             </div>
@@ -293,30 +239,28 @@ export default function Login() {
             </div>
 
             {errors.general && (
-              <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '10px', padding: '10px 14px', color: '#DC2626', fontSize: '0.875rem', fontWeight: '600', marginBottom: '4px' }}>
+              <div style={{ background: '#FEE2E2', border: '1px solid #FECACA', borderRadius: '12px', padding: '10px 14px', color: '#DC2626', fontSize: '0.875rem', fontWeight: '600', marginBottom: '4px' }}>
                 {errors.general}
               </div>
             )}
 
-            <button className="auth-btn" type="submit" disabled={loading} style={{ background: 'var(--blue)', border: 'none', borderRadius: '12px', height: '48px', color: '#fff', fontWeight: '700', fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', boxShadow: '0 4px 14px rgba(74, 109, 140, 0.3)', opacity: loading ? 0.75 : 1 }}>
+            <button
+              className="auth-btn"
+              type="submit"
+              disabled={loading}
+              style={{ background: '#2563EB', border: 'none', borderRadius: '14px', height: '50px', color: '#fff', fontWeight: '800', fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', boxShadow: '0 6px 18px rgba(37,99,235,0.30)', opacity: loading ? 0.75 : 1, transition: 'transform .15s, box-shadow .15s' }}
+            >
               {loading ? 'Creando cuenta...' : 'Crear cuenta'}
-            </button>
-
-            <div className="auth-divider">o regístrate con</div>
-
-            <button className="social-btn" type="button">
-              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-              Continuar con Google
             </button>
 
             <p className="auth-link-row" style={{ marginTop: '20px', textAlign: 'center' }}>
               ¿Ya tienes cuenta?
-              <button type="button" className="auth-link" onClick={() => setIsRegister(false)} style={{ background: 'none', border: 'none', color: 'var(--blue)', cursor: 'pointer', fontWeight: '600', marginLeft: '5px' }}>Inicia sesión</button>
+              <button
+                type="button"
+                className="auth-link"
+                onClick={() => setIsRegister(false)}
+                style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontWeight: '700', marginLeft: '5px' }}
+              >Inicia sesión</button>
             </p>
           </form>
         )}

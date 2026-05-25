@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react'; // useRef kept for animation
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Alert,
   TouchableOpacity, KeyboardAvoidingView, Platform,
@@ -9,7 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
-import { api, Endpoints } from '@/services/api';
+import { api, Endpoints, traducirError } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
 import { useLang } from '@/context/LangContext';
 import Button from '@/components/Button';
@@ -21,7 +21,7 @@ interface AuthResp { ok: boolean; usuario?: Usuario; token?: string; error?: str
 
 export default function AuthScreen() {
   const { iniciar } = useAuth();
-  const { cambiarIdioma, langLabel, t } = useLang();
+  const { cambiarIdioma, langLabel, t, lang } = useLang();
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -34,7 +34,7 @@ export default function AuthScreen() {
   const [telefono, setTelefono] = useState('');
   const [passwordRegistro, setPasswordRegistro] = useState('');
 
-  const logoFloat = useRef(new Animated.Value(0)).current;
+  const logoFloat  = useRef(new Animated.Value(0)).current;
   const formOpacity = useRef(new Animated.Value(0)).current;
   const formSlide  = useRef(new Animated.Value(20)).current;
 
@@ -62,7 +62,7 @@ export default function AuthScreen() {
     try {
       const r = await api<AuthResp>(Endpoints.authLogin, { body: { identificador, password: passwordLogin } });
       if (r?.ok && r.usuario && r.token) await iniciar(r.usuario, r.token);
-      else Alert.alert(t.common.error, r?.error ?? t.auth.ingresaCredenciales);
+      else Alert.alert(t.common.error, traducirError(r?.error, lang) || t.auth.ingresaCredenciales);
     } catch {
       Alert.alert(t.common.error, t.auth.sinConexion);
     } finally { setCargando(false); }
@@ -71,30 +71,19 @@ export default function AuthScreen() {
   const onRegistro = async () => {
     if (!nombre || !passwordRegistro || (!email && !telefono))
       return Alert.alert(t.auth.datosRequeridos, t.auth.completaCampos);
+    if (passwordRegistro.length < 6) return Alert.alert(t.common.error, t.auth.contrasenaCorta);
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
+      return Alert.alert(t.common.error, t.auth.emailInvalido);
     setCargando(true);
     try {
       const municipio = await AsyncStorage.getItem('svgo_municipio');
-      const r = await api<AuthResp>(Endpoints.authRegister, { body: { nombre, email, telefono, password: passwordRegistro, municipio } });
-      if (r.ok && r.usuario && r.token) await iniciar(r.usuario, r.token);
-      else Alert.alert(t.common.error, r.error ?? t.auth.completaCampos);
-    } catch {
-      Alert.alert(t.common.error, t.auth.sinConexion);
-    } finally { setCargando(false); }
-  };
-
-  const onSocial = async (provider: 'google' | 'apple') => {
-    setCargando(true);
-    try {
-      const r = await api<AuthResp>(Endpoints.authSocial, {
-        body: {
-          provider,
-          provider_uid: `${provider}_${Date.now()}`,
-          nombre: provider === 'google' ? 'Usuario Google' : 'Usuario Apple',
-          email: `${provider}${Date.now()}@svgo.sv`,
-        },
+      const r = await api<AuthResp>(Endpoints.authRegister, {
+        body: { nombre, email, telefono, password: passwordRegistro, municipio },
       });
       if (r.ok && r.usuario && r.token) await iniciar(r.usuario, r.token);
-      else Alert.alert(t.common.error, r.error ?? t.common.falloRed);
+      else Alert.alert(t.common.error, traducirError(r.error, lang) || t.auth.completaCampos);
+    } catch {
+      Alert.alert(t.common.error, t.auth.sinConexion);
     } finally { setCargando(false); }
   };
 
@@ -108,11 +97,12 @@ export default function AuthScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Top bar */}
+        {/* Top bar — idioma + tema */}
         <View style={styles.topRow}>
           <TouchableOpacity
             style={[styles.topBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={cambiarIdioma}
+            activeOpacity={0.85}
           >
             <Ionicons name="globe-outline" size={16} color={colors.accent} style={{ marginRight: 4 }} />
             <Text style={[styles.topBtnTxt, { color: colors.accent }]}>{langLabel}</Text>
@@ -120,6 +110,7 @@ export default function AuthScreen() {
           <TouchableOpacity
             style={[styles.topBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
             onPress={toggleTheme}
+            activeOpacity={0.85}
           >
             <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={18} color={colors.accent} />
           </TouchableOpacity>
@@ -161,13 +152,13 @@ export default function AuthScreen() {
           })}
         </View>
 
-        {/* Formulario animado */}
+        {/* Formulario premium animado */}
         <Animated.View style={{ opacity: formOpacity, transform: [{ translateY: formSlide }] }}>
-
           {modo === 'login' && (
-            <View style={[styles.formCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.formCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
               <Text style={[styles.formTitle, { color: colors.text }]}>{t.auth.bienvenido}</Text>
               <Text style={[styles.formSub, { color: colors.muted }]}>{t.auth.subtLogin}</Text>
+
               <Input
                 label={t.auth.usuarioEmailTelefono}
                 icon="person-circle-outline"
@@ -188,7 +179,7 @@ export default function AuthScreen() {
           )}
 
           {modo === 'registro' && (
-            <View style={[styles.formCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.formCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
               <Text style={[styles.formTitle, { color: colors.text }]}>{t.auth.unete}</Text>
               <Text style={[styles.formSub, { color: colors.muted }]}>{t.auth.subtRegister}</Text>
 
@@ -197,10 +188,8 @@ export default function AuthScreen() {
                 icon="person-outline"
                 value={nombre}
                 onChangeText={setNombre}
-                placeholder="Tu nombre real"
               />
 
-              {/* Email + Teléfono en fila */}
               <View style={styles.row2}>
                 <View style={{ flex: 1 }}>
                   <Input
@@ -210,7 +199,6 @@ export default function AuthScreen() {
                     onChangeText={setEmail}
                     keyboardType="email-address"
                     autoCapitalize="none"
-                    placeholder="correo@email.com"
                   />
                 </View>
                 <View style={{ width: Spacing.sm }} />
@@ -231,7 +219,6 @@ export default function AuthScreen() {
                 value={passwordRegistro}
                 onChangeText={setPasswordRegistro}
                 secureTextEntry
-                placeholder="Mínimo 6 caracteres"
               />
 
               <Button label={t.auth.crearCuenta} icon="person-add-outline" onPress={onRegistro} loading={cargando} />
@@ -241,35 +228,6 @@ export default function AuthScreen() {
           )}
         </Animated.View>
 
-        {/* Divisor */}
-        <View style={styles.divRow}>
-          <View style={[styles.divLine, { backgroundColor: colors.border }]} />
-          <Text style={[styles.divTxt, { color: colors.muted }]}>{t.auth.oContinuaCon}</Text>
-          <View style={[styles.divLine, { backgroundColor: colors.border }]} />
-        </View>
-
-        {/* Social buttons */}
-        <View style={styles.socialRow}>
-          <TouchableOpacity
-            style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => onSocial('google')}
-            activeOpacity={0.85}
-            disabled={cargando}
-          >
-            <Ionicons name="logo-google" size={22} color="#EA4335" />
-            <Text style={[styles.socialTxt, { color: colors.text }]}>{t.auth.continuarGoogle}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => onSocial('apple')}
-            activeOpacity={0.85}
-            disabled={cargando}
-          >
-            <Ionicons name="logo-apple" size={22} color={colors.text} />
-            <Text style={[styles.socialTxt, { color: colors.text }]}>{t.auth.continuarApple}</Text>
-          </TouchableOpacity>
-        </View>
-
         <View style={{ height: 32 }} />
       </ScrollView>
     </KeyboardAvoidingView>
@@ -278,12 +236,7 @@ export default function AuthScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: Spacing.lg, paddingBottom: 40 },
-  topRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
+  topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
   topBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -294,75 +247,25 @@ const styles = StyleSheet.create({
   },
   topBtnTxt: { fontSize: Fonts.small, fontWeight: '800', letterSpacing: 0.5 },
   brand: { alignItems: 'center', marginBottom: Spacing.xl },
-  logoRing: {
-    width: 112, height: 112, borderRadius: 56,
-    borderWidth: 2.5,
-    justifyContent: 'center', alignItems: 'center',
-  },
+  logoRing: { width: 112, height: 112, borderRadius: 56, borderWidth: 2.5, justifyContent: 'center', alignItems: 'center' },
   logo: {
-    width: 90, height: 90, borderRadius: 45,
-    justifyContent: 'center', alignItems: 'center',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3, shadowRadius: 16, elevation: 10,
+    width: 90, height: 90, borderRadius: 45, justifyContent: 'center', alignItems: 'center',
+    shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 10,
     borderWidth: 3, borderColor: 'rgba(255,255,255,0.8)',
   },
   logoText: { color: '#FFF', fontWeight: '900', fontSize: 28, letterSpacing: 2 },
   appName: { fontSize: 36, fontWeight: '900', marginTop: Spacing.md, letterSpacing: -1 },
   tagline: { fontSize: Fonts.small, marginTop: 4, fontWeight: '600', letterSpacing: 0.3 },
-  tabs: {
-    flexDirection: 'row',
-    borderRadius: Radius.pill,
-    padding: 5,
-    marginBottom: Spacing.lg,
-    borderWidth: 1.5,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    paddingVertical: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Radius.pill,
-  },
-  tabActive: {
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15, shadowRadius: 4, elevation: 2,
-  },
+  tabs: { flexDirection: 'row', borderRadius: Radius.pill, padding: 5, marginBottom: Spacing.lg, borderWidth: 1.5 },
+  tab: { flex: 1, flexDirection: 'row', paddingVertical: 11, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.pill },
+  tabActive: { shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 2 },
   tabTxt: { fontWeight: '800', fontSize: Fonts.small },
   formCard: {
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
-    borderWidth: 1.5,
-    marginBottom: Spacing.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
+    borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1.5, marginBottom: Spacing.lg,
+    shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 14, elevation: 4,
   },
   formTitle: { fontSize: Fonts.title, fontWeight: '900', letterSpacing: -0.5, marginBottom: 4 },
   formSub: { fontSize: Fonts.small + 1, fontWeight: '500', marginBottom: Spacing.lg, lineHeight: 20 },
   row2: { flexDirection: 'row' },
-  terms: {
-    fontSize: Fonts.small - 1,
-    textAlign: 'center',
-    marginTop: Spacing.sm,
-    lineHeight: 17,
-  },
-  divRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md },
-  divLine: { flex: 1, height: 1.5 },
-  divTxt: { marginHorizontal: Spacing.md, fontSize: Fonts.small, fontWeight: '700' },
-  socialRow: { flexDirection: 'row', gap: Spacing.md },
-  socialBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: Radius.md,
-    borderWidth: 1.5,
-    gap: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03, shadowRadius: 3, elevation: 1,
-  },
-  socialTxt: { fontWeight: '700', fontSize: Fonts.regular },
+  terms: { fontSize: Fonts.small - 1, textAlign: 'center', marginTop: Spacing.sm, lineHeight: 17 },
 });

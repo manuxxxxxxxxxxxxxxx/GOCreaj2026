@@ -135,14 +135,20 @@ export default function ExploreScreen() {
   const buscar = useCallback(async (q: string, categoria: string, pageNum = 1, append = false) => {
     setLoading(true);
     try {
-      const r = await api<{ ok: boolean; productos?: Producto[]; total?: number }>(
-        `${Endpoints.productosListar}?q=${encodeURIComponent(q)}&categoria=${encodeURIComponent(categoria)}&page=${pageNum}&limit=30&con_coordenadas=1`
-      );
+      // Endpoint correcto: productos.php?action=buscar (LIKE + FULLTEXT) o listar si no hay query
+      const cleanQ = q.trim();
+      const base = cleanQ
+        ? `productos.php?action=buscar&q=${encodeURIComponent(cleanQ)}`
+        : `productos.php?action=listar`;
+      const url =
+        `${base}&page=${pageNum}&limit=20&con_coordenadas=1` +
+        (categoria ? `&categoria=${encodeURIComponent(categoria)}` : '');
+      const r = await api<{ ok: boolean; productos?: Producto[]; has_more?: boolean }>(url);
       if (r.ok && r.productos) {
         setItems(prev => append ? [...prev, ...r.productos!] : r.productos!);
-        setHasMore((r.productos?.length ?? 0) === 30);
+        setHasMore(r.has_more ?? (r.productos!.length === 20));
       }
-    } catch {}
+    } catch { /* offline-safe */ }
     setLoading(false);
   }, []);
 
@@ -273,11 +279,22 @@ export default function ExploreScreen() {
                 anchor={{ x: 0.5, y: 1 }}
               >
                 <PriceBubble precio={item.precio} selected={selected === item.id} />
-                <Callout tooltip>
+                <Callout
+                  tooltip
+                  onPress={() => nav.navigate('Product', { productoId: item.id })}
+                >
                   <View style={[S.callout, { backgroundColor: colors.card, borderColor: colors.border }]}>
                     <Text style={[S.calloutName, { color: colors.text }]} numberOfLines={2}>{item.nombre}</Text>
                     <Text style={[S.calloutPrice, { color: colors.accent }]}>${Number(item.precio).toFixed(2)}</Text>
                     <Text style={[S.calloutStore, { color: colors.muted }]}>{item.tienda_nombre}</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
+                      <View style={{ flex: 1, backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 6, alignItems: 'center' }}>
+                        <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 11 }}>Agregar</Text>
+                      </View>
+                      <View style={{ flex: 1, backgroundColor: colors.success, borderRadius: 10, paddingVertical: 6, alignItems: 'center' }}>
+                        <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 11 }}>Visitar</Text>
+                      </View>
+                    </View>
                   </View>
                 </Callout>
               </Marker>

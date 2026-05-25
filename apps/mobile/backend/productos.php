@@ -9,18 +9,104 @@ switch ($action) {
         $municipio = $_GET['municipio'] ?? null;
         $cat       = $_GET['categoria']  ?? null;
         $page      = max(1, (int)($_GET['page'] ?? 1));
-        $limit     = min(60, max(1, (int)($_GET['limit'] ?? 40)));
+        $limit     = min(60, max(1, (int)($_GET['limit'] ?? 20))); // ⚡ paginación de 20 en 20
         $offset    = ($page - 1) * $limit;
-        $q = "SELECT p.*, t.nombre as tienda_nombre, t.municipio, t.lat as tienda_lat, t.lng as tienda_lng, t.vendedor_id
+
+        $q = "SELECT p.*, t.nombre as tienda_nombre, t.municipio, t.lat as tienda_lat, t.lng as tienda_lng, t.vendedor_id,
+                     t.calificacion_promedio as tienda_calificacion
               FROM productos p JOIN tiendas t ON t.id = p.tienda_id
-              WHERE p.activo = 1 AND t.activo = 1";
+              WHERE p.activo = 1 AND t.activo = 1
+                AND (p.estado_stock IS NULL OR p.estado_stock <> 'agotado')
+                AND p.stock > 0";
         $params = [];
         if ($municipio) { $q .= " AND t.municipio = ?"; $params[] = $municipio; }
         if ($cat)       { $q .= " AND p.categoria = ?"; $params[] = $cat; }
         $q .= " ORDER BY p.created_at DESC LIMIT $limit OFFSET $offset";
         $st = db()->prepare($q);
         $st->execute($params);
-        jout(['ok' => true, 'productos' => $st->fetchAll(), 'page' => $page, 'limit' => $limit]);
+        $rows = $st->fetchAll();
+
+        // Conteo total para saber si hay más páginas
+        $qc = "SELECT COUNT(*) FROM productos p JOIN tiendas t ON t.id = p.tienda_id
+               WHERE p.activo = 1 AND t.activo = 1
+                 AND (p.estado_stock IS NULL OR p.estado_stock <> 'agotado')
+                 AND p.stock > 0";
+        $cparams = [];
+        if ($municipio) { $qc .= " AND t.municipio = ?"; $cparams[] = $municipio; }
+        if ($cat)       { $qc .= " AND p.categoria = ?"; $cparams[] = $cat; }
+        $stc = db()->prepare($qc);
+        $stc->execute($cparams);
+        $total = (int)$stc->fetchColumn();
+
+        jout([
+            'ok' => true,
+            'productos' => $rows,
+            'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
+            'has_more' => ($offset + count($rows)) < $total,
+        ]);
+        break;
+
+    // ─── Nuevas tiendas (últimas registradas) ────────────────────────────
+    case 'nuevas_tiendas':
+        $municipio = $_GET['municipio'] ?? null;
+        $limit = min(30, max(1, (int)($_GET['limit'] ?? 12)));
+        $q = "SELECT t.id, t.nombre, t.categoria, t.logo, t.portada, t.foto_negocio,
+                     t.municipio, t.calificacion_promedio, t.total_resenas,
+                     u.nombre as vendedor_nombre
+              FROM tiendas t JOIN usuarios u ON u.id = t.vendedor_id
+              WHERE t.activo = 1";
+        $params = [];
+        if ($municipio) { $q .= " AND t.municipio = ?"; $params[] = $municipio; }
+        $q .= " ORDER BY t.id DESC LIMIT $limit";
+        $st = db()->prepare($q);
+        $st->execute($params);
+        jout(['ok' => true, 'tiendas' => $st->fetchAll()]);
+        break;
+
+    // ─── Tiendas destacadas (ordenadas por estrellas DESC) ───────────────
+    case 'tiendas_destacadas':
+        $municipio = $_GET['municipio'] ?? null;
+        $limit = min(30, max(1, (int)($_GET['limit'] ?? 12)));
+        $q = "SELECT t.id, t.nombre, t.categoria, t.logo, t.portada, t.foto_negocio,
+                     t.municipio, t.calificacion_promedio, t.total_resenas, t.ventas_completadas,
+                     u.nombre as vendedor_nombre
+              FROM tiendas t JOIN usuarios u ON u.id = t.vendedor_id
+              WHERE t.activo = 1 AND t.calificacion_promedio > 0";
+        $params = [];
+        if ($municipio) { $q .= " AND t.municipio = ?"; $params[] = $municipio; }
+        // Orden matemático: estrellas DESC, luego # de reseñas DESC, luego ventas
+        $q .= " ORDER BY t.calificacion_promedio DESC, t.total_resenas DESC, t.ventas_completadas DESC LIMIT $limit";
+        $st = db()->prepare($q);
+        $st->execute($params);
+        jout(['ok' => true, 'tiendas' => $st->fetchAll()]);
+        break;
+
+    // ─── Negocios cerca de tu zona (fórmula Haversine en SQL) ────────────
+    case 'cercanos':
+        $lat = isset($_GET['lat']) ? (float)$_GET['lat'] : null;
+        $lng = isset($_GET['lng']) ? (float)$_GET['lng'] : null;
+        $cat = $_GET['categoria'] ?? null;
+        $limit = min(40, max(1, (int)($_GET['limit'] ?? 20)));
+        if ($lat === null || $lng === null) jout(['ok' => false, 'error' => 'Coordenadas requeridas'], 400);
+
+        $q = "SELECT t.id, t.nombre, t.categoria, t.logo, t.portada, t.lat, t.lng,
+                     t.calificacion_promedio, t.total_resenas, t.municipio,
+                     ( 6371 * acos(
+                         cos(radians(?)) * cos(radians(t.lat)) *
+                         cos(radians(t.lng) - radians(?)) +
+                         sin(radians(?)) * sin(radians(t.lat))
+                     )) AS distancia_km
+              FROM tiendas t
+              WHERE t.activo = 1 AND t.lat IS NOT NULL AND t.lng IS NOT NULL";
+        $params = [$lat, $lng, $lat];
+        if ($cat) { $q .= " AND t.categoria = ?"; $params[] = $cat; }
+        // Pines ordenados por calificación DESC dentro del radio cercano
+        $q .= " HAVING distancia_km < 50 ORDER BY t.calificacion_promedio DESC, distancia_km ASC LIMIT $limit";
+        $st = db()->prepare($q);
+        $st->execute($params);
+        jout(['ok' => true, 'tiendas' => $st->fetchAll()]);
         break;
 
     case 'buscar':

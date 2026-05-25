@@ -224,6 +224,52 @@ switch ($action) {
         break;
     }
 
+    // ─── Abrir chat desde un producto (Reels) con mensaje automatizado ───
+    case 'desde_producto': {
+        require_fields($data, ['producto_id']);
+        $pid = (int)$data['producto_id'];
+
+        $st = db()->prepare(
+            "SELECT p.id, p.nombre, p.imagen, p.precio, t.vendedor_id, t.nombre AS tienda_nombre, u.nombre AS vendedor_nombre
+             FROM productos p
+             JOIN tiendas t ON t.id = p.tienda_id
+             JOIN usuarios u ON u.id = t.vendedor_id
+             WHERE p.id = ? LIMIT 1"
+        );
+        $st->execute([$pid]);
+        $p = $st->fetch();
+        if (!$p) jout(['ok' => false, 'error' => 'Producto no encontrado'], 404);
+
+        $vendedor_id = (int)$p['vendedor_id'];
+        $template = $data['mensaje'] ?? "Hola, vi tu producto *{$p['nombre']}* en Reels y me interesa.";
+        $snapshot = json_encode([
+            'producto_id' => (int)$p['id'],
+            'nombre'      => $p['nombre'],
+            'imagen'      => $p['imagen'],
+            'precio'      => (float)$p['precio'],
+            'tienda'      => $p['tienda_nombre'],
+        ], JSON_UNESCAPED_UNICODE);
+
+        try {
+            db()->prepare(
+                "INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo, reply_snapshot)
+                 VALUES (?, ?, ?, 'producto', ?)"
+            )->execute([$uid, $vendedor_id, $template, $snapshot]);
+        } catch (PDOException $e) {
+            // Fallback en esquemas que aún no tienen reply_snapshot
+            db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
+                ->execute([$uid, $vendedor_id, $template]);
+        }
+
+        jout([
+            'ok' => true,
+            'otro_id' => $vendedor_id,
+            'otro_nombre' => $p['vendedor_nombre'],
+            'producto' => $p,
+        ]);
+        break;
+    }
+
     default:
         jout(['ok' => false, 'error' => 'Accion invalida'], 400);
 }
