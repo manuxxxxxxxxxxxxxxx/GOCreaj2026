@@ -1,4 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react'; // useRef kept for animation
+/**
+ * AuthScreen.tsx — CON GOOGLE REAL + APPLE REAL
+ *
+ * Cambios vs versión anterior:
+ *  • onSocial() reemplazado por loginConGoogle() y loginConApple()
+ *  • Google usa expo-auth-session/providers/google (OAuth2 real)
+ *  • Apple usa expo-apple-authentication (solo iOS)
+ *  • Todo lo demás (UI, animaciones, forms) intacto
+ */
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Alert,
   TouchableOpacity, KeyboardAvoidingView, Platform,
@@ -16,8 +25,35 @@ import Button from '@/components/Button';
 import Input from '@/components/Input';
 import { Usuario } from '@/types';
 
+// ── OAuth ─────────────────────────────────────────────────────────────────────
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
+
+// Apple Sign In solo en iOS
+let AppleAuthentication: typeof import('expo-apple-authentication') | null = null;
+if (Platform.OS === 'ios') {
+  try {
+    AppleAuthentication = require('expo-apple-authentication');
+  } catch (_) {
+    // No instalado — el botón de Apple no aparecerá
+  }
+}
+
+// Necesario para que la sesión OAuth se cierre correctamente en Expo Go
+WebBrowser.maybeCompleteAuthSession();
+// ─────────────────────────────────────────────────────────────────────────────
+
 type Modo = 'login' | 'registro';
 interface AuthResp { ok: boolean; usuario?: Usuario; token?: string; error?: string }
+
+// ── IDs de Google — ponlos en tu .env ────────────────────────────────────────
+// EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID      → Web client ID (requerido para el token)
+// EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID      → iOS client ID
+// EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID  → Android client ID
+const GOOGLE_WEB_CLIENT_ID     = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
+const GOOGLE_IOS_CLIENT_ID     = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ?? '';
+const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ?? '';
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function AuthScreen() {
   const { iniciar } = useAuth();
@@ -38,6 +74,104 @@ export default function AuthScreen() {
   const formOpacity = useRef(new Animated.Value(0)).current;
   const formSlide  = useRef(new Animated.Value(20)).current;
 
+  // ── Google OAuth ────────────────────────────────────────────────────────────
+  const [_request, googleResponse, promptGoogleAsync] = Google.useAuthRequest({
+    clientId: GOOGLE_WEB_CLIENT_ID,
+    iosClientId: GOOGLE_IOS_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+    scopes: ['profile', 'email'],
+  });
+
+  useEffect(() => {
+    if (googleResponse?.type === 'success') {
+      const token = googleResponse.authentication?.accessToken;
+      if (token) fetchGoogleUser(token);
+    } else if (googleResponse?.type === 'error') {
+      Alert.alert('Google', 'No se pudo completar el inicio de sesión con Google.');
+    }
+  }, [googleResponse]);
+
+  const fetchGoogleUser = async (accessToken: string) => {
+    setCargando(true);
+    try {
+      const res = await fetch('https://www.googleapis.com/userinfo/v2/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const perfil = await res.json() as {
+        id: string; name: string; email: string;
+      };
+      if (!perfil.id) throw new Error('Google no devolvió usuario');
+
+      const r = await api<AuthResp>(Endpoints.authSocial, {
+        body: {
+          provider: 'google',
+          provider_uid: perfil.id,
+          nombre: perfil.name,
+          email: perfil.email,
+        },
+      });
+      if (r?.ok && r.usuario && r.token) {
+        await iniciar(r.usuario, r.token);
+      } else {
+        Alert.alert(t.common.error, r?.error ?? t.common.falloRed);
+      }
+    } catch (err) {
+      Alert.alert(t.common.error, 'Error al obtener datos de Google. Intenta de nuevo.');
+    } finally {
+      setCargando(false);
+    }
+  };
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // ── Apple Sign In (solo iOS) ────────────────────────────────────────────────
+  const loginConApple = async () => {
+    if (!AppleAuthentication) {
+      Alert.alert('Apple', 'Apple Sign In no está disponible en este dispositivo.');
+      return;
+    }
+    setCargando(true);
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      const nombreApple =
+        credential.fullName?.givenName || credential.fullName?.familyName
+          ? `${credential.fullName?.givenName ?? ''} ${credential.fullName?.familyName ?? ''}`.trim()
+          : 'Usuario Apple';
+
+      // Apple solo devuelve el email la primera vez; las siguientes es null
+      const emailApple =
+        credential.email ?? `apple_${credential.user}@privaterelay.appleid.com`;
+
+      const r = await api<AuthResp>(Endpoints.authSocial, {
+        body: {
+          provider: 'apple',
+          provider_uid: credential.user,   // ID estable de Apple
+          nombre: nombreApple,
+          email: emailApple,
+        },
+      });
+      if (r?.ok && r.usuario && r.token) {
+        await iniciar(r.usuario, r.token);
+      } else {
+        Alert.alert(t.common.error, r?.error ?? t.common.falloRed);
+      }
+    } catch (err: unknown) {
+      // ERR_REQUEST_CANCELED = usuario canceló manualmente, no es error real
+      if ((err as { code?: string }).code !== 'ERR_REQUEST_CANCELED') {
+        Alert.alert(t.common.error, 'No se pudo completar el inicio de sesión con Apple.');
+      }
+    } finally {
+      setCargando(false);
+    }
+  };
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // ── Animaciones ─────────────────────────────────────────────────────────────
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
@@ -55,6 +189,7 @@ export default function AuthScreen() {
       Animated.timing(formSlide,  { toValue: 0, duration: 450, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
     ]).start();
   }, [modo, formOpacity, formSlide]);
+  // ───────────────────────────────────────────────────────────────────────────
 
   const onLogin = async () => {
     if (!identificador || !passwordLogin) return Alert.alert(t.auth.datosRequeridos, t.auth.ingresaCredenciales);
@@ -82,20 +217,13 @@ export default function AuthScreen() {
     } finally { setCargando(false); }
   };
 
-  const onSocial = async (provider: 'google' | 'apple') => {
-    setCargando(true);
-    try {
-      const r = await api<AuthResp>(Endpoints.authSocial, {
-        body: {
-          provider,
-          provider_uid: `${provider}_${Date.now()}`,
-          nombre: provider === 'google' ? 'Usuario Google' : 'Usuario Apple',
-          email: `${provider}${Date.now()}@svgo.sv`,
-        },
-      });
-      if (r.ok && r.usuario && r.token) await iniciar(r.usuario, r.token);
-      else Alert.alert(t.common.error, r.error ?? t.common.falloRed);
-    } finally { setCargando(false); }
+  // Verifica que los Client IDs estén configurados antes de abrir Google
+  const loginConGoogle = () => {
+    if (!GOOGLE_WEB_CLIENT_ID) {
+      Alert.alert('Configuración', 'Agrega EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID en tu .env');
+      return;
+    }
+    promptGoogleAsync();
   };
 
   return (
@@ -200,7 +328,6 @@ export default function AuthScreen() {
                 placeholder="Tu nombre real"
               />
 
-              {/* Email + Teléfono en fila */}
               <View style={styles.row2}>
                 <View style={{ flex: 1 }}>
                   <Input
@@ -248,26 +375,31 @@ export default function AuthScreen() {
           <View style={[styles.divLine, { backgroundColor: colors.border }]} />
         </View>
 
-        {/* Social buttons */}
+        {/* ── Botones sociales ── */}
         <View style={styles.socialRow}>
+          {/* GOOGLE */}
           <TouchableOpacity
             style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => onSocial('google')}
+            onPress={loginConGoogle}
             activeOpacity={0.85}
             disabled={cargando}
           >
             <Ionicons name="logo-google" size={22} color="#EA4335" />
             <Text style={[styles.socialTxt, { color: colors.text }]}>{t.auth.continuarGoogle}</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => onSocial('apple')}
-            activeOpacity={0.85}
-            disabled={cargando}
-          >
-            <Ionicons name="logo-apple" size={22} color={colors.text} />
-            <Text style={[styles.socialTxt, { color: colors.text }]}>{t.auth.continuarApple}</Text>
-          </TouchableOpacity>
+
+          {/* APPLE — solo se muestra en iOS */}
+          {Platform.OS === 'ios' && AppleAuthentication?.isAvailableAsync && (
+            <TouchableOpacity
+              style={[styles.socialBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={loginConApple}
+              activeOpacity={0.85}
+              disabled={cargando}
+            >
+              <Ionicons name="logo-apple" size={22} color={colors.text} />
+              <Text style={[styles.socialTxt, { color: colors.text }]}>{t.auth.continuarApple}</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={{ height: 32 }} />

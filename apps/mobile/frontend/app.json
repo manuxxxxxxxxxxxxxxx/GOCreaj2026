@@ -3,19 +3,24 @@
     "name": "SVGo",
     "slug": "svgo",
     "version": "1.0.0",
+    "scheme": "svgo",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "splash": {
       "backgroundColor": "#F5F5F5"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.svgo.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Usamos tu ubicacion para mostrar tiendas cercanas",
-        "NSCameraUsageDescription": "Usamos la camara para fotos del DUI",
-        "NSPhotoLibraryUsageDescription": "Necesitamos acceso a tus fotos",
+        "NSCameraUsageDescription": "Necesitamos la camara para grabar reels y fotos",
+        "NSMicrophoneUsageDescription": "Necesitamos el microfono para grabar videos con audio",
+        "NSPhotoLibraryUsageDescription": "Necesitamos acceso a tus fotos y videos para subir reels",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
@@ -27,7 +32,10 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
+        "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "READ_MEDIA_VIDEO",
         "WRITE_EXTERNAL_STORAGE"
       ],
       "usesCleartextTraffic": true,
@@ -41,7 +49,12 @@
       "favicon": "./assets/favicon.png"
     },
     "extra": {
-      "apiUrl": "http://192.168.0.11/GOCreaj2026/backend"
-    }
+      "apiUrl": "http://192.168.0.16/GOCreaj2026/apps/mobile/backend"
+    },
+    "plugins": [
+      "expo-video",
+      "expo-apple-authentication",
+      "expo-web-browser"
+    ]
   }
 }

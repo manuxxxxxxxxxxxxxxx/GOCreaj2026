@@ -250,8 +250,13 @@ export default function Chat() {
   const [incomingCall, setIncomingCall]   = useState<IncomingCall | null>(null);
   const [replyTarget, setReplyTarget]     = useState<Message | null>(null);
   const [imgFullscreen, setImgFullscreen] = useState<string | null>(null);
+  const [newChatOpen, setNewChatOpen]       = useState(false);
+  const [newChatQuery, setNewChatQuery]     = useState('');
+  const [newChatResults, setNewChatResults] = useState<{ id: number; nombre: string; username?: string | null; foto_perfil?: string | null; rol: string; en_linea?: number }[]>([]);
+  const [newChatLoading, setNewChatLoading] = useState(false);
 
   const messagesEndRef   = useRef<HTMLDivElement>(null);
+  const messagesAreaRef  = useRef<HTMLDivElement>(null);
   const fileInputRef     = useRef<HTMLInputElement>(null);
   const pollRef          = useRef<ReturnType<typeof setInterval> | null>(null);
   const callTimerRef     = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -262,7 +267,21 @@ export default function Chat() {
   const remoteAudioRef   = useRef<HTMLAudioElement>(null);
   const pendingCandidates= useRef<RTCIceCandidateInit[]>([]);
 
-  const scrollBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollBottom = () => {
+    if (messagesAreaRef.current) {
+      messagesAreaRef.current.scrollTop = messagesAreaRef.current.scrollHeight;
+    }
+  };
+
+  // ── Body scroll lock ────────────────────────────────────────────────────────
+  useEffect(() => {
+    document.body.style.setProperty('overflow', 'hidden', 'important');
+    document.documentElement.style.setProperty('overflow', 'hidden', 'important');
+    return () => {
+      document.body.style.removeProperty('overflow');
+      document.documentElement.style.removeProperty('overflow');
+    };
+  }, []);
 
   // ── WebRTC helpers ──────────────────────────────────────────────────────────
 
@@ -426,6 +445,18 @@ export default function Chat() {
 
   useEffect(() => { scrollBottom(); }, [messages]);
 
+  useEffect(() => {
+    if (!newChatOpen || newChatQuery.length < 2) { setNewChatResults([]); return; }
+    const timer = setTimeout(async () => {
+      setNewChatLoading(true);
+      try {
+        const res = await api.post('/auth.php?action=buscar_usuarios', { q: newChatQuery });
+        if (res.data.ok) setNewChatResults(res.data.usuarios ?? []);
+      } catch {} finally { setNewChatLoading(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [newChatQuery, newChatOpen]);
+
   // ── Call actions ────────────────────────────────────────────────────────────
 
   const initCall = async (tipo: 'voz' | 'video') => {
@@ -550,6 +581,13 @@ export default function Chat() {
     void fetchContacts(tab, search);
   };
 
+  const abrirNuevoChat = (u: { id: number; nombre: string; username?: string | null; foto_perfil?: string | null; rol: string; en_linea?: number }) => {
+    setSelected({ id: u.id, nombre: u.nombre, username: u.username ?? null, foto_perfil: u.foto_perfil ?? null, rol: u.rol, en_linea: u.en_linea ?? 0, no_leidos: 0, archivado: 0, favorito: 0, ultimo_mensaje: null });
+    setNewChatOpen(false);
+    setNewChatQuery('');
+    setNewChatResults([]);
+  };
+
   const TABS: { key: ChatTab; label: string }[] = [
     { key: 'todos', label: 'Todos' }, { key: 'noLeidos', label: 'No leídos' },
     { key: 'favoritos', label: 'Favoritos' }, { key: 'archivados', label: 'Archivados' },
@@ -583,16 +621,60 @@ export default function Chat() {
       <div style={S.layout}>
         {/* ── Sidebar ── */}
         <aside style={S.sidebar}>
-          <div style={S.sidebarHeader}>
+          <div style={{ ...S.sidebarHeader, position: 'relative' }}>
             <div>
               <div style={S.sidebarTitle}>Mensajes</div>
               {totalUnread > 0 && <div style={S.sidebarSub}>{totalUnread} sin leer</div>}
             </div>
-            <button style={S.iconBtn} title="Nuevo chat">
+            <button
+              style={{ ...S.iconBtn, background: newChatOpen ? '#3B82F6' : '#1E293B', color: newChatOpen ? '#FFF' : '#94A3B8' }}
+              title="Nuevo chat"
+              onClick={() => { setNewChatOpen(o => !o); setNewChatQuery(''); setNewChatResults([]); }}
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="17" height="17">
                 <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
               </svg>
             </button>
+            {newChatOpen && (
+              <div style={{ position: 'absolute', top: '100%', right: 0, width: 284, background: '#0F172A', border: '1px solid #1E293B', borderRadius: 12, zIndex: 200, boxShadow: '0 8px 32px rgba(0,0,0,0.6)', overflow: 'hidden' }}>
+                <div style={{ padding: '10px 12px', borderBottom: '1px solid #1E293B' }}>
+                  <input
+                    autoFocus
+                    style={{ width: '100%', background: '#1E293B', border: 'none', borderRadius: 8, padding: '8px 12px', color: '#F1F5F9', fontSize: 14, outline: 'none', boxSizing: 'border-box' as const }}
+                    placeholder="Buscar usuario..."
+                    value={newChatQuery}
+                    onChange={e => setNewChatQuery(e.target.value)}
+                  />
+                </div>
+                <div style={{ maxHeight: 240, overflowY: 'auto' }}>
+                  {newChatLoading && <div style={{ padding: 16, color: '#64748B', fontSize: 13, textAlign: 'center' as const }}>Buscando...</div>}
+                  {!newChatLoading && newChatQuery.length < 2 && <div style={{ padding: 16, color: '#64748B', fontSize: 13, textAlign: 'center' as const }}>Escribe al menos 2 caracteres</div>}
+                  {!newChatLoading && newChatQuery.length >= 2 && newChatResults.length === 0 && <div style={{ padding: 16, color: '#64748B', fontSize: 13, textAlign: 'center' as const }}>Sin resultados</div>}
+                  {newChatResults.map(u => {
+                    const color = ROLE_COLOR[u.rol] ?? '#4A6D8C';
+                    const uri   = imgUri(u.foto_perfil);
+                    return (
+                      <div
+                        key={u.id}
+                        style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer' }}
+                        onClick={() => abrirNuevoChat(u)}
+                        onMouseEnter={e => (e.currentTarget.style.background = '#1E293B')}
+                        onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                      >
+                        <div style={{ width: 36, height: 36, borderRadius: 18, background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#FFF', flexShrink: 0, overflow: 'hidden' }}>
+                          {uri ? <img src={uri} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} /> : getInitials(u.nombre)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: '#F1F5F9', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.nombre}</div>
+                          {u.username && <div style={{ fontSize: 12, color: '#64748B' }}>@{u.username}</div>}
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: `${color}22`, color, flexShrink: 0 }}>{u.rol}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           <div style={S.searchWrap}>
@@ -705,7 +787,7 @@ export default function Chat() {
                 </div>
               </div>
 
-              <div style={S.messagesArea}>
+              <div style={S.messagesArea} ref={messagesAreaRef}>
                 <div style={S.dateSep}>Conversación</div>
                 {messages.map(m => {
                   const mine    = m.emisor_id === Number(user?.id);

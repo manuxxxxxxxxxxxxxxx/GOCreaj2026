@@ -25,6 +25,8 @@ import DriverScreen from '@/screens/DriverScreen';
 import MapTrackingScreen from '@/screens/MapTrackingScreen';
 import ChatScreen, { ChatListScreen } from '@/screens/ChatScreen';
 import SupportScreen from '@/screens/SupportScreen';
+import LocationSelect from '@/screens/LocationSelect';
+import UploadReelScreen from '@/screens/UploadReelScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab   = createBottomTabNavigator<TabParamList>();
@@ -121,6 +123,8 @@ export default function AppNavigator() {
 
   const telefonoVerificado = (usuario?.telefono_verificado ?? 0) === 1;
   const tieneUsername      = !!usuario?.username;
+  // Solo pedir verificación de teléfono si el usuario tiene teléfono registrado
+  const necesitaVerificarTelefono = !telefonoVerificado && !!usuario?.telefono;
 
   return (
     <NavigationContainer theme={navTheme}>
@@ -134,7 +138,7 @@ export default function AppNavigator() {
           </>
         ) : !tieneUsername ? (
           <>
-            {!telefonoVerificado && <Stack.Screen name="OnboardingPhone" component={OnboardingPhoneScreen} />}
+            {necesitaVerificarTelefono && <Stack.Screen name="OnboardingPhone" component={OnboardingPhoneScreen} />}
             <Stack.Screen name="UsernameSetup" component={UsernameSetupScreen} />
           </>
         ) : (
@@ -147,6 +151,8 @@ export default function AppNavigator() {
             <Stack.Screen name="Chat"         component={ChatScreen} />
             <Stack.Screen name="BecomeSeller" component={BecomeSellerScreen} />
             <Stack.Screen name="Support"      component={SupportScreen} />
+            <Stack.Screen name="Location"     component={LocationSelect} />
+            <Stack.Screen name="UploadReel"   component={UploadReelScreen} options={{ presentation: 'modal' }} />
           </>
         )}
       </Stack.Navigator>

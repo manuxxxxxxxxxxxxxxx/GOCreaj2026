@@ -80,11 +80,7 @@ export default function UsernameSetupScreen() {
       );
       if (r.ok) {
         await refrescar();
-        const rol = usuario?.rol;
-        if (rol === 'admin')      nav.replace('Admin');
-        else if (rol === 'vendedor')   nav.replace('Seller');
-        else if (rol === 'repartidor') nav.replace('Driver');
-        else nav.replace('Main');
+        // AppNavigator detecta tieneUsername === true y cambia al stack principal automáticamente
       } else {
         Alert.alert(t.common.error, r.error === 'username_taken' ? t.auth.usernameOcupado : (r.error ?? t.common.error));
       }

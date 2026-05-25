@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // EXPO_PUBLIC_API_URL se lee del archivo .env automáticamente (Expo SDK 49+)
 export const API_URL: string =
   process.env.EXPO_PUBLIC_API_URL ??
-  'http://192.168.0.11/GOCreaj2026/apps/mobile/backend';
+  'http://192.168.0.16/GOCreaj2026/apps/mobile/backend';
 
 let cachedToken: string | null = null;
 
@@ -53,6 +53,26 @@ export async function api<T = unknown>(
     console.log(`[API] ${res.status} ${endpoint}:`, text.slice(0, 200));
     throw new Error(`HTTP ${res.status}`);
   }
+}
+
+export async function uploadReel(
+  file: { uri: string; type: string; name: string },
+  meta: { titulo?: string; descripcion?: string; producto_id?: number }
+): Promise<{ ok: boolean; reel_id?: number; url?: string; tipo?: string; error?: string }> {
+  const token = await getToken();
+  const formData = new FormData();
+  formData.append('archivo', { uri: file.uri, type: file.type, name: file.name } as unknown as Blob);
+  if (meta.titulo)      formData.append('titulo',      meta.titulo);
+  if (meta.descripcion) formData.append('descripcion', meta.descripcion);
+  if (meta.producto_id) formData.append('producto_id', String(meta.producto_id));
+
+  const headers: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_URL}/reels.php?action=subir`, { method: 'POST', headers, body: formData });
+  const text = await res.text();
+  try { return JSON.parse(text); }
+  catch { throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`); }
 }
 
 export const Endpoints = {
@@ -118,12 +138,21 @@ export const Endpoints = {
   chatResponderLlamada: 'chat_multi.php?action=responder_llamada',
   chatFinalizarLlamada: 'chat_multi.php?action=finalizar_llamada',
   chatLlamadasEntrantes: 'chat_multi.php?action=llamadas_entrantes',
+  reelsFeed: (page: number): string => `reels.php?action=feed&page=${page}`,
+  reelsToggleLike: 'reels.php?action=toggle_like',
+  reelsToggleGuardado: 'reels.php?action=toggle_guardado',
+  reelsComentarios: (reelId: number): string => `reels.php?action=comentarios&reel_id=${reelId}`,
+  reelsComentar: 'reels.php?action=comentar',
+  reelsToggleLikeComentario: 'reels.php?action=toggle_like_comentario',
+  reelsEliminar: 'reels.php?action=eliminar',
+  reelsMisReels: 'reels.php?action=mis_reels',
   soporteCrear: 'soporte.php?action=crear',
   soporteMis: 'soporte.php?action=mis_tickets',
   authEnviarSms:           'auth.php?action=enviar_sms',
   authVerificarSms:        'auth.php?action=verificar_sms',
   authCheckUsername:       'auth.php?action=check_username',
   authActualizarPerfil:    'auth.php?action=actualizar_perfil',
+  authBuscarUsuarios:      'auth.php?action=buscar_usuarios',
   repartidorToggleEnLinea: 'repartidor_dashboard.php?action=toggle_en_linea',
   adminUsuarios: (q?: string, rol?: string): string => {
     let url = 'admin_dashboard.php?action=usuarios';

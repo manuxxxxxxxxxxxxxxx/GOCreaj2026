@@ -364,6 +364,11 @@ function OutgoingCallModal({ nombre, tipo, duracion, onEnd }: {
 
 // ─── Chat List ────────────────────────────────────────────────────────────────
 
+interface UsuarioBusqueda {
+  id: number; nombre: string; username?: string | null;
+  foto_perfil?: string | null; rol: string; municipio?: string | null; en_linea?: number;
+}
+
 export function ChatListScreen() {
   const nav    = useNavigation<Nav>();
   const { colors } = useTheme();
@@ -373,6 +378,36 @@ export function ChatListScreen() {
   const [search, setSearch]     = useState('');
   const [cargando, setCargando] = useState(false);
   const [totalUnread, setTotal] = useState(0);
+
+  // Modal nuevo chat
+  const [modalVisible, setModalVisible] = useState(false);
+  const [busqueda, setBusqueda]         = useState('');
+  const [resultados, setResultados]     = useState<UsuarioBusqueda[]>([]);
+  const [buscando, setBuscando]         = useState(false);
+  const busquedaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const buscarUsuarios = (q: string) => {
+    setBusqueda(q);
+    if (busquedaTimer.current) clearTimeout(busquedaTimer.current);
+    if (q.length < 2) { setResultados([]); return; }
+    setBuscando(true);
+    busquedaTimer.current = setTimeout(async () => {
+      try {
+        const r = await api<{ ok: boolean; usuarios?: UsuarioBusqueda[] }>(
+          Endpoints.authBuscarUsuarios, { body: { q } }
+        );
+        setResultados(r.ok ? (r.usuarios ?? []) : []);
+      } catch { setResultados([]); }
+      setBuscando(false);
+    }, 400);
+  };
+
+  const abrirChat = (u: UsuarioBusqueda) => {
+    setModalVisible(false);
+    setBusqueda('');
+    setResultados([]);
+    nav.navigate('Chat', { otroId: u.id, nombre: u.nombre });
+  };
 
   const cargar = useCallback(async (t = tab, q = search) => {
     setCargando(true);
@@ -410,10 +445,67 @@ export function ChatListScreen() {
           <Text style={[S.topTitle, { color: colors.text }]}>Mensajes</Text>
           {totalUnread > 0 && <Text style={[S.topSub, { color: colors.muted }]}>{totalUnread} sin leer</Text>}
         </View>
-        <TouchableOpacity style={[S.newChatBtn, { backgroundColor: colors.accentLight }]}>
+        <TouchableOpacity style={[S.newChatBtn, { backgroundColor: colors.accentLight }]} onPress={() => setModalVisible(true)}>
           <Ionicons name="create-outline" size={20} color={colors.accent} />
         </TouchableOpacity>
       </View>
+
+      {/* Modal: buscar usuario para nuevo chat */}
+      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setModalVisible(false)}>
+        <View style={[S.modalRoot, { backgroundColor: colors.background }]}>
+          <View style={[S.modalHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+            <Text style={[S.modalTitle, { color: colors.text }]}>Nuevo mensaje</Text>
+            <TouchableOpacity onPress={() => { setModalVisible(false); setBusqueda(''); setResultados([]); }}>
+              <Ionicons name="close" size={24} color={colors.muted} />
+            </TouchableOpacity>
+          </View>
+          <View style={[S.modalSearch, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+            <View style={[S.searchInner, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <Ionicons name="search-outline" size={16} color={colors.muted} style={{ marginRight: 6 }} />
+              <TextInput
+                style={[S.searchInput, { color: colors.text }]}
+                placeholder="Buscar por nombre o @usuario..."
+                placeholderTextColor={colors.muted}
+                value={busqueda}
+                onChangeText={buscarUsuarios}
+                autoFocus
+              />
+              {buscando && <ActivityIndicator size="small" color={colors.accent} />}
+            </View>
+          </View>
+          <FlatList
+            data={resultados}
+            keyExtractor={u => String(u.id)}
+            contentContainerStyle={resultados.length === 0 ? S.emptyContainer : { paddingVertical: 4 }}
+            ListEmptyComponent={
+              busqueda.length >= 2 && !buscando
+                ? <Text style={[S.emptyTxt, { color: colors.muted }]}>Sin resultados</Text>
+                : busqueda.length < 2
+                  ? <Text style={[S.emptyTxt, { color: colors.muted }]}>Escribe al menos 2 caracteres</Text>
+                  : null
+            }
+            renderItem={({ item }) => {
+              const uri = imgUri(item.foto_perfil);
+              const rc  = ROLE_COLORS[item.rol] ?? colors.accent;
+              return (
+                <TouchableOpacity style={[S.convRow, { backgroundColor: colors.card, borderBottomColor: colors.border }]} onPress={() => abrirChat(item)} activeOpacity={0.85}>
+                  <View style={[S.avatar, { backgroundColor: rc }]}>
+                    {uri ? <Image source={{ uri }} style={S.avatarImg} /> : <Text style={S.avatarTxt}>{getInitials(item.nombre)}</Text>}
+                    {item.en_linea === 1 && <View style={[S.onlineDot, { borderColor: colors.card }]} />}
+                  </View>
+                  <View style={S.convBody}>
+                    <Text style={[S.convNombre, { color: colors.text }]}>{item.nombre}</Text>
+                    {item.username && <Text style={[S.convMsg, { color: colors.muted }]}>@{item.username}</Text>}
+                  </View>
+                  <View style={[S.rolPill, { backgroundColor: `${rc}18` }]}>
+                    <Text style={[S.rolTxt, { color: rc }]}>{item.rol.toUpperCase()}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            }}
+          />
+        </View>
+      </Modal>
 
       <View style={[S.searchWrap, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={[S.searchInner, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -829,8 +921,13 @@ const S = StyleSheet.create({
   convMsg: { flex: 1, fontSize: Fonts.small + 1 },
   rolPill: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: Radius.pill, marginLeft: Spacing.sm },
   rolTxt: { fontSize: 8, fontWeight: '900' },
-  emptyContainer: { flex: 1 },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyTxt: { fontSize: Fonts.regular, textAlign: 'center', marginTop: 24 },
   emptyBlock: { alignItems: 'center', paddingTop: 80, paddingHorizontal: Spacing.xl },
+  modalRoot: { flex: 1 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, borderBottomWidth: 1 },
+  modalTitle: { fontSize: Fonts.regular + 2, fontWeight: '800' },
+  modalSearch: { paddingHorizontal: Spacing.md, paddingVertical: 8, borderBottomWidth: 1 },
   emptyIconBg: { width: 96, height: 96, borderRadius: 48, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.lg },
   emptyTitle: { fontSize: Fonts.title - 2, fontWeight: '800', marginBottom: 8 },
   emptySub: { fontSize: Fonts.regular, textAlign: 'center', lineHeight: 22 },

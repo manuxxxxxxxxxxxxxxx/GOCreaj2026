@@ -179,6 +179,44 @@ export interface ReporteSoporte {
   usuario_nombre?: string;
 }
 
+export interface Reel {
+  id: number;
+  usuario_id: number;
+  titulo?: string | null;
+  descripcion?: string | null;
+  archivo: string;
+  tipo: 'video' | 'imagen';
+  producto_id?: number | null;
+  vistas: number;
+  created_at: string;
+  usuario_nombre: string;
+  usuario_username?: string | null;
+  usuario_foto?: string | null;
+  usuario_rol?: string;
+  producto_nombre?: string | null;
+  producto_precio?: number | null;
+  likes_count: number;
+  comentarios_count: number;
+  guardados_count: number;
+  me_gusta: boolean;
+  guardado: boolean;
+}
+
+export interface ReelComentario {
+  id: number;
+  usuario_id: number;
+  reel_id: number;
+  parent_id?: number | null;
+  comentario: string;
+  created_at: string;
+  usuario_nombre: string;
+  usuario_foto?: string | null;
+  likes_count: number;
+  me_gusta: boolean;
+  respuestas_count?: number;
+  respuestas?: ReelComentario[];
+}
+
 export interface ApiResponse<T> {
   ok: boolean;
   error?: string;
@@ -202,6 +240,7 @@ export type RootStackParamList = {
   Chat: { otroId: number; nombre: string; pedidoId?: number };
   BecomeSeller: undefined;
   Support: undefined;
+  UploadReel: undefined;
 };
 
 export type TabParamList = {

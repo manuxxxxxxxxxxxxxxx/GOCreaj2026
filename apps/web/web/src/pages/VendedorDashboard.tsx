@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useGlobal } from '../context/GlobalContext';
 import { api } from '../api';
 import Header from '../components/Header';
 import '../../css/index.css';
@@ -48,7 +49,7 @@ interface Venta {
   created_at: string;
 }
 
-type DashTab = 'productos' | 'ventas';
+type DashTab = 'productos' | 'ventas' | 'perfil';
 
 const CATEGORIAS = ['panaderia', 'alimentos', 'bebidas', 'artesanias', 'ropa', 'electronica', 'hogar', 'mascotas', 'deportes', 'belleza', 'otro'];
 
@@ -71,6 +72,7 @@ function fileToBase64(file: File): Promise<string> {
 
 export default function VendedorDashboard() {
   const navigate = useNavigate();
+  const { user, logout } = useGlobal();
 
   const [tienda, setTienda]       = useState<Tienda | null>(null);
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -350,7 +352,7 @@ export default function VendedorDashboard() {
 
         {/* ── Tabs ── */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-          {(['productos', 'ventas'] as DashTab[]).map(t => (
+          {([['productos', `📦 Productos (${productos.length})`], ['ventas', `🛒 Ventas (${ventas.length})`], ['perfil', '👤 Mi Perfil']] as [DashTab, string][]).map(([t, label]) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -361,7 +363,7 @@ export default function VendedorDashboard() {
                 fontWeight: '700', cursor: 'pointer', fontSize: '0.88rem', fontFamily: 'inherit',
               }}
             >
-              {t === 'productos' ? `📦 Productos (${productos.length})` : `🛒 Ventas (${ventas.length})`}
+              {label}
             </button>
           ))}
         </div>
@@ -489,6 +491,53 @@ export default function VendedorDashboard() {
             )}
           </div>
         )}
+        {/* ── Perfil tab ── */}
+        {tab === 'perfil' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '520px' }}>
+            {/* Tarjeta de usuario */}
+            <div style={{ background: 'var(--white)', borderRadius: '16px', border: '1.5px solid var(--border)', padding: '28px 24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#4A6D8C', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.6rem', fontWeight: '900', color: 'white', flexShrink: 0, overflow: 'hidden' }}>
+                {(user as any)?.foto
+                  ? <img src={(user as any).foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                  : (user?.name?.[0] ?? '?').toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: '800', fontSize: '1.1rem', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name ?? 'Vendedor'}</div>
+                {(user as any)?.username && <div style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>@{(user as any).username}</div>}
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '2px' }}>{user?.email}</div>
+                <span style={{ marginTop: '6px', display: 'inline-block', background: '#d1fae5', color: '#065f46', fontWeight: '700', fontSize: '0.75rem', padding: '2px 10px', borderRadius: '20px' }}>VENDEDOR</span>
+              </div>
+            </div>
+
+            {/* Acciones */}
+            <div style={{ background: 'var(--white)', borderRadius: '16px', border: '1.5px solid var(--border)', overflow: 'hidden' }}>
+              <button
+                onClick={() => navigate('/perfil')}
+                style={{ width: '100%', padding: '16px 20px', border: 'none', borderBottom: '1px solid var(--border)', background: 'transparent', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                <span style={{ fontSize: '1.2rem' }}>✏️</span>
+                <span style={{ fontWeight: '700', color: 'var(--text)', fontSize: '0.95rem' }}>Editar perfil completo</span>
+                <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>›</span>
+              </button>
+              <button
+                onClick={() => navigate('/')}
+                style={{ width: '100%', padding: '16px 20px', border: 'none', borderBottom: '1px solid var(--border)', background: 'transparent', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                <span style={{ fontSize: '1.2rem' }}>🏠</span>
+                <span style={{ fontWeight: '700', color: 'var(--text)', fontSize: '0.95rem' }}>Ir al inicio</span>
+                <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>›</span>
+              </button>
+              <button
+                onClick={() => { logout(); navigate('/login'); }}
+                style={{ width: '100%', padding: '16px 20px', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                <span style={{ fontSize: '1.2rem' }}>🚪</span>
+                <span style={{ fontWeight: '700', color: '#dc2626', fontSize: '0.95rem' }}>Cerrar sesión</span>
+              </button>
+            </div>
+          </div>
+        )}
+
       </div>
 
       {/* ── MODAL: Crear Producto ── */}

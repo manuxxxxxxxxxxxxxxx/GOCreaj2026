@@ -19,7 +19,7 @@ import { useAuth } from '@/context/AuthContext';
 
 const { width: W } = Dimensions.get('window');
 
-type Tab = 'productos' | 'pedidos';
+type Tab = 'productos' | 'pedidos' | 'perfil';
 
 interface RespTiendas  { ok: boolean; tiendas?: Tienda[] }
 interface RespProductos { ok: boolean; productos?: Producto[] }
@@ -192,7 +192,7 @@ function ProductCard({ p, onDelete }: { p: Producto; onDelete: () => void }) {
 export default function SellerScreen() {
   const { colors } = useTheme();
   const { t }      = useLang();
-  const { usuario } = useAuth();
+  const { usuario, cerrarSesion } = useAuth();
   const insets     = useSafeAreaInsets();
 
   const [tab, setTab]           = useState<Tab>('productos');
@@ -392,7 +392,11 @@ export default function SellerScreen() {
 
             {/* Tabs */}
             <View style={[styles.tabBar, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {(['productos', 'pedidos'] as Tab[]).map(t => (
+              {([
+                ['productos', 'grid', 'grid-outline', 'Productos'],
+                ['pedidos',   'receipt', 'receipt-outline', 'Pedidos'],
+                ['perfil',    'person-circle', 'person-circle-outline', 'Perfil'],
+              ] as [Tab, string, string, string][]).map(([t, iconActive, iconInactive, label]) => (
                 <TouchableOpacity
                   key={t}
                   style={[styles.tabBtn, tab === t && styles.tabBtnAct]}
@@ -400,15 +404,13 @@ export default function SellerScreen() {
                   activeOpacity={0.8}
                 >
                   <Ionicons
-                    name={t === 'productos'
-                      ? (tab === t ? 'grid' : 'grid-outline')
-                      : (tab === t ? 'receipt' : 'receipt-outline')}
+                    name={(tab === t ? iconActive : iconInactive) as keyof typeof Ionicons.glyphMap}
                     size={16}
                     color={tab === t ? Colors.contrast : colors.muted}
                     style={{ marginRight: 5 }}
                   />
                   <Text style={[styles.tabBtnTxt, { color: tab === t ? Colors.contrast : colors.muted }]}>
-                    {t === 'productos' ? 'Productos' : 'Pedidos'}
+                    {label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -472,6 +474,52 @@ export default function SellerScreen() {
             )}
           </>
         )}
+
+            {/* ── Perfil ── */}
+            {tab === 'perfil' && (
+              <View style={[styles.sectionWrap, { gap: 14 }]}>
+                {/* Tarjeta usuario */}
+                <View style={[styles.perfilCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={[styles.perfilAvatar, { backgroundColor: Colors.accent }]}>
+                    <Text style={styles.perfilAvatarTxt}>{(usuario?.nombre?.[0] ?? 'V').toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.perfilNombre, { color: colors.text }]}>{usuario?.nombre ?? 'Vendedor'}</Text>
+                    {usuario?.username ? <Text style={[styles.perfilUsername, { color: colors.muted }]}>@{usuario.username}</Text> : null}
+                    <Text style={[styles.perfilEmail, { color: colors.muted }]}>{usuario?.email ?? ''}</Text>
+                  </View>
+                  <View style={styles.perfilRolBadge}>
+                    <Text style={styles.perfilRolTxt}>VENDEDOR</Text>
+                  </View>
+                </View>
+
+                {/* Acciones */}
+                <View style={[styles.perfilAcciones, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <TouchableOpacity
+                    style={[styles.perfilAccionRow, { borderBottomColor: colors.border }]}
+                    onPress={() => Alert.alert('Perfil', 'Edita tu perfil desde la pantalla principal.')}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="person-outline" size={20} color={Colors.accent} />
+                    <Text style={[styles.perfilAccionTxt, { color: colors.text }]}>Editar perfil</Text>
+                    <Ionicons name="chevron-forward" size={16} color={colors.muted} style={{ marginLeft: 'auto' }} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.perfilAccionRow}
+                    onPress={() =>
+                      Alert.alert('Cerrar sesión', '¿Seguro que quieres cerrar sesión?', [
+                        { text: 'Cancelar', style: 'cancel' },
+                        { text: 'Cerrar sesión', style: 'destructive', onPress: cerrarSesion },
+                      ])
+                    }
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+                    <Text style={[styles.perfilAccionTxt, { color: '#EF4444' }]}>Cerrar sesión</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
 
         {cargando && <ActivityIndicator color={Colors.accent} style={{ marginTop: Spacing.lg }} />}
         <View style={{ height: 100 }} />
@@ -732,6 +780,18 @@ const styles = StyleSheet.create({
   // Content section
   sectionWrap: { paddingHorizontal: Spacing.md },
   emptyTab:    { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.sm },
+  // Perfil tab
+  perfilCard:     { flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: Radius.md, borderWidth: 1, padding: 16 },
+  perfilAvatar:   { width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
+  perfilAvatarTxt:{ color: '#FFF', fontWeight: '900', fontSize: 20 },
+  perfilNombre:   { fontWeight: '800', fontSize: 15 },
+  perfilUsername: { fontSize: 13, marginTop: 1 },
+  perfilEmail:    { fontSize: 12, marginTop: 1 },
+  perfilRolBadge: { backgroundColor: '#D1FAE5', paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20, alignSelf: 'flex-start' },
+  perfilRolTxt:   { color: '#065F46', fontWeight: '800', fontSize: 11 },
+  perfilAcciones: { borderRadius: Radius.md, borderWidth: 1, overflow: 'hidden' },
+  perfilAccionRow:{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderBottomWidth: StyleSheet.hairlineWidth },
+  perfilAccionTxt:{ fontWeight: '700', fontSize: 15 },
   emptyTabTxt: { fontWeight: '600', fontSize: Fonts.regular },
   // Productos grid
   prodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },

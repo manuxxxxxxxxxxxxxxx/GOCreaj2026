@@ -29,7 +29,7 @@ export default function Header({ activeTab = 'none', searchQuery = '', setSearch
   const [locSearch, setLocSearch] = useState('');
 
   const handleSearchFocus = () => {
-    if (!setSearchQuery) navigate('/?search=true');
+    if (!setSearchQuery) navigate('/market');
   };
 
   const selectMunicipio = (m: string) => {

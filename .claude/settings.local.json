@@ -7,7 +7,9 @@
       "PowerShell(Head -30)",
       "PowerShell(Get-ChildItem -Path \"c:\\\\xamppx\\\\htdocs\\\\GOCreaj2026\" -Recurse | Where-Object { $_.Extension -eq \".php\" } | Select-Object FullName)",
       "Bash(findstr /i \"axios\" \"c:\\\\xamppx\\\\htdocs\\\\GOCreaj2026\\\\apps\\\\web\\\\web\\\\package.json\")",
-      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:4040/api/tunnels\" -ErrorAction SilentlyContinue)"
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:4040/api/tunnels\" -ErrorAction SilentlyContinue)",
+      "Bash(mysql -u root -e \"SHOW TABLES FROM svgo_db;\")",
+      "Bash(npx expo *)"
     ]
   }
 }

@@ -74,7 +74,7 @@ export default function LocationSelect() {
     await AsyncStorage.setItem('svgo_first_launch', '1');
     if (coords) await AsyncStorage.setItem('svgo_coords', JSON.stringify(coords));
     setTimeout(() => {
-      nav.navigate('OnboardingPhone');
+      nav.goBack();
     }, 600);
   };
 
