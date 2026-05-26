@@ -12,10 +12,12 @@ import LoadingScreen from '@/components/LoadingScreen';
 
 import BenefitsSlider from '@/screens/BenefitsSlider';
 import AuthScreen from '@/screens/AuthScreen';
+import RoleChangeBanner from '@/components/RoleChangeBanner';
 import OnboardingPhoneScreen from '@/screens/OnboardingPhoneScreen';
 import UsernameSetupScreen from '@/screens/UsernameSetupScreen';
 import HomeScreen from '@/screens/HomeScreen';
 import ExploreScreen from '@/screens/ExploreScreen';
+import ReelsScreen from '@/screens/ReelsScreen';
 import CartScreen from '@/screens/CartScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
 import ProductScreen from '@/screens/ProductScreen';
@@ -86,6 +88,7 @@ function MainTabs() {
           const icons: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionicons.glyphMap]> = {
             Home:    ['home',          'home-outline'],
             Explore: ['compass',       'compass-outline'],
+            Reels:   ['play-circle',   'play-circle-outline'],
             Chats:   ['chatbubbles',   'chatbubbles-outline'],
             Profile: [fMeta.active,    fMeta.inactive],
           };
@@ -111,6 +114,7 @@ function MainTabs() {
     >
       <Tab.Screen name="Home"    component={HomeScreen}    options={{ title: 'Inicio' }} />
       <Tab.Screen name="Explore" component={ExploreScreen} options={{ title: 'Explorar' }} />
+      <Tab.Screen name="Reels"   component={ReelsScreen}   options={{ title: 'Reels' }} />
       <Tab.Screen name="Chats"   component={ChatListScreen} options={{ title: 'Chats' }} />
       <Tab.Screen
         name="Profile"
@@ -143,6 +147,8 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer theme={navTheme}>
+      {/* Banner global de notificación de cambio de rol (cuando admin aprueba) */}
+      <RoleChangeBanner />
       <Stack.Navigator
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
       >

@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
-import { api, Endpoints } from '@/services/api';
+import { api, Endpoints, API_URL } from '@/services/api';
 import { CarritoItem, RootStackParamList } from '@/types';
 import LoadingScreen from '@/components/LoadingScreen';
 import Input from '@/components/Input';
@@ -17,11 +17,13 @@ import PaymentModal from '@/components/PaymentModal';
 
 const CARD_BG = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57'];
 
-const MOCK_ITEMS: CarritoItem[] = [
-  { id: 1, producto_id: 1, nombre: 'Pupusas de Queso', precio: 0.75, cantidad: 3, tienda_id: 1, tienda_nombre: 'Comedor Doña Rosa', vendedor_id: 1 },
-  { id: 2, producto_id: 3, nombre: 'Pan de Yema Artesanal', precio: 0.50, cantidad: 5, tienda_id: 3, tienda_nombre: 'Panadería La Hermosa', vendedor_id: 3 },
-  { id: 3, producto_id: 5, nombre: 'Café Molido Premium', precio: 3.50, cantidad: 1, tienda_id: 4, tienda_nombre: 'Finca El Cafetal', vendedor_id: 4 },
-];
+// Helper para resolver URLs de imágenes (acepta absolutas, data:, o relativas)
+function imgUri(p?: string | null): string | undefined {
+  if (!p) return undefined;
+  if (p.startsWith('data:') || p.startsWith('http')) return p;
+  const m = p.match(/\/uploads\/(.+)$/);
+  return m ? `${API_URL}/uploads/${m[1]}` : `${API_URL}/uploads/${p}`;
+}
 
 interface ListResp     { ok: boolean; items?: CarritoItem[]; total?: number }
 interface CheckoutResp { ok: boolean; pedidos?: number[]; error?: string }
@@ -32,8 +34,8 @@ export default function CartScreen() {
   const { t } = useLang();
   const insets = useSafeAreaInsets();
 
-  const [items, setItems]       = useState<CarritoItem[]>(MOCK_ITEMS);
-  const [total, setTotal]       = useState(() => MOCK_ITEMS.reduce((s, i) => s + i.precio * i.cantidad, 0));
+  const [items, setItems]       = useState<CarritoItem[]>([]);
+  const [total, setTotal]       = useState(0);
   const [cargando, setCargando] = useState(false);
   const [pagoVisible, setPagoVisible] = useState(false);
   const [direccion, setDireccion]     = useState('');
@@ -42,16 +44,16 @@ export default function CartScreen() {
   const cargar = useCallback(async () => {
     try {
       const r = await api<ListResp>(Endpoints.carritoListar);
-      if (r.ok && r.items && r.items.length > 0) {
+      if (r.ok && r.items) {
         setItems(r.items);
-        setTotal(r.total ?? 0);
+        setTotal(r.total ?? r.items.reduce((s, i) => s + Number(i.precio) * i.cantidad, 0));
       } else {
-        setItems(MOCK_ITEMS);
-        setTotal(MOCK_ITEMS.reduce((s, i) => s + i.precio * i.cantidad, 0));
+        setItems([]);
+        setTotal(0);
       }
     } catch {
-      setItems(MOCK_ITEMS);
-      setTotal(MOCK_ITEMS.reduce((s, i) => s + i.precio * i.cantidad, 0));
+      setItems([]);
+      setTotal(0);
     }
     setCargando(false);
   }, []);
@@ -152,7 +154,7 @@ export default function CartScreen() {
           <View style={[styles.itemCard, { backgroundColor: c.card, borderColor: c.border }]}>
             <View style={[styles.itemImg, { backgroundColor: CARD_BG[index % CARD_BG.length] }]}>
               {item.imagen
-                ? <Image source={{ uri: item.imagen }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                ? <Image source={{ uri: imgUri(item.imagen) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                 : <Ionicons name="fast-food-outline" size={26} color="rgba(255,255,255,0.9)" />}
             </View>
             <View style={styles.itemDetails}>

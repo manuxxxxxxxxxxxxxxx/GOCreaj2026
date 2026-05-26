@@ -21,15 +21,6 @@ type Tab = 'likes' | 'guardados' | 'compartidos';
 
 const CARD_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57', '#A29BFE', '#FF9FF3'];
 
-const MOCK_ITEMS: Producto[] = [
-  { id: 1, tienda_id: 1, nombre: 'Pupusas de Queso', precio: 0.75, stock: 50, es_reel: 0, activo: 1, tienda_nombre: 'Comedor Doña Rosa', descripcion: 'Ricas pupusas artesanales', categoria: 'comida', municipio: 'San Salvador', likes_count: 45, vendedor_id: 1 },
-  { id: 2, tienda_id: 2, nombre: 'Café Molido Premium', precio: 3.50, stock: 200, es_reel: 0, activo: 1, tienda_nombre: 'Finca El Cafetal', descripcion: 'Café de altura 100%', categoria: 'bebidas', municipio: 'Ahuachapán', likes_count: 123, vendedor_id: 4 },
-  { id: 3, tienda_id: 3, nombre: 'Pan de Yema Artesanal', precio: 0.50, stock: 80, es_reel: 0, activo: 1, tienda_nombre: 'Panadería La Hermosa', descripcion: 'Pan tradicional', categoria: 'panaderia', municipio: 'Santa Ana', likes_count: 67, vendedor_id: 3 },
-  { id: 4, tienda_id: 1, nombre: 'Tamales de Elote', precio: 1.00, stock: 30, es_reel: 0, activo: 1, tienda_nombre: 'Comedor Doña Rosa', descripcion: 'Tamales artesanales dulces', categoria: 'comida', municipio: 'San Salvador', likes_count: 89, vendedor_id: 1 },
-  { id: 5, tienda_id: 4, nombre: 'Quesillo con Curtido', precio: 2.00, stock: 40, es_reel: 0, activo: 1, tienda_nombre: 'Antojitos El Salvador', descripcion: 'Quesillo fresco con loroco', categoria: 'comida', municipio: 'Santa Ana', likes_count: 78, vendedor_id: 5 },
-  { id: 6, tienda_id: 5, nombre: 'Horchata Natural', precio: 1.25, stock: 100, es_reel: 0, activo: 1, tienda_nombre: 'Bebidas El Chele', descripcion: 'Horchata de arroz con canela', categoria: 'bebidas', municipio: 'San Miguel', likes_count: 32, vendedor_id: 6 },
-];
-
 // ── Tipos para el panel admin ────────────────────────────────
 type EstadoDB = 'preparacion' | 'en_camino' | 'entregado' | 'cancelado' | 'rechazado_repartidor';
 type EstadoFiltro = EstadoDB | 'todos';
@@ -85,7 +76,7 @@ export default function ProfileScreen() {
   const isAdmin = usuario?.rol === 'admin';
 
   const [tab, setTab] = useState<Tab>('likes');
-  const [items, setItems] = useState<Producto[]>(MOCK_ITEMS);
+  const [items, setItems] = useState<Producto[]>([]);
   const [cargando, setCargando] = useState(false);
 
   // Edit profile modal state
@@ -115,10 +106,10 @@ export default function ProfileScreen() {
         : tab === 'guardados' ? Endpoints.misGuardados
         : Endpoints.misCompartidos;
       const r = await api<{ ok: boolean; productos?: Producto[] }>(ep);
-      if (r.ok && r.productos && r.productos.length > 0) setItems(r.productos);
-      else setItems(MOCK_ITEMS);
+      if (r.ok && r.productos) setItems(r.productos);
+      else setItems([]);
     } catch {
-      setItems(MOCK_ITEMS);
+      setItems([]);
     } finally { setCargando(false); }
   }, [tab]);
 
@@ -675,6 +666,19 @@ export default function ProfileScreen() {
         <Text style={{ textAlign: 'center', color: c.muted, fontSize: Fonts.small, marginBottom: Spacing.md, fontWeight: '500' }}>
           Versión 1.0.0 · [SV]Go © 2026
         </Text>
+
+        {/* Refrescar rol — útil cuando admin acepta solicitud */}
+        <TouchableOpacity
+          style={[btnLogout.wrap, { backgroundColor: c.accentLight, borderColor: c.accent, marginBottom: 10 }]}
+          onPress={async () => {
+            await refrescar();
+            Alert.alert('✓', 'Tu rol fue actualizado desde el servidor.');
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="refresh-circle-outline" size={20} color={c.accent} />
+          <Text style={[btnLogout.txt, { color: c.accent }]}>Refrescar mi rol</Text>
+        </TouchableOpacity>
 
         {/* Cerrar sesión */}
         <TouchableOpacity

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Shield, CheckCircle, XCircle } from 'lucide-react';
+import { Search, Shield, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { api } from '../api';
 import './Users.css';
 
@@ -75,6 +75,11 @@ export default function Users() {
   const [activeTab, setActiveTab]     = useState<'usuarios' | 'solicitudes'>('usuarios');
   const [verSol, setVerSol]           = useState<Solicitud | null>(null);
   const [notas, setNotas]             = useState('');
+  // Modal suspensión
+  const [suspendModal, setSuspendModal] = useState<{ id: number; nombre: string; activo: number } | null>(null);
+  const [suspendRazon, setSuspendRazon] = useState('');
+  // Toast
+  const [toast, setToast]             = useState<{ msg: string; ok: boolean } | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -99,33 +104,76 @@ export default function Users() {
     (u.username || '').toLowerCase().includes(search.toLowerCase())
   );
 
+  const showToast = (msg: string, ok = true) => {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3200);
+  };
+
   const changeRole = async (id: number, newRole: string) => {
     try {
-      await api.post('/admin_dashboard.php?action=actualizar_usuario', { usuario_id: id, rol: newRole });
-      setUsers(prev => prev.map(u => u.id === id ? { ...u, rol: newRole } : u));
+      const res = await api.post('/admin_dashboard.php?action=actualizar_usuario', { usuario_id: id, rol: newRole });
+      if (res.data.ok) {
+        setUsers(prev => prev.map(u => u.id === id ? { ...u, rol: newRole } : u));
+        showToast('Rol actualizado correctamente');
+      } else {
+        showToast(res.data.error || 'Error cambiando rol', false);
+      }
     } catch (e) {
-      alert('Error cambiando rol');
+      showToast('Error cambiando rol', false);
     }
   };
 
-  const toggleStatus = async (id: number, currentState: number) => {
-    const newState = currentState === 1 ? 0 : 1;
+  // Abre el modal de confirmación antes de suspender/activar
+  const pedirSuspension = (u: UserRow) => {
+    setSuspendRazon('');
+    setSuspendModal({ id: u.id, nombre: u.nombre, activo: u.activo });
+  };
+
+  const confirmarSuspension = async () => {
+    if (!suspendModal) return;
     try {
-      await api.post('/admin_dashboard.php?action=actualizar_usuario', { usuario_id: id, activo: newState });
-      setUsers(prev => prev.map(u => u.id === id ? { ...u, activo: newState } : u));
+      const res = await api.post('/admin_dashboard.php?action=banear_usuario', {
+        usuario_id: suspendModal.id,
+        razon: suspendRazon,
+      });
+      if (res.data.ok) {
+        setUsers(prev => prev.map(u => u.id === suspendModal.id ? { ...u, activo: res.data.activo } : u));
+        showToast(res.data.activo ? 'Cuenta reactivada y usuario notificado' : 'Cuenta suspendida y usuario notificado');
+        setSuspendModal(null);
+        setSuspendRazon('');
+      } else {
+        showToast(res.data.error || 'Error al cambiar estado', false);
+      }
     } catch (e) {
-      alert('Error cambiando estado');
+      showToast('Error al cambiar estado', false);
     }
   };
 
-  const resolverSolicitud = async (id: number, decision: 'aprobado' | 'rechazado') => {
+  const resolverSolicitud = async (id: number, decision: 'aprobado' | 'rechazado', notasOverride?: string) => {
+    const notasEnviar = notasOverride !== undefined ? notasOverride : notas;
+    // Para rechazar desde botón rápido sin notas, abrir modal primero
+    if (decision === 'rechazado' && !notasEnviar.trim() && !verSol) {
+      const sol = solicitudes.find(s => s.id === id);
+      if (sol) { setVerSol(sol); setNotas(''); }
+      return;
+    }
     try {
-      await api.post('/admin_dashboard.php?action=resolver', { solicitud_id: id, decision, notas });
-      setVerSol(null);
-      setNotas('');
-      void fetchData();
-    } catch (e) {
-      alert('Error resolviendo solicitud');
+      const res = await api.post('/admin_dashboard.php?action=resolver', {
+        solicitud_id: id,
+        decision,
+        notas: notasEnviar,
+      });
+      if (res.data.ok) {
+        setVerSol(null);
+        setNotas('');
+        showToast(decision === 'aprobado' ? '✅ Solicitud aprobada — usuario notificado' : '❌ Solicitud rechazada — usuario notificado');
+        void fetchData();
+      } else {
+        showToast(res.data.error || 'Error al procesar la solicitud', false);
+      }
+    } catch (e: any) {
+      const msg = e.response?.data?.error || 'Error al procesar la solicitud';
+      showToast(msg, false);
     }
   };
 
@@ -221,10 +269,10 @@ export default function Users() {
                         <div className="action-buttons">
                           <button
                             className={`btn ${u.activo ? 'btn-outline' : 'btn-primary'}`}
-                            onClick={() => toggleStatus(u.id, u.activo)}
-                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                            onClick={() => pedirSuspension(u)}
+                            style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', color: u.activo ? '#dc2626' : undefined, borderColor: u.activo ? '#dc2626' : undefined }}
                           >
-                            {u.activo ? 'Suspender' : 'Activar'}
+                            {u.activo ? '⛔ Suspender' : '✅ Activar'}
                           </button>
                         </div>
                       </td>
@@ -306,6 +354,73 @@ export default function Users() {
           </div>
         )}
       </div>
+
+      {/* ── TOAST ── */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+          background: toast.ok ? '#15803d' : '#dc2626', color: '#fff',
+          padding: '12px 24px', borderRadius: '12px', fontWeight: '700', fontSize: '0.9rem',
+          zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+          display: 'flex', alignItems: 'center', gap: '8px',
+          animation: 'fadeUp 0.25s ease',
+        }}>
+          {toast.ok ? <CheckCircle size={16}/> : <XCircle size={16}/>}
+          {toast.msg}
+        </div>
+      )}
+      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`}</style>
+
+      {/* ── MODAL: Suspender / Activar ── */}
+      {suspendModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+          onClick={e => e.target === e.currentTarget && setSuspendModal(null)}>
+          <div style={{ background: 'var(--white, #fff)', borderRadius: '20px', width: '100%', maxWidth: '440px', padding: '32px 28px', boxShadow: '0 24px 80px rgba(0,0,0,0.25)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+              <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: suspendModal.activo ? '#fee2e2' : '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <AlertTriangle size={22} color={suspendModal.activo ? '#dc2626' : '#15803d'} />
+              </div>
+              <div>
+                <h3 style={{ margin: 0, fontWeight: '800', fontSize: '1.05rem' }}>
+                  {suspendModal.activo ? 'Suspender cuenta' : 'Reactivar cuenta'}
+                </h3>
+                <p style={{ margin: '2px 0 0', fontSize: '0.85rem', color: 'var(--text-muted, #6b7280)' }}>
+                  {suspendModal.nombre}
+                </p>
+              </div>
+            </div>
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-muted, #6b7280)', marginBottom: '16px' }}>
+              {suspendModal.activo
+                ? 'El usuario no podrá iniciar sesión. Recibirá una notificación en su chat.'
+                : 'El usuario podrá acceder de nuevo. Recibirá una notificación en su chat.'}
+            </p>
+            {suspendModal.activo && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-muted, #6b7280)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>
+                  Motivo (se enviará al usuario)
+                </label>
+                <textarea
+                  value={suspendRazon}
+                  onChange={e => setSuspendRazon(e.target.value)}
+                  placeholder="Ej: Incumplimiento de términos de uso..."
+                  rows={3}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1.5px solid var(--border, #e2e8f0)', fontFamily: 'inherit', fontSize: '0.88rem', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+                />
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setSuspendModal(null)}
+                style={{ padding: '9px 18px', borderRadius: '10px', border: '1.5px solid var(--border, #e2e8f0)', background: 'transparent', cursor: 'pointer', fontWeight: '700', fontFamily: 'inherit', fontSize: '0.88rem' }}>
+                Cancelar
+              </button>
+              <button onClick={confirmarSuspension}
+                style={{ padding: '9px 20px', borderRadius: '10px', border: 'none', background: suspendModal.activo ? '#dc2626' : '#15803d', color: 'white', cursor: 'pointer', fontWeight: '800', fontFamily: 'inherit', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {suspendModal.activo ? <><XCircle size={15}/> Suspender</> : <><CheckCircle size={15}/> Activar</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── MODAL: Detalle solicitud ── */}
       {verSol && (

@@ -7,7 +7,16 @@
       "PowerShell(Head -30)",
       "PowerShell(Get-ChildItem -Path \"c:\\\\xamppx\\\\htdocs\\\\GOCreaj2026\" -Recurse | Where-Object { $_.Extension -eq \".php\" } | Select-Object FullName)",
       "Bash(findstr /i \"axios\" \"c:\\\\xamppx\\\\htdocs\\\\GOCreaj2026\\\\apps\\\\web\\\\web\\\\package.json\")",
-      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:4040/api/tunnels\" -ErrorAction SilentlyContinue)"
+      "PowerShell(Invoke-RestMethod -Uri \"http://127.0.0.1:4040/api/tunnels\" -ErrorAction SilentlyContinue)",
+      "Bash(npx expo *)",
+      "Bash(npx tsc *)",
+      "Bash(npx vite *)",
+      "Bash(ngrok version *)",
+      "Bash(ipconfig)",
+      "Bash(findstr /i \"IPv4\")",
+      "PowerShell(ngrok version 2>&1)",
+      "PowerShell(if \\($LASTEXITCODE -eq 0\\) { \"NGROK INSTALADO\" } else { \"NGROK NO INSTALADO\" })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://10.157.1.8/GOCreaj2026/apps/mobile/backend/auth.php?action=me\" -TimeoutSec 5 -UseBasicParsing; \"✅ Backend responde: $\\($r.StatusCode\\)\" } catch { \"❌ Error: $_\" })"
     ]
   }
 }

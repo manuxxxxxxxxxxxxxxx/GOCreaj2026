@@ -2,9 +2,18 @@ import { useState, useEffect } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import { api } from '../api';
+import { api, API_URL } from '../api';
 import '../../css/market.css';
 import '../../css/dark.css';
+
+// Helper para construir URLs completas de imágenes
+function imgUri(img?: string | null): string {
+  if (!img) return 'https://via.placeholder.com/640';
+  if (img.startsWith('data:') || img.startsWith('http')) return img;
+  const m = img.match(/\/uploads\/(.+)$/);
+  if (m) return `${API_URL}/uploads/${m[1]}`;
+  return `${API_URL}/uploads/${img}`;
+}
 
 interface Product {
   id: number;
@@ -80,27 +89,31 @@ export default function Market() {
   // Active thumb state for gallery
   const [activeThumbIndex, setActiveThumbIndex] = useState(0);
 
-  const mapProduct = (p: any): Product => ({
-    id: p.id,
-    name: p.nombre,
-    seller: p.tienda_nombre || 'Tienda',
-    cat: p.categoria || 'general',
-    rating: 5,
-    reviews: 1,
-    sold: 10,
-    price: parseFloat(p.precio_unitario) || 0,
-    oldPrice: null,
-    discount: null,
-    stock: p.stock || 10,
-    dist: '1.0 km',
-    prep: '10 min',
-    img: p.imagen_url || 'https://via.placeholder.com/640',
-    thumbs: [p.imagen_url || 'https://via.placeholder.com/640'],
-    desc: p.descripcion || '',
-    ingredients: [],
-    allergens: [],
-    specs: {}
-  });
+  const mapProduct = (p: any): Product => {
+    // El backend devuelve `imagen` (nombre raw) y `precio` (numeric)
+    const mainImg = imgUri(p.imagen);
+    return {
+      id: p.id,
+      name: p.nombre,
+      seller: p.tienda_nombre || 'Tienda',
+      cat: p.categoria || 'general',
+      rating: Number(p.tienda_calificacion) || 0,
+      reviews: Number(p.total_resenas) || 0,
+      sold: Number(p.ventas) || 0,
+      price: parseFloat(p.precio ?? p.precio_unitario) || 0,
+      oldPrice: p.precio_anterior ? parseFloat(p.precio_anterior) : null,
+      discount: p.descuento ?? null,
+      stock: Number(p.stock) || 0,
+      dist: p.distancia_km ? `${Number(p.distancia_km).toFixed(1)} km` : '—',
+      prep: p.tiempo_preparacion || '15 min',
+      img: mainImg,
+      thumbs: [mainImg],
+      desc: p.descripcion || '',
+      ingredients: [],
+      allergens: [],
+      specs: {}
+    };
+  };
 
   useEffect(() => {
     const params = new URLSearchParams();

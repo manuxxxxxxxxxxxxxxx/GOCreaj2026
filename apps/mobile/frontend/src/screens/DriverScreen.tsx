@@ -36,8 +36,18 @@ interface WalletResp {
 export default function DriverScreen() {
   const { colors } = useTheme();
   const { t, lang } = useLang();
-  const { usuario } = useAuth();
+  const { usuario, cerrarSesion, refrescar } = useAuth();
   const insets = useSafeAreaInsets();
+
+  // Refresca el rol al abrir (por si el admin lo cambió)
+  useEffect(() => { void refrescar(); }, []);
+
+  const confirmarLogout = () => {
+    Alert.alert('Cerrar sesión', '¿Seguro?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Cerrar', style: 'destructive', onPress: async () => { await cerrarSesion(); } },
+    ]);
+  };
 
   const [enLinea, setEnLinea]       = useState<boolean>(!!usuario?.en_linea);
   const [pendientes, setPendientes] = useState<PedidoMatch[]>([]);
@@ -125,13 +135,22 @@ export default function DriverScreen() {
           </View>
         </View>
 
-        <TouchableOpacity activeOpacity={0.85} onPress={toggleEnLinea}>
-          <Animated.View style={[styles.switch, { backgroundColor: switchBg }]}>
-            <Animated.View style={[styles.switchKnob, { left: switchKnob }]}>
-              <Ionicons name={enLinea ? 'flash' : 'power'} size={14} color={enLinea ? colors.success : colors.muted} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <TouchableOpacity activeOpacity={0.85} onPress={toggleEnLinea}>
+            <Animated.View style={[styles.switch, { backgroundColor: switchBg }]}>
+              <Animated.View style={[styles.switchKnob, { left: switchKnob }]}>
+                <Ionicons name={enLinea ? 'flash' : 'power'} size={14} color={enLinea ? colors.success : colors.muted} />
+              </Animated.View>
             </Animated.View>
-          </Animated.View>
-        </TouchableOpacity>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={confirmarLogout}
+            activeOpacity={0.85}
+            style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#EF444418', justifyContent: 'center', alignItems: 'center' }}
+          >
+            <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={[styles.tabs, { backgroundColor: colors.card, borderColor: colors.border }]}>

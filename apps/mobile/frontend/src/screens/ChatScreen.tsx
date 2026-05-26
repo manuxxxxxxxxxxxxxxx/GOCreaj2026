@@ -421,6 +421,30 @@ export function ChatListScreen() {
   const [cargando, setCargando] = useState(false);
   const [totalUnread, setTotal] = useState(0);
 
+  // ── Modal Nuevo Chat ──
+  const [newChatOpen, setNewChatOpen] = useState(false);
+  const [newChatQ, setNewChatQ]       = useState('');
+  const [newChatUsers, setNewChatUsers] = useState<Array<{ id: number; nombre: string; username?: string | null; foto_perfil?: string | null; rol: string; en_linea?: number }>>([]);
+  const [newChatLoading, setNewChatLoading] = useState(false);
+  const newChatTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const buscarUsuariosChat = useCallback(async (q: string) => {
+    setNewChatLoading(true);
+    try {
+      const r = await api<{ ok: boolean; usuarios?: Array<{ id: number; nombre: string; username?: string | null; foto_perfil?: string | null; rol: string; en_linea?: number }> }>(
+        Endpoints.chatBuscarUsuarios(q)
+      );
+      setNewChatUsers(r.ok && r.usuarios ? r.usuarios : []);
+    } catch { setNewChatUsers([]); }
+    setNewChatLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!newChatOpen) return;
+    if (newChatTimer.current) clearTimeout(newChatTimer.current);
+    newChatTimer.current = setTimeout(() => void buscarUsuariosChat(newChatQ), 250);
+  }, [newChatQ, newChatOpen, buscarUsuariosChat]);
+
   const cargar = useCallback(async (t = tab, q = search) => {
     setCargando(true);
     const r = await api<{ ok: boolean; conversaciones?: ConvExt[]; total_no_leidos?: number }>(
@@ -457,10 +481,88 @@ export function ChatListScreen() {
           <Text style={[S.topTitle, { color: colors.text }]}>Mensajes</Text>
           {totalUnread > 0 && <Text style={[S.topSub, { color: colors.muted }]}>{totalUnread} sin leer</Text>}
         </View>
-        <TouchableOpacity style={[S.newChatBtn, { backgroundColor: colors.accentLight }]}>
+        <TouchableOpacity
+          style={[S.newChatBtn, { backgroundColor: colors.accentLight }]}
+          onPress={() => { setNewChatQ(''); setNewChatUsers([]); setNewChatOpen(true); void buscarUsuariosChat(''); }}
+          activeOpacity={0.8}
+        >
           <Ionicons name="create-outline" size={20} color={colors.accent} />
         </TouchableOpacity>
       </View>
+
+      {/* ── Modal Nuevo Chat ── */}
+      <Modal visible={newChatOpen} animationType="slide" onRequestClose={() => setNewChatOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          <View style={{ paddingTop: insets.top + 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.card }}>
+            <TouchableOpacity onPress={() => setNewChatOpen(false)} style={{ padding: 4 }}>
+              <Ionicons name="close" size={26} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={{ flex: 1, fontWeight: '900', fontSize: 18, color: colors.text }}>Nuevo chat</Text>
+          </View>
+          <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.elevated, borderRadius: 12, paddingHorizontal: 12, height: 44 }}>
+              <Ionicons name="search-outline" size={18} color={colors.muted} />
+              <TextInput
+                placeholder="Buscar usuario por nombre o @username..."
+                placeholderTextColor={colors.muted}
+                value={newChatQ}
+                onChangeText={setNewChatQ}
+                autoFocus
+                style={{ flex: 1, marginLeft: 8, color: colors.text, fontSize: 14 }}
+              />
+              {newChatQ.length > 0 && (
+                <TouchableOpacity onPress={() => setNewChatQ('')}>
+                  <Ionicons name="close-circle" size={18} color={colors.muted} />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          {newChatLoading ? (
+            <ActivityIndicator color={colors.accent} style={{ marginTop: 30 }} />
+          ) : (
+            <FlatList
+              data={newChatUsers}
+              keyExtractor={u => String(u.id)}
+              contentContainerStyle={{ padding: 12 }}
+              ListEmptyComponent={
+                <View style={{ alignItems: 'center', padding: 40 }}>
+                  <Ionicons name="people-outline" size={48} color={colors.muted} />
+                  <Text style={{ color: colors.muted, marginTop: 10, fontWeight: '700' }}>
+                    {newChatQ ? 'Sin resultados' : 'Escribe para buscar usuarios'}
+                  </Text>
+                </View>
+              }
+              renderItem={({ item: u }) => {
+                const uri = imgUri(u.foto_perfil);
+                const roleColor = ROLE_COLORS[u.rol] ?? colors.accent;
+                return (
+                  <TouchableOpacity
+                    onPress={() => { setNewChatOpen(false); nav.navigate('Chat', { otroId: u.id, nombre: u.nombre }); }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: colors.card, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}
+                    activeOpacity={0.85}
+                  >
+                    <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: roleColor, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
+                      {uri ? <Image source={{ uri }} style={{ width: '100%', height: '100%' }} /> : <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 16 }}>{u.nombre.charAt(0).toUpperCase()}</Text>}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: colors.text, fontWeight: '800', fontSize: 14 }}>{u.nombre}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        {u.username && <Text style={{ color: colors.muted, fontSize: 12 }}>@{u.username}</Text>}
+                        <View style={{ backgroundColor: `${roleColor}22`, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 }}>
+                          <Text style={{ color: roleColor, fontSize: 9, fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase' }}>{u.rol}</Text>
+                        </View>
+                        {u.en_linea === 1 && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' }} />}
+                      </View>
+                    </View>
+                    <Ionicons name="chatbubble-ellipses" size={20} color={colors.accent} />
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          )}
+        </View>
+      </Modal>
 
       <View style={[S.searchWrap, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={[S.searchInner, { backgroundColor: colors.background, borderColor: colors.border }]}>
@@ -492,7 +594,7 @@ export function ChatListScreen() {
         onRefresh={() => void cargar(tab, search)}
         refreshing={cargando}
         contentContainerStyle={convs.length === 0 ? S.emptyContainer : { paddingVertical: Spacing.xs }}
-        ListEmptyComponent={!cargando ? <EmptyState colors={colors} tab={tab} /> : null}
+        ListEmptyComponent={!cargando ? <EmptyState colors={colors} tab={tab} onNewChat={() => { setNewChatQ(''); setNewChatUsers([]); setNewChatOpen(true); void buscarUsuariosChat(''); }} /> : null}
         renderItem={({ item }) => {
           const roleColor = ROLE_COLORS[item.rol] ?? colors.accent;
           const isUnread  = (item.no_leidos ?? 0) > 0;
@@ -532,7 +634,7 @@ export function ChatListScreen() {
   );
 }
 
-function EmptyState({ colors, tab }: { colors: any; tab: ChatTab }) {
+function EmptyState({ colors, tab, onNewChat }: { colors: any; tab: ChatTab; onNewChat?: () => void }) {
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.loop(Animated.sequence([
@@ -541,7 +643,7 @@ function EmptyState({ colors, tab }: { colors: any; tab: ChatTab }) {
     ])).start();
   }, [pulse]);
   const msgs: Record<ChatTab, [string, string]> = {
-    todos:      ['Sin conversaciones', 'Compra algo en el mercado para chatear.'],
+    todos:      ['Sin conversaciones', 'Empieza un chat tocando el botón ✏️'],
     noLeidos:   ['Todo leído ✓', 'No tienes mensajes pendientes.'],
     favoritos:  ['Sin favoritos', 'Mantén pulsada una conversación para marcarla.'],
     archivados: ['Sin archivados', 'Las archivadas aparecerán aquí.'],
@@ -554,6 +656,16 @@ function EmptyState({ colors, tab }: { colors: any; tab: ChatTab }) {
       </Animated.View>
       <Text style={[S.emptyTitle, { color: colors.text }]}>{title}</Text>
       <Text style={[S.emptySub, { color: colors.muted }]}>{sub}</Text>
+      {tab === 'todos' && onNewChat && (
+        <TouchableOpacity
+          onPress={onNewChat}
+          style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.accent, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 99 }}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="create-outline" size={18} color="#FFF" />
+          <Text style={{ color: '#FFF', fontWeight: '800' }}>Empezar nuevo chat</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

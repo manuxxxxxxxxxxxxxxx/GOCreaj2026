@@ -112,6 +112,10 @@ export interface Comentario {
   created_at: string;
   nombre: string;
   foto_perfil?: string | null;
+  parent_id?: number | null;
+  likes_count?: number;
+  yo_like?: number;        // 1 si el usuario actual le dio like
+  respuestas?: Comentario[]; // árbol armado en el frontend
 }
 
 export interface Mensaje {

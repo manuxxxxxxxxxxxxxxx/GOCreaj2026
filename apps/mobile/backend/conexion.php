@@ -271,6 +271,24 @@ function save_base64_image(string $b64, string $subdir, string $prefix): ?string
     return UPLOAD_URL . $subdir . '/' . $name;
 }
 
+/**
+ * Guarda un video base64 (data:video/mp4;base64,...) en uploads/<subdir>.
+ * Devuelve la URL pública o null si el formato es inválido.
+ */
+function save_base64_video(string $b64, string $subdir, string $prefix): ?string {
+    if (!preg_match('/^data:video\/(\w+);base64,/', $b64, $m)) return null;
+    $ext = strtolower($m[1]);
+    if (!in_array($ext, ['mp4','webm','mov','m4v','quicktime'])) $ext = 'mp4';
+    if ($ext === 'quicktime') $ext = 'mov';
+    $data = base64_decode(preg_replace('/^data:video\/\w+;base64,/', '', $b64));
+    if ($data === false) return null;
+    $dir = UPLOAD_BASE . $subdir;
+    if (!is_dir($dir)) mkdir($dir, 0777, true);
+    $name = $prefix . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    file_put_contents($dir . '/' . $name, $data);
+    return UPLOAD_URL . $subdir . '/' . $name;
+}
+
 function gen_token(int $uid): string {
     return base64_encode($uid . '|' . time() . '|' . bin2hex(random_bytes(16)));
 }

@@ -50,18 +50,31 @@ export default function Login() {
 
       if (res.data.ok) {
         localStorage.setItem('lm_token_v1', res.data.token);
-        login({ name: res.data.usuario.nombre, email: res.data.usuario.email, role: res.data.usuario.rol });
+        // Guardamos TODOS los campos del usuario para que rol, foto_perfil, etc. estén disponibles
+        login({
+          name: res.data.usuario.nombre,
+          email: res.data.usuario.email,
+          role: res.data.usuario.rol,
+          ...res.data.usuario,
+        });
 
         const userRole = res.data.usuario.rol;
-        if (userRole === 'admin' || userRole === 'master_admin') navigate('/admin/dashboard');
+        if (userRole === 'admin' || userRole === 'master_admin') navigate('/admin');
         else if (userRole === 'vendedor' || userRole === 'seller') navigate('/dashboard-vendedor');
         else if (userRole === 'repartidor' || userRole === 'driver') navigate('/dashboard-repartidor');
         else navigate('/');
       } else {
-        setErrors({ ...newErrors, general: res.data.error || 'Credenciales incorrectas' });
+        const errCode = res.data.error;
+        const errMsg = errCode === 'cuenta_suspendida'
+          ? (res.data.mensaje || 'Tu cuenta ha sido suspendida.')
+          : (res.data.error || 'Credenciales incorrectas');
+        setErrors({ ...newErrors, general: errMsg });
       }
     } catch (err: any) {
-      const msg = err.response?.data?.error || 'No se pudo conectar. Verifica que XAMPP esté activo.';
+      const errData = err.response?.data;
+      const msg = errData?.error === 'cuenta_suspendida'
+        ? (errData?.mensaje || 'Tu cuenta ha sido suspendida.')
+        : (errData?.error || 'No se pudo conectar. Verifica que XAMPP esté activo.');
       setErrors({ ...newErrors, general: msg });
     } finally {
       setLoading(false);
@@ -94,7 +107,7 @@ export default function Login() {
       });
       if (res.data.ok) {
         localStorage.setItem('lm_token_v1', res.data.token);
-        login({ name: res.data.usuario.nombre, email: res.data.usuario.email, role: res.data.usuario.rol });
+        login({ name: res.data.usuario.nombre, email: res.data.usuario.email, role: res.data.usuario.rol, ...res.data.usuario });
         navigate('/');
       } else {
         setErrors({ ...newErrors, general: res.data.error || 'Error al registrar' });

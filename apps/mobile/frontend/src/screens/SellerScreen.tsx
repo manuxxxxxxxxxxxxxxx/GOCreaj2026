@@ -76,6 +76,24 @@ async function pickB64(aspect?: [number, number]): Promise<string | null> {
   return `data:image/jpeg;base64,${r.assets[0].base64}`;
 }
 
+/** Selecciona un video y devuelve dataURL base64 (data:video/mp4;base64,...) */
+async function pickVideoB64(): Promise<string | null> {
+  const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!granted) { Alert.alert('Permiso requerido', 'Necesitamos acceso a la galería.'); return null; }
+  const r = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+    base64: true,
+    quality: 0.7,
+    videoMaxDuration: 60,
+  });
+  if (r.canceled || !r.assets[0].base64) return null;
+  // Detecta el formato del archivo (mp4 / mov / webm)
+  const uri = r.assets[0].uri ?? '';
+  const ext = uri.split('.').pop()?.toLowerCase() ?? 'mp4';
+  const mime = ext === 'mov' ? 'video/quicktime' : ext === 'webm' ? 'video/webm' : 'video/mp4';
+  return `data:${mime};base64,${r.assets[0].base64}`;
+}
+
 // ─── Componente: zona de subida de imagen ──────────────────────────────
 function ImageUploadZone({
   uri, width, height, aspect, borderRadius = 16, placeholder, sublabel,
@@ -225,8 +243,23 @@ function StatCard({ icon, label, value, color, colors }: {
 // ─── Pantalla principal ────────────────────────────────────────────────
 export default function SellerScreen() {
   const { colors } = useTheme();
-  const { usuario } = useAuth();
+  const { usuario, cerrarSesion, refrescar } = useAuth();
   const insets = useSafeAreaInsets();
+  const [menuPerfil, setMenuPerfil] = useState(false);
+
+  // Refresca el rol cada vez que se abre la pantalla (por si admin lo cambió)
+  useEffect(() => { void refrescar(); }, []);
+
+  const confirmarCerrarSesion = () => {
+    Alert.alert(
+      'Cerrar sesión',
+      '¿Seguro que quieres cerrar sesión?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Cerrar sesión', style: 'destructive', onPress: async () => { await cerrarSesion(); } },
+      ]
+    );
+  };
 
   const [tab, setTab]           = useState<Tab>('productos');
   const [tienda, setTienda]     = useState<Tienda | null>(null);
@@ -268,6 +301,8 @@ export default function SellerScreen() {
   const [pImg,     setPImg]     = useState<string | null>(null);
   const [pBanner,  setPBanner]  = useState<string | null>(null);
   const [pReel,    setPReel]    = useState(false);
+  const [pVideo,   setPVideo]   = useState<string | null>(null);   // video base64 para reels
+  const [subiendoVid, setSubiendoVid] = useState(false);
 
   // ── Carga de datos ────────────────────────────────────────────────────
   const cargar = useCallback(async () => {
@@ -334,13 +369,14 @@ export default function SellerScreen() {
     if (!pNombre.trim() || !pPrecio || !tienda)
       return Alert.alert('Faltan datos', 'Nombre, precio y tienda son requeridos.');
     setGuardando(true);
-    const r = await api<RespGen>(Endpoints.vendedorCrearProducto, {
-      body: {
-        tienda_id: tienda.id, nombre: pNombre, descripcion: pDesc,
-        precio: parseFloat(pPrecio), stock: parseInt(pStock, 10) || 0,
-        categoria: pCat || 'general', imagen: pImg, es_reel: pReel ? 1 : 0,
-      }
-    });
+    const body: Record<string, unknown> = {
+      tienda_id: tienda.id, nombre: pNombre, descripcion: pDesc,
+      precio: parseFloat(pPrecio), stock: parseInt(pStock, 10) || 0,
+      categoria: pCat || 'general', imagen: pImg, es_reel: pReel ? 1 : 0,
+    };
+    // Si es reel y hay video subido, lo incluimos
+    if (pReel && pVideo) body.video = pVideo;
+    const r = await api<RespGen>(Endpoints.vendedorCrearProducto, { body });
     setGuardando(false);
     if (r.ok) { setShowCrearProd(false); resetProd(); await cargar(); }
     else Alert.alert('Error', r.error ?? 'No se pudo crear el producto.');
@@ -348,7 +384,7 @@ export default function SellerScreen() {
 
   function resetProd() {
     setPNombre(''); setPDesc(''); setPPrecio(''); setPStock('10');
-    setPCat(''); setPImg(null); setPBanner(null); setPReel(false);
+    setPCat(''); setPImg(null); setPBanner(null); setPReel(false); setPVideo(null);
   }
 
   async function eliminarProducto(id: number) {
@@ -403,6 +439,55 @@ export default function SellerScreen() {
 
   return (
     <View style={[S.root, { backgroundColor: colors.background }]}>
+      {/* Botón flotante de perfil/menú — siempre visible arriba a la derecha */}
+      <TouchableOpacity
+        style={[S.profileFab, { top: insets.top + 12, backgroundColor: 'rgba(0,0,0,0.55)' }]}
+        onPress={() => setMenuPerfil(true)}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="person-circle-outline" size={22} color="#FFF" />
+      </TouchableOpacity>
+
+      {/* Modal de perfil con cerrar sesión */}
+      <Modal visible={menuPerfil} transparent animationType="fade" onRequestClose={() => setMenuPerfil(false)}>
+        <TouchableOpacity activeOpacity={1} onPress={() => setMenuPerfil(false)}
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 24, width: '100%', maxWidth: 360, overflow: 'hidden' }}>
+            {/* Header */}
+            <View style={{ backgroundColor: colors.accent, padding: 24, alignItems: 'center' }}>
+              <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.25)', justifyContent: 'center', alignItems: 'center', marginBottom: 10, overflow: 'hidden' }}>
+                {usuario?.foto_perfil
+                  ? <Image source={{ uri: imgUri(usuario.foto_perfil) }} style={{ width: '100%', height: '100%' }} />
+                  : <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 28 }}>{(usuario?.nombre || '?').charAt(0).toUpperCase()}</Text>
+                }
+              </View>
+              <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 17 }}>{usuario?.nombre || 'Vendedor'}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 }}>{usuario?.email || ''}</Text>
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 12, paddingVertical: 3, borderRadius: 99, marginTop: 8 }}>
+                <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 10, letterSpacing: 1 }}>{(usuario?.rol || 'VENDEDOR').toUpperCase()}</Text>
+              </View>
+            </View>
+
+            {/* Opciones */}
+            <View style={{ padding: 8 }}>
+              <TouchableOpacity onPress={() => { setMenuPerfil(false); void refrescar(); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 12 }}>
+                <Ionicons name="refresh-outline" size={20} color={colors.accent} />
+                <Text style={{ flex: 1, fontWeight: '700', fontSize: 14, color: colors.text }}>Refrescar mi rol</Text>
+              </TouchableOpacity>
+
+              <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 14 }} />
+
+              <TouchableOpacity onPress={() => { setMenuPerfil(false); confirmarCerrarSesion(); }}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 12 }}>
+                <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+                <Text style={{ flex: 1, fontWeight: '800', fontSize: 14, color: '#EF4444' }}>Cerrar sesión</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={cargando} onRefresh={cargar} tintColor={colors.accent} />}
@@ -885,6 +970,51 @@ export default function SellerScreen() {
             <Ionicons name="play-circle-outline" size={24} color={pReel ? colors.accent : colors.muted} />
           </TouchableOpacity>
 
+          {/* Picker de video (solo si es reel) */}
+          {pReel && (
+            <View style={{ marginTop: 4, marginBottom: Spacing.sm }}>
+              <Text style={[S.sectionLabel, { color: colors.text }]}>
+                <Ionicons name="videocam-outline" size={15} color={colors.accent} />  Video del reel <Text style={[S.optLabel, { color: colors.muted }]}>(Opcional · si no hay video, se usará la foto)</Text>
+              </Text>
+              <TouchableOpacity
+                onPress={async () => {
+                  setSubiendoVid(true);
+                  const v = await pickVideoB64();
+                  if (v) setPVideo(v);
+                  setSubiendoVid(false);
+                }}
+                disabled={subiendoVid}
+                activeOpacity={0.85}
+                style={{
+                  borderWidth: 2, borderStyle: 'dashed', borderRadius: 18,
+                  borderColor: pVideo ? colors.accent : '#334155',
+                  height: 140, justifyContent: 'center', alignItems: 'center',
+                  backgroundColor: pVideo ? `${colors.accent}10` : 'transparent',
+                }}
+              >
+                {subiendoVid ? (
+                  <ActivityIndicator color={colors.accent} />
+                ) : pVideo ? (
+                  <View style={{ alignItems: 'center' }}>
+                    <Ionicons name="checkmark-circle" size={40} color={colors.accent} />
+                    <Text style={{ color: colors.accent, fontWeight: '800', marginTop: 6 }}>Video listo</Text>
+                    <TouchableOpacity onPress={() => setPVideo(null)} style={{ marginTop: 4 }}>
+                      <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '700' }}>Quitar video</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={{ alignItems: 'center', padding: 12 }}>
+                    <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: `${colors.accent}18`, justifyContent: 'center', alignItems: 'center', marginBottom: 6 }}>
+                      <Ionicons name="cloud-upload-outline" size={28} color={colors.accent} />
+                    </View>
+                    <Text style={{ color: '#F1F5F9', fontWeight: '800', fontSize: 13 }}>Subir video del reel</Text>
+                    <Text style={{ color: '#64748B', fontSize: 11, marginTop: 2 }}>Hasta 60s · MP4 o MOV</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+          )}
+
           <TouchableOpacity
             style={[S.primaryBtn, { backgroundColor: guardando ? colors.muted : colors.accent, marginTop: Spacing.md }]}
             onPress={crearProducto}
@@ -1001,6 +1131,14 @@ const S = StyleSheet.create({
     position: 'absolute', right: 20, width: 60, height: 60, borderRadius: 30,
     justifyContent: 'center', alignItems: 'center',
     shadowColor: '#3B82F6', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 12,
+  },
+
+  // Profile FAB (cerrar sesión / refrescar rol)
+  profileFab: {
+    position: 'absolute', right: 16, zIndex: 100,
+    width: 40, height: 40, borderRadius: 20,
+    justifyContent: 'center', alignItems: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10,
   },
 
   // Modal

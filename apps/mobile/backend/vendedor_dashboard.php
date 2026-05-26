@@ -79,7 +79,16 @@ switch ($action) {
         if (!in_array($cat, $CATS_VALIDAS, true)) jout(['ok' => false, 'error' => 'Categoría inválida'], 400);
 
         $imagen = !empty($data['imagen']) ? save_base64_image($data['imagen'], 'productos', 'p_' . $user['id']) : null;
-        $video = $data['video'] ?? null;
+        // Soporta video como base64 (data:video/...) o URL directa
+        $videoRaw = $data['video'] ?? null;
+        $video = null;
+        if (!empty($videoRaw)) {
+            if (str_starts_with($videoRaw, 'data:video')) {
+                $video = save_base64_video($videoRaw, 'reels', 'r_' . $user['id']);
+            } else {
+                $video = $videoRaw;
+            }
+        }
         $stock = (int)($data['stock'] ?? 0);
         $estado_stock = $stock > 0 ? 'disponible' : 'agotado';
 

@@ -1,183 +1,569 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
-import { api } from '../api';
-import '../../css/Reels.css';
+import { useGlobal } from '../context/GlobalContext';
+import { api, API_URL } from '../api';
 import '../../css/dark.css';
 
+// ─── Tipos ─────────────────────────────────────────────────────────────────
 interface Reel {
   id: number;
-  video: string;
-  seller: string;
-  desc: string;
-  likes: string;
-  likesCount: number;
-  comments: number;
-  loc: string;
+  video?: string;
+  imagen?: string;
+  nombre: string;
+  precio: number;
+  descripcion: string;
+  tienda_nombre: string;
+  vendedor_id?: number;
+  municipio?: string;
+  likes_count: number;
+  comentarios_count: number;
+  compartidos_count: number;
   isLiked?: boolean;
+  isSaved?: boolean;
 }
 
+interface Comentario {
+  id: number;
+  usuario_id: number;
+  comentario: string;
+  created_at: string;
+  nombre: string;
+  foto_perfil?: string | null;
+  parent_id?: number | null;
+  likes_count?: number;
+  yo_like?: number;
+  respuestas?: Comentario[];
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+function imgUri(p?: string | null): string | undefined {
+  if (!p) return undefined;
+  if (p.startsWith('data:') || p.startsWith('http')) return p;
+  const m = p.match(/\/uploads\/(.+)$/);
+  if (m) return `${API_URL}/uploads/${m[1]}`;
+  return `${API_URL}/uploads/${p}`;
+}
+
+function buildTree(flat: Comentario[]): Comentario[] {
+  const byId = new Map<number, Comentario>();
+  const roots: Comentario[] = [];
+  flat.forEach(c => byId.set(c.id, { ...c, respuestas: [] }));
+  byId.forEach(c => {
+    if (c.parent_id && byId.has(c.parent_id)) {
+      const parent = byId.get(c.parent_id)!;
+      parent.respuestas = parent.respuestas ?? [];
+      parent.respuestas.push(c);
+    } else {
+      roots.push(c);
+    }
+  });
+  return roots;
+}
+
+function fmtCount(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────
 export default function Reels() {
   const navigate = useNavigate();
+  const { user } = useGlobal();
+  const [reels, setReels]       = useState<Reel[]>([]);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [loading, setLoading]   = useState(true);
+  const [pausedMap, setPausedMap] = useState<Record<number, boolean>>({});
+  const videoRefs = useRef<Record<number, HTMLVideoElement | null>>({});
+  const viewportRef = useRef<HTMLDivElement>(null);
 
-  const [reels, setReels] = useState<Reel[]>([]);
+  // Modales
+  const [comOpen, setComOpen] = useState(false);
+  const [comList, setComList] = useState<Comentario[]>([]);
+  const [comTree, setComTree] = useState<Comentario[]>([]);
+  const [comText, setComText] = useState('');
+  const [replyTo, setReplyTo] = useState<{ id: number; nombre: string } | null>(null);
+  const [activeReel, setActiveReel] = useState<Reel | null>(null);
+  const [comLoading, setComLoading] = useState(false);
 
+  const [shareOpen, setShareOpen] = useState(false);
+  const [conversaciones, setConversaciones] = useState<Array<{ id: number; nombre: string; foto_perfil?: string | null }>>([]);
+  const [shareReel, setShareReel] = useState<Reel | null>(null);
+
+  const [toast, setToast] = useState('');
+
+  // ─── Carga inicial ───
   useEffect(() => {
-    document.body.style.setProperty('overflow', 'hidden', 'important');
-    document.documentElement.style.setProperty('overflow', 'hidden', 'important');
-
+    document.body.style.overflow = 'hidden';
     api.get('/productos.php?action=reels')
       .then(res => {
-        if (res.data.ok) {
-          const mapped = res.data.reels.map((r: any) => ({
+        if (res.data.ok && Array.isArray(res.data.reels)) {
+          setReels(res.data.reels.map((r: any): Reel => ({
             id: r.id,
-            video: r.video_url || '',
-            seller: r.tienda_nombre,
-            desc: r.descripcion || '',
-            likesCount: parseInt(r.likes_count) || 0,
-            likes: r.likes_count >= 1000 ? `${(r.likes_count / 1000).toFixed(1)}k` : `${r.likes_count || 0}`,
-            comments: parseInt(r.comentarios_count) || 0,
-            loc: r.municipio || ''
-          }));
-          setReels(mapped);
+            video: r.video_url || r.video || undefined,
+            imagen: r.imagen,
+            nombre: r.nombre,
+            precio: Number(r.precio) || 0,
+            descripcion: r.descripcion || '',
+            tienda_nombre: r.tienda_nombre || 'tienda',
+            vendedor_id: r.vendedor_id,
+            municipio: r.municipio,
+            likes_count: Number(r.likes_count) || 0,
+            comentarios_count: Number(r.comentarios_count) || 0,
+            compartidos_count: Number(r.compartidos_count) || 0,
+          })));
         }
       })
-      .catch(console.error);
-
-    return () => {
-      document.body.style.removeProperty('overflow');
-      document.documentElement.style.removeProperty('overflow');
-    };
+      .catch(console.error)
+      .finally(() => setLoading(false));
+    return () => { document.body.style.overflow = ''; };
   }, []);
 
-  const handleLike = async (id: number) => {
+  // ─── Scroll snap → cambia el activo ───
+  useEffect(() => {
+    const v = viewportRef.current;
+    if (!v) return;
+    const onScroll = () => {
+      const idx = Math.round(v.scrollTop / v.clientHeight);
+      if (idx !== activeIdx) setActiveIdx(idx);
+    };
+    v.addEventListener('scroll', onScroll, { passive: true });
+    return () => v.removeEventListener('scroll', onScroll);
+  }, [activeIdx]);
+
+  // ─── Reproduce solo el activo, pausa los demás ───
+  useEffect(() => {
+    Object.entries(videoRefs.current).forEach(([id, el]) => {
+      if (!el) return;
+      const reel = reels[activeIdx];
+      const isActive = reel && Number(id) === reel.id;
+      const isPaused = pausedMap[Number(id)] ?? false;
+      if (isActive && !isPaused) {
+        el.play().catch(() => {/* autoplay bloqueado por navegador */});
+      } else {
+        el.pause();
+      }
+    });
+  }, [activeIdx, reels, pausedMap]);
+
+  // ─── Acciones ───
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2400); };
+
+  const togglePause = (id: number) => {
+    setPausedMap(p => ({ ...p, [id]: !(p[id] ?? false) }));
+  };
+
+  const toggleLike = async (r: Reel) => {
+    if (!user) { navigate('/login'); return; }
     try {
-      await api.post('/interacciones.php?action=like_video', { producto_id: id });
-      setReels(prev => prev.map(r => {
-        if (r.id === id) {
-          const isLiked = !r.isLiked;
-          const diff = isLiked ? 1 : -1;
-          const newCount = r.likesCount + diff;
-          return {
-            ...r,
-            isLiked,
-            likesCount: newCount,
-            likes: newCount >= 1000 ? `${(newCount / 1000).toFixed(1)}k` : `${newCount}`
-          };
-        }
-        return r;
-      }));
-    } catch (e) {
-      console.error(e);
+      const res = await api.post('/interacciones.php?action=toggle_like', { producto_id: r.id });
+      if (res.data.ok && res.data.contadores) {
+        setReels(prev => prev.map(x => x.id === r.id
+          ? { ...x, likes_count: res.data.contadores.likes, isLiked: res.data.accion === 'like' }
+          : x));
+      }
+    } catch {}
+  };
+
+  const toggleSave = async (r: Reel) => {
+    if (!user) { navigate('/login'); return; }
+    try {
+      const res = await api.post('/interacciones.php?action=toggle_guardar', { producto_id: r.id });
+      if (res.data.ok) {
+        setReels(prev => prev.map(x => x.id === r.id ? { ...x, isSaved: res.data.accion === 'guardar' } : x));
+        showToast(res.data.accion === 'guardar' ? '✓ Guardado' : 'Eliminado de guardados');
+      }
+    } catch {}
+  };
+
+  const openShare = async (r: Reel) => {
+    if (!user) { navigate('/login'); return; }
+    setShareReel(r);
+    try {
+      const res = await api.get('/chat_multi.php?action=conversaciones');
+      setConversaciones(res.data.ok ? res.data.conversaciones ?? [] : []);
+    } catch { setConversaciones([]); }
+    setShareOpen(true);
+  };
+
+  const shareToUser = async (otroId: number) => {
+    if (!shareReel) return;
+    try {
+      await api.post('/chat_multi.php?action=desde_producto', {
+        producto_id: shareReel.id,
+        mensaje: `Mira este reel: ${shareReel.nombre}`,
+      });
+      await api.post('/interacciones.php?action=compartir', { producto_id: shareReel.id, canal: 'chat' });
+      setShareOpen(false);
+      showToast('✓ Compartido por chat');
+    } catch {
+      showToast('Error al compartir');
     }
   };
 
+  const shareExterno = async (r: Reel) => {
+    const shareData = { title: r.nombre, text: r.descripcion, url: window.location.href };
+    try {
+      if (navigator.share) await navigator.share(shareData);
+      else { await navigator.clipboard.writeText(window.location.href); showToast('Enlace copiado'); }
+      if (user) await api.post('/interacciones.php?action=compartir', { producto_id: r.id, canal: 'web' });
+    } catch {}
+  };
+
+  // ─── Comentarios ───
+  const openComments = async (r: Reel) => {
+    if (!user) { navigate('/login'); return; }
+    setActiveReel(r);
+    setComOpen(true);
+    setComLoading(true);
+    try {
+      const res = await api.get(`/interacciones.php?action=listar_comentarios&producto_id=${r.id}`);
+      const lista = res.data.ok ? res.data.comentarios ?? [] : [];
+      setComList(lista);
+      setComTree(buildTree(lista));
+    } catch { setComList([]); setComTree([]); }
+    setComLoading(false);
+  };
+
+  const sendComment = async () => {
+    if (!activeReel || !comText.trim()) return;
+    const body: any = { producto_id: activeReel.id, comentario: comText.trim() };
+    if (replyTo) body.parent_id = replyTo.id;
+    try {
+      await api.post('/interacciones.php?action=comentar', body);
+      setComText(''); setReplyTo(null);
+      const res = await api.get(`/interacciones.php?action=listar_comentarios&producto_id=${activeReel.id}`);
+      const lista = res.data.ok ? res.data.comentarios ?? [] : [];
+      setComList(lista); setComTree(buildTree(lista));
+      setReels(prev => prev.map(x => x.id === activeReel.id ? { ...x, comentarios_count: x.comentarios_count + 1 } : x));
+    } catch {}
+  };
+
+  const toggleLikeComment = async (cid: number) => {
+    try {
+      const res = await api.post('/interacciones.php?action=like_comentario', { comentario_id: cid });
+      if (res.data.ok) {
+        const delta = res.data.accion === 'like' ? 1 : -1;
+        const updated = comList.map(c => c.id === cid
+          ? { ...c, likes_count: Math.max(0, (c.likes_count ?? 0) + delta), yo_like: res.data.accion === 'like' ? 1 : 0 }
+          : c);
+        setComList(updated); setComTree(buildTree(updated));
+      }
+    } catch {}
+  };
+
+  // ─── Render ───
+  if (loading) return (
+    <div style={{ background: '#000', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF' }}>
+      <div style={{ width: 40, height: 40, border: '3px solid rgba(255,255,255,0.2)', borderTopColor: '#FFF', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+
+  if (reels.length === 0) return (
+    <>
+      <Header />
+      <div style={{ background: '#0A0A0A', minHeight: 'calc(100vh - 110px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#FFF', padding: 40, textAlign: 'center' }}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" width="72" height="72" style={{ opacity: 0.5 }}>
+          <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>
+        <h2 style={{ marginTop: 18, fontWeight: 900 }}>No hay reels aún</h2>
+        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, marginTop: 6 }}>
+          Cuando los vendedores publiquen reels aparecerán aquí.
+        </p>
+      </div>
+    </>
+  );
+
   return (
-    <div className="reels-main-wrapper" style={{ background: '#000', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: '#000', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Header />
 
-      {/* ══ REELS LAYOUT ══ */}
-      <div className="reels-page">
-        {/* Left Sidebar */}
-        <aside style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          <button onClick={() => navigate(-1)} className="back-link" style={{ cursor: 'pointer', border: 'none', background: 'transparent', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: '700' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
-              <path d="M19 12H5M12 5l-7 7 7 7"/>
-            </svg>
-            Volver
-          </button>
-        </aside>
+      <div
+        ref={viewportRef}
+        style={{
+          flex: 1,
+          overflowY: 'scroll',
+          scrollSnapType: 'y mandatory',
+          scrollBehavior: 'smooth',
+          position: 'relative',
+        }}
+      >
+        {reels.map((r, idx) => {
+          const isActive = idx === activeIdx;
+          const isPaused = pausedMap[r.id] ?? false;
+          return (
+            <div
+              key={r.id}
+              style={{
+                width: '100%',
+                height: 'calc(100vh - 110px)',
+                scrollSnapAlign: 'start',
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: '#000',
+              }}
+            >
+              {/* Media + click-to-pause */}
+              <div
+                onClick={() => togglePause(r.id)}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  background: '#000',
+                }}
+              >
+                {r.video ? (
+                  <video
+                    ref={el => { videoRefs.current[r.id] = el; }}
+                    src={imgUri(r.video)}
+                    poster={imgUri(r.imagen)}
+                    loop
+                    muted={false}
+                    playsInline
+                    preload="metadata"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain',
+                      background: '#000',
+                    }}
+                  />
+                ) : r.imagen ? (
+                  <img
+                    src={imgUri(r.imagen)}
+                    alt={r.nombre}
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                  />
+                ) : (
+                  <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 48 }}>📦</div>
+                )}
 
-        {/* Reals Viewport */}
-        <main className="reels-viewport">
-          {reels.map((reel) => (
-            <div key={reel.id} className="reel" style={{ borderRadius: '16px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
-              <video src={reel.video} autoPlay loop muted playsInline className="reel-bg" />
-              
-              <div className="reel-top">
-                <div className="seller-info">
-                  <div className="seller-avatar" style={{ background: 'var(--blue)', display: 'grid', placeItems: 'center', fontSize: '1.2rem', fontWeight: '800' }}>🏪</div>
-                  <div className="seller-meta">
-                    <div className="seller-name" style={{ color: '#fff', fontWeight: '700' }}>
-                      @{reel.seller} 
-                      <span className="verified" style={{ marginLeft: '4px' }}>
-                        <svg viewBox="0 0 24 24" fill="var(--blue)" width="14" height="14" style={{ display: 'inline' }}>
-                          <path d="M9 12l2 2 4-4"/>
-                        </svg>
-                      </span>
+                {/* Ícono de play cuando está pausado */}
+                {isActive && isPaused && r.video && (
+                  <div style={{ position: 'absolute', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                    <div style={{ width: 80, height: 80, borderRadius: 40, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg viewBox="0 0 24 24" fill="#FFF" width="42" height="42"><path d="M8 5v14l11-7L8 5z"/></svg>
                     </div>
-                    <div className="seller-loc" style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.75rem' }}>{reel.loc}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Overlay info (esquina inferior izquierda) */}
+              <div style={{
+                position: 'absolute',
+                left: 0, right: 100, bottom: 0,
+                padding: '20px 24px 32px',
+                background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.7) 100%)',
+                pointerEvents: 'none',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 18, background: 'rgba(255,255,255,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#FFF" strokeWidth="2" width="18" height="18"><path d="M3 9l1-6h16l1 6"/><path d="M3 9h18v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z"/></svg>
+                  </div>
+                  <div style={{ color: '#FFF', fontWeight: 900, fontSize: 15, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+                    @{r.tienda_nombre}
                   </div>
                 </div>
-                <button className="follow-btn" style={{ background: 'var(--blue)', border: 'none', color: '#fff', borderRadius: '20px', padding: '6px 14px', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer' }}>Seguir</button>
-              </div>
-
-              {/* Actions Overlay */}
-              <div className="reel-actions">
-                <div className="action-btn" onClick={() => handleLike(reel.id)} style={{ cursor: 'pointer' }}>
-                  <svg 
-                    viewBox="0 0 24 24" 
-                    fill={reel.isLiked ? 'var(--blue)' : 'none'} 
-                    stroke={reel.isLiked ? 'var(--blue)' : 'white'} 
-                    strokeWidth="2" 
-                    width="24" 
-                    height="24"
+                <div style={{ color: '#FFF', fontWeight: 800, fontSize: 18, marginBottom: 4, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
+                  {r.nombre}
+                </div>
+                {r.descripcion && (
+                  <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13, marginBottom: 10, maxWidth: 480, textShadow: '0 1px 2px rgba(0,0,0,0.6)' }}>
+                    {r.descripcion}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', pointerEvents: 'auto' }}>
+                  <div style={{ background: 'rgba(74,109,140,0.9)', color: '#FFF', padding: '5px 14px', borderRadius: 99, fontWeight: 900 }}>
+                    ${r.precio.toFixed(2)}
+                  </div>
+                  <button
+                    onClick={() => navigate('/market')}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)', color: '#FFF', padding: '5px 14px', borderRadius: 99, cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
                   >
-                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                  </svg>
-                  <span className="action-count" style={{ color: '#fff', fontSize: '0.8rem', marginTop: '4px' }}>{reel.likes}</span>
-                </div>
-                <div className="action-btn" onClick={() => navigate('/chat')} style={{ cursor: 'pointer' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="24" height="24">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                  </svg>
-                  <span className="action-count" style={{ color: '#fff', fontSize: '0.8rem', marginTop: '4px' }}>{reel.comments}</span>
-                </div>
-                <div className="action-btn" style={{ cursor: 'pointer' }}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="24" height="24">
-                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-                    <polyline points="16 6 12 2 8 6"/>
-                    <line x1="12" y1="2" x2="12" y2="15"/>
-                  </svg>
-                  <span className="action-count" style={{ color: '#fff', fontSize: '0.8rem', marginTop: '4px' }}>Share</span>
+                    Ver producto →
+                  </button>
                 </div>
               </div>
 
-              <div className="reel-bottom">
-                <div className="reel-caption" style={{ color: '#fff', fontSize: '0.9rem', textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>{reel.desc}</div>
-                <button 
-                  className="visit-local-btn" 
-                  onClick={() => navigate('/market')}
-                  style={{ background: '#fff', color: '#111111', fontWeight: '700', borderRadius: '30px', border: 'none', padding: '10px 18px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
-                    <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/>
-                    <line x1="3" y1="6" x2="21" y2="6"/>
-                    <path d="M16 10a4 4 0 0 1-8 0"/>
-                  </svg>
-                  Ver tienda
-                </button>
+              {/* Acciones laterales (derecha) */}
+              <div style={{
+                position: 'absolute',
+                right: 16, bottom: 90,
+                display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'center',
+                background: 'rgba(0,0,0,0.35)', padding: '12px 8px', borderRadius: 14,
+                border: '1px solid rgba(255,255,255,0.12)',
+              }}>
+                <ActionBtn icon="❤️" label={fmtCount(r.likes_count)} active={!!r.isLiked} onClick={() => toggleLike(r)} />
+                <ActionBtn icon="💬" label={fmtCount(r.comentarios_count)} onClick={() => openComments(r)} />
+                <ActionBtn icon="🔖" label={r.isSaved ? 'Guardado' : 'Guardar'} active={!!r.isSaved} onClick={() => toggleSave(r)} />
+                <ActionBtn icon="✈️" label={fmtCount(r.compartidos_count)} onClick={() => openShare(r)} />
+                <ActionBtn icon="🔗" label="Link" onClick={() => shareExterno(r)} />
               </div>
-            </div>
-          ))}
-        </main>
 
-        {/* Right Sidebar */}
-        <aside className="reels-sidebar">
-          <div className="activity-tray" style={{ background: '#111111', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', padding: '20px' }}>
-            <div className="tray-header" style={{ color: '#fff', fontSize: '1.1rem', fontWeight: '800', marginBottom: '16px' }}>Mi Actividad</div>
-            <div className="tray-tabs" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', marginBottom: '16px' }}>
-              <button className="tray-tab active" style={{ background: 'var(--blue)', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 10px', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer' }}>Guardados</button>
-              <button className="tray-tab" style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: '8px', padding: '8px 10px', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer' }}>Siguiendo</button>
-            </div>
-            <div className="tray-content">
-              <div className="tray-empty" style={{ textAlign: 'center', padding: '24px 0', color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem' }}>
-                <p>Aún no tienes actividad guardada.</p>
+              {/* Contador arriba derecha */}
+              <div style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(0,0,0,0.45)', color: '#FFF', padding: '4px 12px', borderRadius: 99, fontSize: 11, fontWeight: 800 }}>
+                {idx + 1} / {reels.length}
               </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Modal Comentarios ── */}
+      {comOpen && (
+        <div onClick={() => setComOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg, #fff)', width: '100%', maxWidth: 560, height: '78vh',
+            borderTopLeftRadius: 24, borderTopRightRadius: 24, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1.5px solid var(--border, #e2e8f0)' }}>
+              <strong>Comentarios · {comList.length}</strong>
+              <button onClick={() => setComOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer' }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+              {comLoading ? (
+                <div style={{ textAlign: 'center', padding: 30 }}>Cargando...</div>
+              ) : comTree.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text-muted, #6b7280)', padding: 30 }}>Sé el primero en comentar</div>
+              ) : (
+                comTree.map(c => <CommentNode key={c.id} c={c} onReply={p => setReplyTo({ id: p.id, nombre: p.nombre })} onLike={toggleLikeComment} />)
+              )}
+            </div>
+
+            {replyTo && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', background: 'var(--bg-secondary, #F9FAFB)', borderTop: '1px solid var(--border, #e2e8f0)' }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)' }}>↳ Respondiendo a <strong>{replyTo.nombre}</strong></span>
+                <button onClick={() => setReplyTo(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, padding: 14, borderTop: '1.5px solid var(--border, #e2e8f0)' }}>
+              <input
+                type="text"
+                value={comText}
+                onChange={e => setComText(e.target.value)}
+                placeholder={replyTo ? `Responder a ${replyTo.nombre}...` : 'Escribe un comentario...'}
+                onKeyDown={e => { if (e.key === 'Enter') sendComment(); }}
+                style={{ flex: 1, padding: '10px 14px', borderRadius: 99, border: '1.5px solid var(--border, #e2e8f0)', outline: 'none', fontFamily: 'inherit', fontSize: 14 }}
+              />
+              <button
+                onClick={sendComment}
+                disabled={!comText.trim()}
+                style={{ width: 42, height: 42, borderRadius: 21, border: 'none', background: comText.trim() ? '#2563EB' : '#cbd5e1', color: '#FFF', cursor: 'pointer', fontSize: 16 }}
+              >
+                ➤
+              </button>
             </div>
           </div>
-        </aside>
+        </div>
+      )}
+
+      {/* ── Modal Compartir ── */}
+      {shareOpen && (
+        <div onClick={() => setShareOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg, #fff)', width: '100%', maxWidth: 480, height: '60vh',
+            borderTopLeftRadius: 24, borderTopRightRadius: 24, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1.5px solid var(--border, #e2e8f0)' }}>
+              <strong>Compartir por chat</strong>
+              <button onClick={() => setShareOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer' }}>×</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+              {conversaciones.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text-muted, #6b7280)', padding: 30 }}>
+                  No tienes conversaciones aún. Empieza una desde un producto.
+                </div>
+              ) : conversaciones.map(u => (
+                <button
+                  key={u.id}
+                  onClick={() => shareToUser(u.id)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: 12, width: '100%',
+                    background: 'var(--card, #fff)', border: '1.5px solid var(--border, #e2e8f0)',
+                    borderRadius: 14, marginBottom: 8, cursor: 'pointer', textAlign: 'left',
+                  }}
+                >
+                  <div style={{ width: 44, height: 44, borderRadius: 22, background: '#2563EB', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, overflow: 'hidden' }}>
+                    {u.foto_perfil ? <img src={imgUri(u.foto_perfil)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : u.nombre.charAt(0).toUpperCase()}
+                  </div>
+                  <span style={{ flex: 1, fontWeight: 700 }}>{u.nombre}</span>
+                  <span style={{ color: '#2563EB' }}>➤</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 30, left: '50%', transform: 'translateX(-50%)', background: '#0F172A', color: '#FFF', padding: '12px 24px', borderRadius: 99, fontWeight: 700, fontSize: 14, zIndex: 9999, boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Action button ───
+function ActionBtn({ icon, label, active, onClick }: { icon: string; label: string; active?: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: 'transparent', border: 'none', cursor: 'pointer',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+        color: '#FFF', padding: 0,
+      }}
+    >
+      <div style={{ fontSize: 24, lineHeight: 1, opacity: active ? 1 : 0.95, transform: active ? 'scale(1.1)' : 'scale(1)', transition: 'transform 0.15s' }}>
+        {icon}
       </div>
+      <span style={{ fontSize: 10, fontWeight: 800, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>{label}</span>
+    </button>
+  );
+}
+
+// ─── Recursive comment node ───
+function CommentNode({ c, depth = 0, onReply, onLike }: {
+  c: Comentario; depth?: number;
+  onReply: (c: Comentario) => void;
+  onLike: (id: number) => void;
+}) {
+  return (
+    <div style={{ marginLeft: depth * 22, marginBottom: 10 }}>
+      <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 16, background: '#2563EB', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 12, overflow: 'hidden', flexShrink: 0 }}>
+          {c.foto_perfil ? <img src={imgUri(c.foto_perfil)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : c.nombre.charAt(0).toUpperCase()}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ background: 'var(--bg-secondary, #F9FAFB)', borderRadius: 14, padding: 10, border: '1px solid var(--border, #e2e8f0)' }}>
+            <div style={{ fontWeight: 800, fontSize: 12 }}>{c.nombre}</div>
+            <div style={{ marginTop: 2, fontSize: 13, lineHeight: 1.45 }}>{c.comentario}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 14, marginTop: 6, marginLeft: 4, alignItems: 'center' }}>
+            <button onClick={() => onLike(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: 0, color: c.yo_like ? '#EF4444' : 'var(--text-muted, #6b7280)', fontWeight: 700, fontSize: 11 }}>
+              <span>{c.yo_like ? '❤️' : '🤍'}</span>
+              <span>{c.likes_count ?? 0}</span>
+            </button>
+            <button onClick={() => onReply(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #6b7280)', fontWeight: 700, fontSize: 11 }}>
+              Responder
+            </button>
+          </div>
+        </div>
+      </div>
+      {c.respuestas?.map(r => <CommentNode key={r.id} c={r} depth={depth + 1} onReply={onReply} onLike={onLike} />)}
     </div>
   );
 }

@@ -133,7 +133,8 @@ export default function Header() {
   };
 
   type RolKey = 'admin' | 'vendedor' | 'repartidor' | 'comprador' | undefined;
-  const rol = (user as any)?.rol as RolKey;
+  // Soporta tanto user.role (guardado desde login) como user.rol (campo raw de PHP)
+  const rol = (user?.role || (user as any)?.rol) as RolKey;
 
   const navLinks = [
     { path: '/',         label: 'Inicio',   icon: iHome() },
@@ -422,13 +423,12 @@ export default function Header() {
                   </div>
                 </div>
                 {[
-                  { label: 'Mi Perfil',      path: '/perfil',             show: true },
-                  { label: 'Historial',      path: '/historial',          show: true },
-                  { label: 'Configuración',  path: '/perfil',             show: true },
-                  { label: 'Idioma',         path: '/perfil',             show: true },
-                  { label: 'Mi Tienda',      path: '/dashboard-vendedor', show: rol === 'vendedor' },
-                  { label: 'Panel Admin',    path: '/admin',              show: rol === 'admin' },
-                  { label: 'Entregas',       path: '/entregas',           show: rol === 'repartidor' },
+                  { label: 'Mi Perfil',       path: '/perfil',             show: true },
+                  { label: 'Configuración',   path: '/perfil',             show: true },
+                  { label: 'Idioma',          path: '/perfil',             show: true },
+                  { label: 'Mi Tienda',       path: '/dashboard-vendedor', show: rol === 'vendedor' },
+                  { label: '🚚 Mis Entregas', path: '/entregas',           show: rol === 'repartidor' },
+                  { label: '⚙️ Panel Admin',  path: '/admin',              show: rol === 'admin' },
                 ].filter(i => i.show).map((item, idx) => (
                   <button key={`${item.path}-${idx}`}
                     onClick={() => { navigate(item.path); setShowUserMenu(false); }}

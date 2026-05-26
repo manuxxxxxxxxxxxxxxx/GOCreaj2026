@@ -98,7 +98,9 @@ function Avatar({ src, nombre, size = 42 }: { src?: string | null; nombre: strin
 }
 
 export default function AdminScreen() {
-  const { cerrarSesion, usuario } = useAuth();
+  const { cerrarSesion, usuario, refrescar } = useAuth();
+  // Refrescar rol al abrir
+  useEffect(() => { void refrescar(); }, []);
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
 
@@ -348,6 +350,9 @@ export default function AdminScreen() {
             activeOpacity={0.85}
           >
             <Ionicons name="arrow-back-circle-outline" size={22} color={Colors.contrast} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { void refrescar(); Alert.alert('✓', 'Rol refrescado'); }} style={styles.logoutBtn}>
+            <Ionicons name="refresh-outline" size={22} color={Colors.contrast} />
           </TouchableOpacity>
           <TouchableOpacity onPress={cerrarSesion} style={styles.logoutBtn}>
             <Ionicons name="log-out-outline" size={22} color={Colors.contrast} />

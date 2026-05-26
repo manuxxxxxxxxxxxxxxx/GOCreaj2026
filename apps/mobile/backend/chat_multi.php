@@ -270,6 +270,30 @@ switch ($action) {
         break;
     }
 
+    // ─── Buscar usuarios para iniciar nuevo chat ───
+    case 'buscar_usuarios': {
+        $q = trim($_GET['q'] ?? '');
+        $rol = $_GET['rol'] ?? '';
+        $sql = "SELECT id, nombre, username, foto_perfil, rol, en_linea
+                FROM usuarios
+                WHERE activo = 1 AND id <> ?";
+        $params = [$uid];
+        if ($q !== '') {
+            $sql .= " AND (nombre LIKE ? OR username LIKE ? OR email LIKE ?)";
+            $like = "%{$q}%";
+            $params[] = $like; $params[] = $like; $params[] = $like;
+        }
+        if ($rol && in_array($rol, ['comprador','vendedor','repartidor','admin'])) {
+            $sql .= " AND rol = ?";
+            $params[] = $rol;
+        }
+        $sql .= " ORDER BY en_linea DESC, nombre ASC LIMIT 30";
+        $st = db()->prepare($sql);
+        $st->execute($params);
+        jout(['ok' => true, 'usuarios' => $st->fetchAll()]);
+        break;
+    }
+
     default:
         jout(['ok' => false, 'error' => 'Accion invalida'], 400);
 }

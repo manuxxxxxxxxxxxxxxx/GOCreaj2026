@@ -15,8 +15,11 @@ const ACCENT = '#4A6D8C';
 const ACCENT_LIGHT = 'rgba(74,109,140,0.1)';
 
 export default function Perfil() {
-  const { user, login, logout, theme, toggleTheme } = useGlobal();
+  const { user, login, logout, theme, toggleTheme, refreshUser } = useGlobal();
   const navigate = useNavigate();
+
+  // Refresca el rol desde la BD cada vez que se abre el perfil
+  useEffect(() => { void refreshUser(); }, []);
 
   // Edit modal
   const [modalEditar, setModalEditar] = useState(false);
@@ -42,12 +45,16 @@ export default function Perfil() {
 
   const u = user as any;
   const displayName = user?.name || 'Usuario';
-  const isAdmin = user?.role === 'admin';
+  // Soporta tanto user.role (normalizado) como user.rol (raw PHP) y los valores en español
+  const userRole = user?.role || u?.rol || '';
+  const isAdmin      = userRole === 'admin';
+  const isVendedor   = userRole === 'vendedor' || userRole === 'seller';
+  const isRepartidor = userRole === 'repartidor' || userRole === 'driver';
+  const isComprador  = !userRole || userRole === 'comprador' || userRole === 'buyer';
   const roleName = isAdmin ? 'ADMIN'
-    : user?.role === 'seller' || user?.role === 'vendedor' ? 'VENDEDOR'
-    : user?.role === 'driver' || user?.role === 'repartidor' ? 'REPARTIDOR'
+    : isVendedor    ? 'VENDEDOR'
+    : isRepartidor  ? 'REPARTIDOR'
     : 'COMPRADOR';
-  const isComprador = !user?.role || user?.role === 'buyer' || user?.role === 'comprador';
 
   // Cooldown 10 días para username
   const diasRestantes = (() => {
@@ -117,7 +124,7 @@ export default function Perfil() {
 
       const r = await api.post('/auth.php?action=actualizar_perfil', body);
       if (r.data.ok) {
-        login({ name: r.data.usuario.nombre, email: r.data.usuario.email, role: r.data.usuario.rol, ...r.data.usuario });
+        login({ name: r.data.usuario.nombre, email: r.data.usuario.email, role: r.data.usuario.rol, ...r.data.usuario } as any);
         setModalEditar(false);
         showToast('Perfil actualizado');
       } else {
@@ -342,6 +349,16 @@ export default function Perfil() {
           {/* ── Mi cuenta ── */}
           <SectionLabel>Mi cuenta</SectionLabel>
           <MenuCard>
+            {/* Botón principal según el rol */}
+            {isAdmin && (
+              <MenuItem icon="shield" bg="rgba(251,191,36,0.15)" color="#D97706" title="Panel del Admin" sub="Gestión de usuarios y pedidos" onClick={() => navigate('/admin')} />
+            )}
+            {isVendedor && (
+              <MenuItem icon="store" bg={ACCENT_LIGHT} color={ACCENT} title="Mi Tienda" sub="Gestiona tus productos y ventas" onClick={() => navigate('/dashboard-vendedor')} />
+            )}
+            {isRepartidor && (
+              <MenuItem icon="truck" bg={ACCENT_LIGHT} color={ACCENT} title="Mis Entregas" sub="Ver pedidos asignados" onClick={() => navigate('/entregas')} />
+            )}
             {isComprador && (
               <MenuItem icon="briefcase" bg={ACCENT_LIGHT} color={ACCENT} title="Convertirse en Socio" sub="Vendedor o Repartidor" onClick={() => navigate('/become-seller')} />
             )}
@@ -478,11 +495,13 @@ function MenuCard({ children }: { children: React.ReactNode }) {
 }
 
 const ICONS: Record<string, JSX.Element> = {
-  briefcase: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>,
-  receipt: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-1.5L9 20l2-1.5L13 20l2-1.5L17 20l2-1.5V8z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/></svg>,
-  'help-circle': <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
-  bell: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
-  shield: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+  briefcase:    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg>,
+  receipt:      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M14 2H6a2 2 0 0 0-2 2v16l3-1.5L9 20l2-1.5L13 20l2-1.5L17 20l2-1.5V8z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/></svg>,
+  'help-circle':<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+  bell:         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
+  shield:       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+  store:        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M3 9l1-6h16l1 6"/><path d="M3 9h18v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>,
+  truck:        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>,
 };
 
 function MenuItem({ icon, bg, color, title, sub, onClick, last }: { icon: string; bg: string; color: string; title: string; sub?: string; onClick: () => void; last?: boolean }) {

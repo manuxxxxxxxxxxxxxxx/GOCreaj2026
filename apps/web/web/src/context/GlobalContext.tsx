@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 
 const API_URL = 'http://localhost/GOCreaj2026/apps/mobile/backend';
 const TOKEN_KEY = 'lm_token_v1';
@@ -36,8 +36,9 @@ interface GlobalContextType {
   cartTotal: number;
   cartCount: number;
   user: User;
-  login: (userData: User) => void;
+  login: (userData: any) => void;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
@@ -71,17 +72,64 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
   // User State
   const [user, setUser] = useState<User>(null);
 
+  const login = useCallback((userData: any) => {
+    // Normaliza: guarda tanto 'role' (inglés) como 'rol' (PHP) para máxima compatibilidad
+    const normalized = {
+      ...userData,
+      role: userData.role || userData.rol || null,
+      rol:  userData.rol  || userData.role || null,
+      name: userData.name || userData.nombre || '',
+      email: userData.email || '',
+    };
+    setUser(normalized as User);
+    localStorage.setItem('lm_user_v1', JSON.stringify(normalized));
+  }, []);
+
+  // Al arrancar: carga desde localStorage y, si hay token, refresca desde la BD
   useEffect(() => {
     try {
       const saved = localStorage.getItem('lm_user_v1');
       if (saved) setUser(JSON.parse(saved));
     } catch (e) {}
+
+    // Refresca datos reales desde el backend (por si el rol cambió en BD)
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (token) {
+      fetch(`${API_URL}/auth.php?action=me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.ok && data.usuario) {
+            const u = data.usuario;
+            login({
+              name:  u.nombre,
+              email: u.email,
+              role:  u.rol,
+              ...u,
+            });
+          }
+        })
+        .catch(() => {}); // sin conexión → usa caché local
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const login = (userData: User) => {
-    setUser(userData);
-    localStorage.setItem('lm_user_v1', JSON.stringify(userData));
-  };
+  // Función para forzar refresco manual (usada desde Perfil, etc.)
+  const refreshUser = useCallback(async () => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+    try {
+      const r = await fetch(`${API_URL}/auth.php?action=me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await r.json();
+      if (data.ok && data.usuario) {
+        const u = data.usuario;
+        login({ name: u.nombre, email: u.email, role: u.rol, ...u });
+      }
+    } catch {}
+  }, [login]);
 
   const logout = () => {
     setUser(null);
@@ -103,6 +151,15 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  // Helper para resolver imágenes del backend (devuelve URL completa)
+  const resolveImg = (img?: string | null): string | undefined => {
+    if (!img) return undefined;
+    if (img.startsWith('data:') || img.startsWith('http')) return img;
+    const m = img.match(/\/uploads\/(.+)$/);
+    if (m) return `${API_URL}/uploads/${m[1]}`;
+    return `${API_URL}/uploads/${img}`;
+  };
+
   const fetchCartFromAPI = async () => {
     try {
       const token = localStorage.getItem(TOKEN_KEY);
@@ -118,7 +175,7 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
           name: i.nombre,
           price: parseFloat(i.precio),
           qty: i.cantidad,
-          img: i.imagen,
+          img: resolveImg(i.imagen),
           seller: i.tienda_nombre
         })));
       }
@@ -204,7 +261,7 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
     <GlobalContext.Provider value={{
       theme, toggleTheme,
       cart, addToCart, removeFromCart, updateCartQty, clearCart, cartTotal, cartCount,
-      user, login, logout
+      user, login, logout, refreshUser
     }}>
       {children}
     </GlobalContext.Provider>

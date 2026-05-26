@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { Users, ShoppingCart, Store, GitBranch, LogOut, ArrowLeftCircle } from 'lucide-react';
+import { useGlobal } from '../context/GlobalContext';
 import '../admin.css';
 import './AdminLayout.css';
 
@@ -14,6 +15,14 @@ const SIDEBAR_ITEMS = [
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+  const { user } = useGlobal();
+  const u = user as any;
+  const adminName  = u?.nombre || u?.name || 'Admin';
+  const adminRole  = u?.rol    || u?.role || 'admin';
+  const adminAvatar = (adminName).charAt(0).toUpperCase();
+  const adminFoto   = u?.foto_perfil
+    ? (u.foto_perfil.startsWith('http') ? u.foto_perfil : `http://localhost/GOCreaj2026/apps/mobile/backend/uploads/${u.foto_perfil}`)
+    : null;
 
   // ── Botón "Volver a la web" ────────────────────────────────────────────────
   // Limpia el estado de navegación administrativa y vuelve al flujo común
@@ -90,10 +99,15 @@ export default function AdminLayout() {
         <header className="topbar">
           <div className="topbar-search" />
           <div className="topbar-profile" onClick={() => navigate('/perfil')} style={{ cursor: 'pointer' }}>
-            <div className="avatar" style={{ background: '#2563EB', color: '#fff', fontWeight: '800' }}>A</div>
+            <div className="avatar" style={{ background: '#2563EB', color: '#fff', fontWeight: '800', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {adminFoto
+                ? <img src={adminFoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : adminAvatar
+              }
+            </div>
             <div className="profile-info">
-              <p className="name">Admin User</p>
-              <p className="role">Master Admin</p>
+              <p className="name">{adminName}</p>
+              <p className="role" style={{ textTransform: 'capitalize' }}>{adminRole}</p>
             </div>
           </div>
         </header>

@@ -34,20 +34,25 @@ switch ($action) {
                 $upu->execute([$s['rol_solicitado'], $s['usuario_id']]);
             }
 
-            // Notify user via chat message
-            $notaMsg = $data['notas'] ?? '';
-            $chatMsg = $data['decision'] === 'aprobado'
-                ? "✅ Tu solicitud de rol *{$s['rol_solicitado']}* ha sido aprobada. ¡Bienvenido! 🎉"
-                : "❌ Tu solicitud de rol *{$s['rol_solicitado']}* fue rechazada." . ($notaMsg ? " Motivo: {$notaMsg}" : '');
-            db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
-               ->execute([$user['id'], $s['usuario_id'], $chatMsg]);
-
             db()->commit();
-            jout(['ok' => true]);
         } catch (Throwable $e) {
             db()->rollBack();
             jout(['ok' => false, 'error' => $e->getMessage()], 500);
         }
+
+        // Notificación por chat (no crítica — no bloquea la respuesta)
+        try {
+            $notaMsg = trim($data['notas'] ?? '');
+            $chatMsg = $data['decision'] === 'aprobado'
+                ? "✅ Tu solicitud de rol *{$s['rol_solicitado']}* ha sido aprobada. ¡Bienvenido a bordo! 🎉"
+                : "❌ Tu solicitud de rol *{$s['rol_solicitado']}* fue rechazada." . ($notaMsg ? "\n📝 Motivo: {$notaMsg}" : ' Sin motivo adicional.');
+            db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
+               ->execute([$user['id'], $s['usuario_id'], $chatMsg]);
+        } catch (Throwable $chatErr) {
+            // Si falla la notificación no abortamos — el cambio de estado ya está guardado
+        }
+
+        jout(['ok' => true]);
         break;
 
     case 'stats':
@@ -261,30 +266,37 @@ switch ($action) {
     case 'banear_usuario':
         require_fields($data, ['usuario_id']);
         $uid = (int)$data['usuario_id'];
-        if ($uid === (int)$user['id']) jout(['ok' => false, 'error' => 'No puedes banearte a ti mismo'], 400);
+        if ($uid === (int)$user['id']) jout(['ok' => false, 'error' => 'No puedes suspenderte a ti mismo'], 400);
         try {
             db()->beginTransaction();
-            $st = db()->prepare("SELECT activo FROM usuarios WHERE id = ?");
+            $st = db()->prepare("SELECT activo, nombre FROM usuarios WHERE id = ?");
             $st->execute([$uid]);
-            $cur = $st->fetchColumn();
-            if ($cur === false) { db()->rollBack(); jout(['ok' => false, 'error' => 'Usuario no existe'], 404); }
-            $nuevo = $cur ? 0 : 1;
+            $row = $st->fetch();
+            if (!$row) { db()->rollBack(); jout(['ok' => false, 'error' => 'Usuario no existe'], 404); }
+            $nuevo = $row['activo'] ? 0 : 1;
+            $razon = trim($data['razon'] ?? '');
             $up = db()->prepare("UPDATE usuarios SET activo = ? WHERE id = ?");
             $up->execute([$nuevo, $uid]);
-
-            // Notificar al usuario en su buzón de chat
-            $msg = $nuevo
-                ? '✅ Tu cuenta ha sido reactivada por el administrador.'
-                : '⛔ Tu cuenta fue suspendida por el administrador.';
-            db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
-                ->execute([$user['id'], $uid, $msg]);
-
             db()->commit();
-            jout(['ok' => true, 'activo' => $nuevo]);
         } catch (Throwable $e) {
             db()->rollBack();
             jout(['ok' => false, 'error' => $e->getMessage()], 500);
         }
+
+        // Notificación por chat (no crítica)
+        try {
+            if ($nuevo === 0) {
+                $msg = '⛔ Tu cuenta ha sido suspendida por el administrador.' . ($razon ? "\n📝 Motivo: {$razon}" : '');
+            } else {
+                $msg = '✅ Tu cuenta ha sido reactivada por el administrador. Ya puedes acceder con normalidad.';
+            }
+            db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
+                ->execute([$user['id'], $uid, $msg]);
+        } catch (Throwable $chatErr) {
+            // Fallo de notificación no crítico
+        }
+
+        jout(['ok' => true, 'activo' => $nuevo]);
         break;
 
     // Eliminación física/lógica de reel — desmarca es_reel y desactiva si corresponde

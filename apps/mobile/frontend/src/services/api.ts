@@ -166,6 +166,7 @@ export const Endpoints = {
   interCompartir: 'interacciones.php?action=compartir',
   interComentar: 'interacciones.php?action=comentar',
   interListarComentarios: (pid: number): string => `interacciones.php?action=listar_comentarios&producto_id=${pid}`,
+  interLikeComentario: 'interacciones.php?action=like_comentario',
   interSeguirTienda: 'interacciones.php?action=seguir_tienda',
   misLikes: 'interacciones.php?action=mis_likes',
   misGuardados: 'interacciones.php?action=mis_guardados',
@@ -215,6 +216,11 @@ export const Endpoints = {
   chatFinalizarLlamada: 'chat_multi.php?action=finalizar_llamada',
   chatLlamadasEntrantes: 'chat_multi.php?action=llamadas_entrantes',
   chatDesdeProducto: 'chat_multi.php?action=desde_producto',
+  chatBuscarUsuarios: (q: string, rol?: string): string => {
+    let url = `chat_multi.php?action=buscar_usuarios&q=${encodeURIComponent(q)}`;
+    if (rol) url += `&rol=${rol}`;
+    return url;
+  },
   soporteCrear: 'soporte.php?action=crear',
   soporteMis: 'soporte.php?action=mis_tickets',
   authEnviarSms:           'auth.php?action=enviar_sms',

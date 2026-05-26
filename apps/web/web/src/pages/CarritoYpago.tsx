@@ -164,10 +164,16 @@ export default function CarritoYpago() {
                   ) : (
                     cart.map(p => (
                       <div key={p.id} className="product-row">
-                        <div className="prod-img"><img src={p.img} alt="" style={{width:'100%', height:'100%', objectFit:'cover', borderRadius:'inherit'}} /></div>
+                        <div className="prod-img" style={{ background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {p.img
+                            ? <img src={p.img} alt={p.name} style={{width:'100%', height:'100%', objectFit:'cover', borderRadius:'inherit'}}
+                                onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                            : <svg viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="1.5" width="32" height="32"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+                          }
+                        </div>
                         <div className="prod-info">
                           <div className="prod-name">{p.name}</div>
-                          <div className="prod-sub">{p.desc}</div>
+                          <div className="prod-sub">{p.seller || p.desc || ''}</div>
                           <div className="prod-unit">${p.price.toFixed(2)} c/u</div>
                         </div>
                         <div className="prod-controls">

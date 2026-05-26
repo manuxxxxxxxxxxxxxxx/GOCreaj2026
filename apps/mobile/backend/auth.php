@@ -10,15 +10,20 @@ switch ($action) {
         require_fields($data, ['identificador', 'password']);
         $id = trim($data['identificador']);
         $pass = $data['password'];
-        
-        // La consulta está bien, busca por email, telefono o username
-        $st = db()->prepare("SELECT * FROM usuarios WHERE (username = ? OR email = ? OR telefono = ?) AND activo = 1 LIMIT 1");
+
+        // Primero buscamos sin filtrar activo para distinguir "credenciales incorrectas" de "suspendido"
+        $st = db()->prepare("SELECT * FROM usuarios WHERE (username = ? OR email = ? OR telefono = ?) LIMIT 1");
         $st->execute([$id, $id, $id]);
         $u = $st->fetch();
-        
+
         if (!$u || !password_verify($pass, $u['password_hash'])) {
             jout(['ok' => false, 'error' => 'Credenciales invalidas'], 401);
         }
+
+        if (!(int)$u['activo']) {
+            jout(['ok' => false, 'error' => 'cuenta_suspendida', 'mensaje' => 'Tu cuenta ha sido suspendida. Contacta al soporte si crees que es un error.'], 403);
+        }
+
         unset($u['password_hash']);
         jout(['ok' => true, 'usuario' => $u, 'token' => gen_token((int)$u['id'])]);
         break;

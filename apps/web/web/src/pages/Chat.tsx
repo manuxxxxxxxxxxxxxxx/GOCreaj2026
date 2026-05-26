@@ -371,6 +371,10 @@ export default function Chat() {
   const [msgInput, setMsgInput]           = useState('');
   const [tab, setTab]                     = useState<ChatTab>('todos');
   const [search, setSearch]               = useState('');
+  // Modal nuevo chat
+  const [newChatOpen, setNewChatOpen]     = useState(false);
+  const [newChatQ, setNewChatQ]           = useState('');
+  const [newChatUsers, setNewChatUsers]   = useState<Array<{ id: number; nombre: string; username?: string | null; foto_perfil?: string | null; rol: string; en_linea?: number }>>([]);
   const [totalUnread, setTotalUnread]     = useState(0);
   const [sending, setSending]             = useState(false);
   const [activeCall, setActiveCall]       = useState<ActiveCall | null>(null);
@@ -796,12 +800,82 @@ export default function Chat() {
               <div style={S.sidebarTitle}>Mensajes</div>
               {totalUnread > 0 && <div style={S.sidebarSub}>{totalUnread} sin leer</div>}
             </div>
-            <button style={S.iconBtn} title="Nuevo chat">
+            <button
+              style={{ ...S.iconBtn, cursor: 'pointer' }}
+              title="Nuevo chat"
+              onClick={() => {
+                setNewChatQ(''); setNewChatUsers([]); setNewChatOpen(true);
+                api.get('/chat_multi.php?action=buscar_usuarios&q=').then(r => { if (r.data.ok) setNewChatUsers(r.data.usuarios ?? []); });
+              }}
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="17" height="17">
                 <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
               </svg>
             </button>
           </div>
+
+          {/* ── Modal Nuevo Chat ── */}
+          {newChatOpen && (
+            <div onClick={() => setNewChatOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: '#FFF', borderRadius: 20, width: '100%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.4)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1.5px solid #E2E8F0' }}>
+                  <strong style={{ flex: 1, fontSize: 16, color: '#0F172A' }}>Nuevo chat</strong>
+                  <button onClick={() => setNewChatOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#64748B' }}>×</button>
+                </div>
+                <div style={{ padding: 14, borderBottom: '1.5px solid #E2E8F0' }}>
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Buscar usuario por nombre o @username..."
+                    value={newChatQ}
+                    onChange={e => {
+                      const q = e.target.value;
+                      setNewChatQ(q);
+                      api.get(`/chat_multi.php?action=buscar_usuarios&q=${encodeURIComponent(q)}`)
+                        .then(r => { if (r.data.ok) setNewChatUsers(r.data.usuarios ?? []); })
+                        .catch(() => setNewChatUsers([]));
+                    }}
+                    style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #E2E8F0', borderRadius: 12, outline: 'none', fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box', color: '#0F172A' }}
+                  />
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+                  {newChatUsers.length === 0 ? (
+                    <div style={{ textAlign: 'center', color: '#64748B', padding: 30 }}>
+                      {newChatQ ? 'Sin resultados' : 'Escribe para buscar usuarios'}
+                    </div>
+                  ) : newChatUsers.map(u => {
+                    const color = ROLE_COLOR[u.rol] ?? '#4A6D8C';
+                    return (
+                      <button
+                        key={u.id}
+                        onClick={() => {
+                          setNewChatOpen(false);
+                          // Crea contact dummy y lo selecciona
+                          const c: Contact = { id: u.id, nombre: u.nombre, username: u.username, foto_perfil: u.foto_perfil, rol: u.rol, en_linea: u.en_linea };
+                          setSelected(c);
+                          void fetchContacts(tab, search);
+                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, width: '100%', background: '#FFF', border: '1.5px solid #E2E8F0', borderRadius: 12, marginBottom: 8, cursor: 'pointer', textAlign: 'left' }}
+                      >
+                        <div style={{ width: 44, height: 44, borderRadius: 22, background: color, color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, overflow: 'hidden', flexShrink: 0 }}>
+                          {u.foto_perfil ? <img src={imgUri(u.foto_perfil)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : u.nombre.charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 800, color: '#0F172A', fontSize: 14 }}>{u.nombre}</div>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 2 }}>
+                            {u.username && <span style={{ fontSize: 12, color: '#64748B' }}>@{u.username}</span>}
+                            <span style={{ background: `${color}22`, color, fontSize: 9, fontWeight: 900, letterSpacing: 0.5, textTransform: 'uppercase', padding: '1px 6px', borderRadius: 8 }}>{u.rol}</span>
+                            {u.en_linea === 1 && <span style={{ width: 7, height: 7, borderRadius: 4, background: '#10B981' }} />}
+                          </div>
+                        </div>
+                        <span style={{ color: '#3B82F6', fontSize: 18 }}>💬</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div style={S.searchWrap}>
             <svg viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2" width="14" height="14" style={{ flexShrink: 0 }}>
