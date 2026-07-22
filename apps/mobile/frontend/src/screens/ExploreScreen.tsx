@@ -4,7 +4,6 @@ import {
   Image, ActivityIndicator, Dimensions, Animated, Platform,
   ScrollView,
 } from 'react-native';
-import MapView, { Marker, Callout, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -13,6 +12,7 @@ import { api, Endpoints, API_URL } from '@/services/api';
 import { useTheme } from '@/context/ThemeContext';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
 import { RootStackParamList } from '@/types';
+import ExploreMapView, { ExploreMapHandle } from '@/components/ExploreMapView';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
@@ -49,25 +49,6 @@ function imgUri(path?: string | null): string | undefined {
   const m = path.match(/\/uploads\/(.+)$/);
   if (m) return `${API_URL}/uploads/${m[1]}`;
   return `${API_URL}/uploads/${path}`;
-}
-
-function PriceBubble({ precio, selected }: { precio: number; selected: boolean }) {
-  const { colors } = useTheme();
-  return (
-    <View style={[
-      S.priceBubble,
-      {
-        backgroundColor: selected ? colors.accent : colors.card,
-        borderColor: selected ? colors.accent : colors.border,
-        shadowColor: selected ? colors.accent : '#000',
-      },
-    ]}>
-      <Text style={[S.priceBubbleTxt, { color: selected ? '#FFF' : colors.text }]}>
-        ${Number(precio).toFixed(2)}
-      </Text>
-      <View style={[S.priceBubbleArrow, { borderTopColor: selected ? colors.accent : colors.card }]} />
-    </View>
-  );
 }
 
 function ProductCard({ item, onPress }: { item: Producto; onPress: () => void }) {
@@ -120,17 +101,14 @@ export default function ExploreScreen() {
   const [page, setPage]         = useState(1);
   const [hasMore, setHasMore]   = useState(true);
 
-  const mapRef   = useRef<MapView>(null);
+  const mapRef   = useRef<ExploreMapHandle>(null);
   const listRef  = useRef<FlatList<Producto>>(null);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const mapItemsWithCoords = items.filter(i => i.tienda_lat && i.tienda_lng);
-
-  const initialRegion: Region = {
-    latitude:      13.6929,
-    longitude:    -89.2182,
-    latitudeDelta:  0.15,
-    longitudeDelta: 0.15,
-  };
+  const mapPins = mapItemsWithCoords.map(i => ({
+    id: i.id, lat: Number(i.tienda_lat), lng: Number(i.tienda_lng),
+    precio: i.precio, nombre: i.nombre, tiendaNombre: i.tienda_nombre,
+  }));
 
   const buscar = useCallback(async (q: string, categoria: string, pageNum = 1, append = false) => {
     setLoading(true);
@@ -167,17 +145,17 @@ export default function ExploreScreen() {
   const selectItem = (item: Producto) => {
     setSelected(item.id);
     if (item.tienda_lat && item.tienda_lng) {
-      mapRef.current?.animateToRegion({
-        latitude: item.tienda_lat,
-        longitude: item.tienda_lng,
-        latitudeDelta: 0.04,
-        longitudeDelta: 0.04,
-      }, 400);
+      mapRef.current?.flyTo(item.tienda_lat, item.tienda_lng);
     }
     const idx = items.findIndex(i => i.id === item.id);
     if (idx >= 0 && viewMode === 'list') {
       listRef.current?.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
     }
+  };
+
+  const selectById = (id: number) => {
+    const item = items.find(i => i.id === id);
+    if (item) selectItem(item);
   };
 
   const toggleView = () => {
@@ -263,48 +241,21 @@ export default function ExploreScreen() {
       {viewMode === 'map' ? (
         /* ─── VISTA MAPA ─────────────────────────────────────── */
         <View style={{ flex: 1 }}>
-          <MapView
-            ref={mapRef}
-            style={{ width: W, height: mapH }}
-            initialRegion={initialRegion}
-            customMapStyle={isDark ? darkMapStyle : []}
-            showsUserLocation
-            showsMyLocationButton={false}
-          >
-            {mapItemsWithCoords.map(item => (
-              <Marker
-                key={item.id}
-                coordinate={{ latitude: Number(item.tienda_lat), longitude: Number(item.tienda_lng) }}
-                onPress={() => selectItem(item)}
-                anchor={{ x: 0.5, y: 1 }}
-              >
-                <PriceBubble precio={item.precio} selected={selected === item.id} />
-                <Callout
-                  tooltip
-                  onPress={() => nav.navigate('Product', { productoId: item.id })}
-                >
-                  <View style={[S.callout, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <Text style={[S.calloutName, { color: colors.text }]} numberOfLines={2}>{item.nombre}</Text>
-                    <Text style={[S.calloutPrice, { color: colors.accent }]}>${Number(item.precio).toFixed(2)}</Text>
-                    <Text style={[S.calloutStore, { color: colors.muted }]}>{item.tienda_nombre}</Text>
-                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 8 }}>
-                      <View style={{ flex: 1, backgroundColor: colors.accent, borderRadius: 10, paddingVertical: 6, alignItems: 'center' }}>
-                        <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 11 }}>Agregar</Text>
-                      </View>
-                      <View style={{ flex: 1, backgroundColor: colors.success, borderRadius: 10, paddingVertical: 6, alignItems: 'center' }}>
-                        <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 11 }}>Visitar</Text>
-                      </View>
-                    </View>
-                  </View>
-                </Callout>
-              </Marker>
-            ))}
-          </MapView>
+          <View style={{ width: W, height: mapH }}>
+            <ExploreMapView
+              ref={mapRef}
+              pins={mapPins}
+              selectedId={selected}
+              isDark={isDark}
+              accent={colors.accent}
+              onSelectMarker={selectById}
+            />
+          </View>
 
           {/* Botón mi ubicación */}
           <TouchableOpacity
             style={[S.myLocBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => mapRef.current?.animateToRegion(initialRegion, 600)}
+            onPress={() => mapRef.current?.reset()}
           >
             <Ionicons name="locate-outline" size={20} color={colors.accent} />
           </TouchableOpacity>
@@ -393,18 +344,6 @@ export default function ExploreScreen() {
   );
 }
 
-// ─── Estilo mapa oscuro ────────────────────────────────────────────────
-const darkMapStyle = [
-  { elementType: 'geometry',           stylers: [{ color: '#0D1321' }] },
-  { elementType: 'labels.text.fill',   stylers: [{ color: '#94A3B8' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#0D1321' }] },
-  { featureType: 'road',               elementType: 'geometry',        stylers: [{ color: '#1E293B' }] },
-  { featureType: 'road',               elementType: 'geometry.stroke', stylers: [{ color: '#111827' }] },
-  { featureType: 'water',              elementType: 'geometry',        stylers: [{ color: '#080D18' }] },
-  { featureType: 'poi',                elementType: 'geometry',        stylers: [{ color: '#111827' }] },
-  { featureType: 'transit',            elementType: 'geometry',        stylers: [{ color: '#111827' }] },
-];
-
 const S = StyleSheet.create({
   root: { flex: 1 },
 
@@ -438,30 +377,6 @@ const S = StyleSheet.create({
     borderRadius: Radius.pill, borderWidth: 1.5,
   },
   catChipTxt: { fontSize: Fonts.small + 1, fontWeight: '700' },
-
-  // Price bubble on map
-  priceBubble: {
-    paddingHorizontal: 10, paddingVertical: 5,
-    borderRadius: 20, borderWidth: 1.5,
-    alignItems: 'center',
-    shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 6,
-  },
-  priceBubbleTxt: { fontSize: 12, fontWeight: '800', letterSpacing: -0.3 },
-  priceBubbleArrow: {
-    width: 0, height: 0,
-    borderLeftWidth: 5, borderRightWidth: 5, borderTopWidth: 6,
-    borderLeftColor: 'transparent', borderRightColor: 'transparent',
-    alignSelf: 'center', marginTop: 1,
-  },
-
-  // Callout
-  callout: {
-    width: 160, padding: 10, borderRadius: 14, borderWidth: 1.5,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 8,
-  },
-  calloutName:  { fontSize: 12, fontWeight: '700', marginBottom: 4 },
-  calloutPrice: { fontSize: 15, fontWeight: '900', marginBottom: 2 },
-  calloutStore: { fontSize: 10, fontWeight: '500' },
 
   // My location button
   myLocBtn: {

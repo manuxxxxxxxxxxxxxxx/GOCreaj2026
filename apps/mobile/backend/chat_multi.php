@@ -50,7 +50,7 @@ switch ($action) {
             if ($q && stripos($usr['nombre'], $q) === false && stripos($usr['username'] ?? '', $q) === false) continue;
 
             $lm = db()->prepare("
-                SELECT mensaje, tipo, adjunto, lat, lng, created_at FROM chats
+                SELECT id, mensaje, tipo, emisor_id, leido, adjunto, lat, lng, created_at FROM chats
                 WHERE (emisor_id = :a AND receptor_id = :b) OR (emisor_id = :b2 AND receptor_id = :a2)
                 ORDER BY created_at DESC LIMIT 1
             ");
@@ -106,10 +106,36 @@ switch ($action) {
         }
         unset($m);
 
+        if ($mensajes) {
+            $ids = array_column($mensajes, 'id');
+            $in  = implode(',', array_fill(0, count($ids), '?'));
+            $rq  = db()->prepare("SELECT chat_id, emoji, usuario_id FROM chat_reacciones WHERE chat_id IN ($in)");
+            $rq->execute($ids);
+            $byChat = [];
+            foreach ($rq->fetchAll() as $r) {
+                $byChat[(int)$r['chat_id']][] = $r;
+            }
+            foreach ($mensajes as &$m) {
+                $grupo = [];
+                foreach ($byChat[(int)$m['id']] ?? [] as $r) {
+                    $e = $r['emoji'];
+                    if (!isset($grupo[$e])) $grupo[$e] = ['emoji' => $e, 'count' => 0, 'mio' => false];
+                    $grupo[$e]['count']++;
+                    if ((int)$r['usuario_id'] === $uid) $grupo[$e]['mio'] = true;
+                }
+                $m['reacciones'] = array_values($grupo);
+            }
+            unset($m);
+        }
+
         db()->prepare("UPDATE chats SET leido = 1 WHERE receptor_id = ? AND emisor_id = ? AND leido = 0")
              ->execute([$uid, $otro]);
 
-        jout(['ok' => true, 'mensajes' => $mensajes]);
+        $ou = db()->prepare("SELECT id, nombre, username, foto_perfil, rol, en_linea, ultimo_visto FROM usuarios WHERE id = ?");
+        $ou->execute([$otro]);
+        $otroInfo = $ou->fetch() ?: null;
+
+        jout(['ok' => true, 'mensajes' => $mensajes, 'otro' => $otroInfo]);
         break;
     }
 
@@ -117,20 +143,40 @@ switch ($action) {
         $receptor = (int)($data['receptor_id'] ?? 0);
         if (!$receptor) jout(['ok' => false, 'error' => 'receptor_id requerido'], 400);
 
-        $tipo    = in_array($data['tipo'] ?? 'texto', ['texto','imagen','ubicacion']) ? ($data['tipo'] ?? 'texto') : 'texto';
-        $mensaje = trim($data['mensaje'] ?? '');
-        $adjunto = null;
-        $lat     = isset($data['lat']) ? (float)$data['lat'] : null;
-        $lng     = isset($data['lng']) ? (float)$data['lng'] : null;
+        $tipo = in_array($data['tipo'] ?? 'texto', ['texto','imagen','ubicacion','pdf','audio'])
+            ? ($data['tipo'] ?? 'texto') : 'texto';
+        $mensaje  = trim($data['mensaje'] ?? '');
+        $adjunto  = null;
+        $adjNombre = null;
+        $adjTamano = null;
+        $adjDuracion = null;
+        $lat = isset($data['lat']) ? (float)$data['lat'] : null;
+        $lng = isset($data['lng']) ? (float)$data['lng'] : null;
+
+        // Si adjunto no viene como data URI, es una URL ya existente (reenvío de otro mensaje)
+        $esDataUri = !empty($data['adjunto']) && strpos($data['adjunto'], 'data:') === 0;
 
         if ($tipo === 'imagen') {
             if (empty($data['adjunto'])) jout(['ok' => false, 'error' => 'adjunto requerido'], 400);
-            $adjunto = save_base64_image($data['adjunto'], 'chat', 'msg_' . $uid);
+            $adjunto = $esDataUri ? save_base64_image($data['adjunto'], 'chat', 'msg_' . $uid) : $data['adjunto'];
             if (!$adjunto) jout(['ok' => false, 'error' => 'Error al guardar imagen'], 500);
             if (!$mensaje) $mensaje = '📷 Imagen';
         } elseif ($tipo === 'ubicacion') {
             if (!$lat || !$lng) jout(['ok' => false, 'error' => 'lat/lng requeridos'], 400);
             if (!$mensaje) $mensaje = '📍 Ubicación compartida';
+        } elseif ($tipo === 'pdf') {
+            if (empty($data['adjunto'])) jout(['ok' => false, 'error' => 'adjunto requerido'], 400);
+            $adjunto = $esDataUri ? save_base64_pdf($data['adjunto'], 'chat', 'doc_' . $uid) : $data['adjunto'];
+            if (!$adjunto) jout(['ok' => false, 'error' => 'Error al guardar el PDF'], 500);
+            $adjNombre = $data['nombre'] ?? 'Documento.pdf';
+            $adjTamano = isset($data['tamano']) ? (int)$data['tamano'] : null;
+            if (!$mensaje) $mensaje = '📄 Documento';
+        } elseif ($tipo === 'audio') {
+            if (empty($data['adjunto'])) jout(['ok' => false, 'error' => 'adjunto requerido'], 400);
+            $adjunto = $esDataUri ? save_base64_audio($data['adjunto'], 'chat', 'audio_' . $uid) : $data['adjunto'];
+            if (!$adjunto) jout(['ok' => false, 'error' => 'Error al guardar el audio'], 500);
+            $adjDuracion = isset($data['duracion']) ? (int)$data['duracion'] : 0;
+            if (!$mensaje) $mensaje = '🎤 Nota de voz';
         } else {
             if (!$mensaje) jout(['ok' => false, 'error' => 'Mensaje vacío'], 400);
         }
@@ -142,10 +188,14 @@ switch ($action) {
         }
 
         $st = db()->prepare("
-            INSERT INTO chats (pedido_id, emisor_id, receptor_id, mensaje, tipo, adjunto, lat, lng, reply_to_id, reply_snapshot)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO chats (pedido_id, emisor_id, receptor_id, mensaje, tipo, adjunto, adjunto_nombre, adjunto_tamano, adjunto_duracion, lat, lng, reply_to_id, reply_snapshot)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
-        $st->execute([$data['pedido_id'] ?? null, $uid, $receptor, $mensaje, $tipo, $adjunto, $lat, $lng, $reply_to_id, $reply_snap]);
+        $st->execute([
+            $data['pedido_id'] ?? null, $uid, $receptor, $mensaje, $tipo,
+            $adjunto, $adjNombre, $adjTamano, $adjDuracion,
+            $lat, $lng, $reply_to_id, $reply_snap,
+        ]);
         jout(['ok' => true, 'id' => (int)db()->lastInsertId()]);
         break;
     }
@@ -174,6 +224,37 @@ switch ($action) {
         $st = db()->prepare("SELECT COUNT(*) as cnt FROM chats WHERE receptor_id = ? AND leido = 0");
         $st->execute([$uid]);
         jout(['ok' => true, 'total' => (int)($st->fetch()['cnt'] ?? 0)]);
+        break;
+    }
+
+    case 'reaccionar': {
+        $chatId = (int)($data['chat_id'] ?? 0);
+        $emoji  = trim($data['emoji'] ?? '');
+        if (!$chatId || !$emoji) jout(['ok' => false, 'error' => 'chat_id y emoji requeridos'], 400);
+
+        $st = db()->prepare("SELECT emoji FROM chat_reacciones WHERE chat_id = ? AND usuario_id = ?");
+        $st->execute([$chatId, $uid]);
+        $existing = $st->fetch();
+
+        if ($existing && $existing['emoji'] === $emoji) {
+            db()->prepare("DELETE FROM chat_reacciones WHERE chat_id = ? AND usuario_id = ?")
+                 ->execute([$chatId, $uid]);
+            jout(['ok' => true, 'reaccion' => null]);
+        } else {
+            db()->prepare("
+                INSERT INTO chat_reacciones (chat_id, usuario_id, emoji) VALUES (?, ?, ?)
+                ON DUPLICATE KEY UPDATE emoji = VALUES(emoji)
+            ")->execute([$chatId, $uid, $emoji]);
+            jout(['ok' => true, 'reaccion' => $emoji]);
+        }
+        break;
+    }
+
+    case 'eliminar_mensaje': {
+        $chatId = (int)($data['chat_id'] ?? 0);
+        if (!$chatId) jout(['ok' => false, 'error' => 'chat_id requerido'], 400);
+        db()->prepare("DELETE FROM chats WHERE id = ? AND emisor_id = ?")->execute([$chatId, $uid]);
+        jout(['ok' => true]);
         break;
     }
 
@@ -221,6 +302,57 @@ switch ($action) {
         ");
         $st->execute([$uid]);
         jout(['ok' => true, 'llamada' => $st->fetch() ?: null]);
+        break;
+    }
+
+    // ─── Contactos permitidos para iniciar un chat nuevo ───
+    // Comprador: vendedores/repartidores de sus pedidos. Vendedor: sus compradores/repartidores.
+    // Repartidor: compradores/vendedores de sus entregas. Admin: cualquiera (soporte/moderación).
+    case 'contactos': {
+        $rol = $user['rol'];
+
+        if ($rol === 'admin') {
+            $st = db()->prepare("
+                SELECT id, nombre, username, foto_perfil, rol, en_linea
+                FROM usuarios WHERE activo = 1 AND id <> ?
+                ORDER BY en_linea DESC, nombre ASC
+            ");
+            $st->execute([$uid]);
+            jout(['ok' => true, 'contactos' => $st->fetchAll()]);
+            break;
+        }
+
+        if ($rol === 'comprador') {
+            $sql = "SELECT vendedor_id AS otro_id FROM pedidos WHERE comprador_id = ?
+                    UNION
+                    SELECT repartidor_id AS otro_id FROM pedidos WHERE comprador_id = ? AND repartidor_id IS NOT NULL";
+            $params = [$uid, $uid];
+        } elseif ($rol === 'vendedor') {
+            $sql = "SELECT comprador_id AS otro_id FROM pedidos WHERE vendedor_id = ?
+                    UNION
+                    SELECT repartidor_id AS otro_id FROM pedidos WHERE vendedor_id = ? AND repartidor_id IS NOT NULL";
+            $params = [$uid, $uid];
+        } else { // repartidor
+            $sql = "SELECT comprador_id AS otro_id FROM pedidos WHERE repartidor_id = ?
+                    UNION
+                    SELECT vendedor_id AS otro_id FROM pedidos WHERE repartidor_id = ?";
+            $params = [$uid, $uid];
+        }
+
+        $ids = db()->prepare($sql);
+        $ids->execute($params);
+        $otroIds = array_map('intval', array_column($ids->fetchAll(), 'otro_id'));
+
+        if (!$otroIds) { jout(['ok' => true, 'contactos' => []]); break; }
+
+        $in = implode(',', array_fill(0, count($otroIds), '?'));
+        $st = db()->prepare("
+            SELECT id, nombre, username, foto_perfil, rol, en_linea
+            FROM usuarios WHERE activo = 1 AND id IN ($in)
+            ORDER BY en_linea DESC, nombre ASC
+        ");
+        $st->execute($otroIds);
+        jout(['ok' => true, 'contactos' => $st->fetchAll()]);
         break;
     }
 

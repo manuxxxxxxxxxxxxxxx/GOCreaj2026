@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 
-const API_URL = 'http://localhost/GOCreaj2026/apps/mobile/backend';
+const API_URL = `http://${window.location.hostname}/GOCreaj2026/apps/mobile/backend`;
 const TOKEN_KEY = 'lm_token_v1';
 
 // --- Types ---

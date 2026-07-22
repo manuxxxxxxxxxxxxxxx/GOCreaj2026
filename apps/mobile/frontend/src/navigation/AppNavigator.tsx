@@ -13,6 +13,7 @@ import LoadingScreen from '@/components/LoadingScreen';
 import BenefitsSlider from '@/screens/BenefitsSlider';
 import AuthScreen from '@/screens/AuthScreen';
 import RoleChangeBanner from '@/components/RoleChangeBanner';
+import IncomingCallBanner from '@/components/IncomingCallBanner';
 import OnboardingPhoneScreen from '@/screens/OnboardingPhoneScreen';
 import UsernameSetupScreen from '@/screens/UsernameSetupScreen';
 import HomeScreen from '@/screens/HomeScreen';
@@ -149,6 +150,8 @@ export default function AppNavigator() {
     <NavigationContainer theme={navTheme}>
       {/* Banner global de notificación de cambio de rol (cuando admin aprueba) */}
       <RoleChangeBanner />
+      {/* Banner global de llamada entrante (top toast, no pantalla completa) */}
+      {usuario && <IncomingCallBanner />}
       <Stack.Navigator
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
       >

@@ -18,7 +18,7 @@ interface Producto {
   descripcion?: string;
   precio: number;
   precio_oferta?: number | null;
-  imagen_url?: string | null;
+  imagen?: string | null;
   categoria?: string;
   tienda_nombre: string;
   municipio?: string;
@@ -26,10 +26,18 @@ interface Producto {
   tienda_lng?: number | null;
 }
 
-// ── Load Leaflet once from CDN ─────────────────────────────────────────────
+// ── Load Leaflet once from CDN (con preconnect para que cargue más rápido) ──
 function useLeaflet() {
   const [ready, setReady] = useState(!!window.L);
   useEffect(() => {
+    // Adelanta el handshake DNS/TLS con los CDNs antes de necesitarlos
+    ['https://unpkg.com', 'https://a.basemaps.cartocdn.com'].forEach(href => {
+      if (document.querySelector(`link[href="${href}"][rel="preconnect"]`)) return;
+      const l = document.createElement('link');
+      l.rel = 'preconnect'; l.href = href; l.crossOrigin = '';
+      document.head.appendChild(l);
+    });
+
     if (window.L) { setReady(true); return; }
     if (!document.querySelector(`link[href="${LEAFLET_CSS}"]`)) {
       const l = document.createElement('link');
@@ -37,7 +45,7 @@ function useLeaflet() {
       document.head.appendChild(l);
     }
     if (document.querySelector(`script[src="${LEAFLET_JS}"]`)) {
-      const t = setInterval(() => { if (window.L) { setReady(true); clearInterval(t); } }, 80);
+      const t = setInterval(() => { if (window.L) { setReady(true); clearInterval(t); } }, 50);
       return () => clearInterval(t);
     }
     const s = document.createElement('script');
@@ -51,7 +59,7 @@ function useLeaflet() {
 const imgUri = (img?: string | null) => {
   if (!img) return '';
   if (img.startsWith('data:') || img.startsWith('http')) return img;
-  return `http://localhost/GOCreaj2026/apps/mobile/backend/uploads/${img}`;
+  return `http://${window.location.hostname}/GOCreaj2026/apps/mobile/backend/uploads/${img}`;
 };
 
 // ── Main Component ─────────────────────────────────────────────────────────
@@ -126,10 +134,14 @@ export default function Explorar() {
     const map = L.map(mapEl.current, {
       center: SV_CENTER, zoom: SV_ZOOM,
       zoomControl: false,
+      preferCanvas: true,
+      fadeAnimation: true,
+      zoomAnimation: true,
     });
     tileRef.current = L.tileLayer(tileUrl, {
       attribution: '© OpenStreetMap © CartoDB',
       subdomains: 'abcd', maxZoom: 19,
+      keepBuffer: 6, updateWhenZooming: false, updateWhenIdle: false,
     }).addTo(map);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     mapObj.current = map;
@@ -150,6 +162,7 @@ export default function Explorar() {
     tileRef.current = L.tileLayer(tileUrl, {
       attribution: '© OpenStreetMap © CartoDB',
       subdomains: 'abcd', maxZoom: 19,
+      keepBuffer: 6, updateWhenZooming: false, updateWhenIdle: false,
     }).addTo(mapObj.current);
   }, [isDark]);
 
@@ -176,7 +189,7 @@ export default function Explorar() {
           <span class="svgo-pin-arrow" style="border-top-color:${accent}"></span>
         </div>`;
 
-      const icon = L.divIcon({ className: '', html, iconSize: [78, 34], iconAnchor: [39, 41] });
+      const icon = L.divIcon({ className: '', html, iconSize: [70, 32], iconAnchor: [35, 38] });
       const marker = L.marker([prod.tienda_lat, prod.tienda_lng], { icon });
 
       marker.on('click', () => {
@@ -218,7 +231,7 @@ export default function Explorar() {
         .svgo-price-pin {
           border-radius: 18px;
           padding: 5px 12px;
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 800;
           white-space: nowrap;
           box-shadow: 0 3px 14px rgba(0,0,0,0.28);
@@ -457,7 +470,7 @@ export default function Explorar() {
               {products.map(prod => {
                 const sel = selected === prod.id;
                 const price = prod.precio_oferta ?? prod.precio;
-                const src = imgUri(prod.imagen_url);
+                const src = imgUri(prod.imagen);
                 return (
                   <div
                     key={prod.id}
@@ -567,7 +580,7 @@ export default function Explorar() {
           }}>
             {products.map(prod => {
               const price = prod.precio_oferta ?? prod.precio;
-              const src   = imgUri(prod.imagen_url);
+              const src   = imgUri(prod.imagen);
               return (
                 <div
                   key={prod.id}

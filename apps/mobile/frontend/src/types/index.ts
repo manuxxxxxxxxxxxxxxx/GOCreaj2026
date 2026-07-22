@@ -203,7 +203,7 @@ export type RootStackParamList = {
   Product: { productoId: number };
   Cart: undefined;
   Tracking: { pedidoId: number };
-  Chat: { otroId: number; nombre: string; pedidoId?: number };
+  Chat: { otroId: number; nombre: string; pedidoId?: number; otroFoto?: string | null };
   BecomeSeller: undefined;
   Support: undefined;
 };

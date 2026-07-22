@@ -26,9 +26,9 @@ export interface ColorPalette {
 
 // ─── MODO OSCURO: superficies azuladas profundas + texto BLANCO ABSOLUTO ───
 export const darkColors: ColorPalette = {
-  background:    '#080D18',
+  background:    '#0B0F19',
   surface:       '#0D1321',
-  card:          '#111827',
+  card:          '#121B2D',
   elevated:      '#1A2236',
   text:          '#FFFFFF',          // ⚡ BLANCO ABSOLUTO
   textSecondary: '#FFFFFF',          // ⚡ Sin texto opacado: el contraste manda

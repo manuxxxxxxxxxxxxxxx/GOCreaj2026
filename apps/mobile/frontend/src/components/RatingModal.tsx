@@ -88,7 +88,7 @@ export default function RatingModal({ visible, pedidoId, onClose, onSent }: Prop
                 placeholderTextColor={colors.muted}
                 multiline
                 style={[styles.input, { color: colors.text, backgroundColor: colors.inputBg, borderColor: colors.border }]}
-                maxLength=300
+                maxLength={300}
               />
 
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>

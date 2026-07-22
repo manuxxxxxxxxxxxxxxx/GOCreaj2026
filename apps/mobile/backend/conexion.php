@@ -40,6 +40,8 @@ function db(): PDO {
 
 function db_migrate(): void {
     $stmts = [
+        // mensajes → chats: nombre histórico de la tabla, el código ya usa "chats"
+        "RENAME TABLE mensajes TO chats",
         // usuarios
         "ALTER TABLE usuarios ADD COLUMN username_changed_at DATETIME NULL AFTER username",
         "ALTER TABLE usuarios ADD COLUMN telefono_verificado TINYINT(1) NOT NULL DEFAULT 0 AFTER telefono",
@@ -179,6 +181,22 @@ function db_migrate(): void {
             UNIQUE KEY uk_cal (pedido_id, comprador_id),
             INDEX idx_tienda (tienda_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        // usuarios — última actividad (para "Activo hace Xm" en el chat)
+        "ALTER TABLE usuarios ADD COLUMN ultimo_visto DATETIME NULL",
+        // chats — adjuntos de documento (PDF) y nota de voz (audio)
+        "ALTER TABLE chats ADD COLUMN adjunto_nombre VARCHAR(255) NULL AFTER adjunto",
+        "ALTER TABLE chats ADD COLUMN adjunto_tamano INT NULL AFTER adjunto_nombre",
+        "ALTER TABLE chats ADD COLUMN adjunto_duracion INT NULL AFTER adjunto_tamano",
+        // chat_reacciones — una reacción (emoji) por usuario por mensaje
+        "CREATE TABLE IF NOT EXISTS chat_reacciones (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            chat_id INT NOT NULL,
+            usuario_id INT NOT NULL,
+            emoji VARCHAR(10) NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_reaccion (chat_id, usuario_id),
+            INDEX idx_chat (chat_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     ];
     foreach ($stmts as $sql) {
         try { db()->exec($sql); } catch (PDOException $e) {}
@@ -289,6 +307,39 @@ function save_base64_video(string $b64, string $subdir, string $prefix): ?string
     return UPLOAD_URL . $subdir . '/' . $name;
 }
 
+/**
+ * Guarda un PDF base64 (data:application/pdf;base64,...) en uploads/<subdir>.
+ * Devuelve la URL pública o null si el formato es inválido.
+ */
+function save_base64_pdf(string $b64, string $subdir, string $prefix): ?string {
+    if (!preg_match('/^data:application\/pdf;base64,/', $b64)) return null;
+    $data = base64_decode(preg_replace('/^data:application\/pdf;base64,/', '', $b64));
+    if ($data === false) return null;
+    $dir = UPLOAD_BASE . $subdir;
+    if (!is_dir($dir)) mkdir($dir, 0777, true);
+    $name = $prefix . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.pdf';
+    file_put_contents($dir . '/' . $name, $data);
+    return UPLOAD_URL . $subdir . '/' . $name;
+}
+
+/**
+ * Guarda una nota de voz base64 (data:audio/xxx;base64,...) en uploads/<subdir>.
+ * Devuelve la URL pública o null si el formato es inválido.
+ */
+function save_base64_audio(string $b64, string $subdir, string $prefix): ?string {
+    if (!preg_match('/^data:audio\/([\w-]+);base64,/', $b64, $m)) return null;
+    $ext = strtolower($m[1]);
+    if (!in_array($ext, ['m4a', 'mp4', 'aac', 'wav', 'webm', '3gp', 'mpeg', 'x-m4a'])) $ext = 'm4a';
+    if ($ext === 'x-m4a') $ext = 'm4a';
+    $data = base64_decode(preg_replace('/^data:audio\/[\w-]+;base64,/', '', $b64));
+    if ($data === false) return null;
+    $dir = UPLOAD_BASE . $subdir;
+    if (!is_dir($dir)) mkdir($dir, 0777, true);
+    $name = $prefix . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    file_put_contents($dir . '/' . $name, $data);
+    return UPLOAD_URL . $subdir . '/' . $name;
+}
+
 function gen_token(int $uid): string {
     return base64_encode($uid . '|' . time() . '|' . bin2hex(random_bytes(16)));
 }
@@ -315,7 +366,11 @@ function current_user(): ?array {
     if (!$uid) return null;
     $st = db()->prepare("SELECT * FROM usuarios WHERE id = ? AND activo = 1");
     $st->execute([$uid]);
-    return $st->fetch() ?: null;
+    $u = $st->fetch();
+    if ($u) {
+        db()->prepare("UPDATE usuarios SET ultimo_visto = NOW() WHERE id = ?")->execute([$uid]);
+    }
+    return $u ?: null;
 }
 
 function distancia_km(float $lat1, float $lng1, float $lat2, float $lng2): float {

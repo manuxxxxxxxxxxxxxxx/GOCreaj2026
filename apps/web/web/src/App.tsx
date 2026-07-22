@@ -11,6 +11,7 @@ import Market from './pages/Market';
 import CarritoYpago from './pages/CarritoYpago';
 import Perfil from './pages/Perfil';
 import Chat from './pages/Chat';
+import CallEmbed from './pages/CallEmbed';
 import Entregas from './pages/Entregas';
 import Reels from './pages/Reels';
 import Historial from './pages/Historial';
@@ -32,6 +33,7 @@ function App() {
           <Route path="/perfil" element={<Perfil />} />
           <Route path="/historial" element={<Historial />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/call-embed" element={<CallEmbed />} />
           <Route path="/entregas" element={<Entregas />} />
           <Route path="/reels" element={<Reels />} />
           <Route path="/dashboard-vendedor" element={<VendedorDashboard />} />

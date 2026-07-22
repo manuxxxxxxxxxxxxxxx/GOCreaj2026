@@ -18,6 +18,38 @@ const rooms = {};
 io.on('connection', socket => {
   console.log('[signal] connected:', socket.id);
 
+  // ── Presencia / bandeja personal del usuario (para push de mensajes) ─────────
+  // Cada usuario se une a su propia sala "user_<id>" al conectar; así el emisor
+  // de un mensaje puede empujarlo en tiempo real al receptor sin polling.
+  socket.on('join-user', ({ userId }) => {
+    if (!userId) return;
+    socket.data.userId = userId;
+    socket.join(`user_${userId}`);
+  });
+
+  // ── Nuevo mensaje de chat (push en tiempo real, la persistencia va por REST) ──
+  socket.on('send-message', ({ receptorId, message }) => {
+    if (!receptorId || !message) return;
+    io.to(`user_${receptorId}`).emit('new-message', message);
+  });
+
+  // ── Confirmación de lectura (para pasar de un check a dos en tiempo real) ────
+  socket.on('mark-read', ({ otroId, leidoPorId }) => {
+    if (!otroId) return;
+    io.to(`user_${otroId}`).emit('messages-read', { by: leidoPorId });
+  });
+
+  // ── Reacción / eliminación de mensaje (push instantáneo) ─────────────────────
+  socket.on('reaction-change', ({ otroId, chatId, emoji, usuarioId }) => {
+    if (!otroId) return;
+    io.to(`user_${otroId}`).emit('reaction-change', { chatId, emoji, usuarioId });
+  });
+
+  socket.on('message-deleted', ({ otroId, chatId }) => {
+    if (!otroId) return;
+    io.to(`user_${otroId}`).emit('message-deleted', { chatId });
+  });
+
   // ── Join a call room ─────────────────────────────────────────────────────────
   socket.on('join-call', ({ room, userId }) => {
     socket.join(room);
