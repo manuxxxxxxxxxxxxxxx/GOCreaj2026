@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import '../../css/Reels.css';
@@ -23,7 +22,7 @@ const MOCK_REELS: Reel[] = [
 ];
 
 export default function Reels() {
-  const { toggleTheme, cartCount } = useGlobal();
+  // const { toggleTheme, cartCount } = useGlobal();
   const navigate = useNavigate();
 
   const [reels, setReels] = useState<Reel[]>(MOCK_REELS);

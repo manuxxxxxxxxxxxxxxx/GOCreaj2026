@@ -12,13 +12,14 @@ interface Order {
   address: string;
   items: string;
   total: number;
-  status: 'pending' | 'active';
+  status: 'pending' | 'assigned' | 'in_store' | 'in_transit' | 'completed';
   emoji: string;
 }
 
 export default function RepartidorDashboard() {
-  const { theme, toggleTheme } = useGlobal();
+  const { theme, toggleTheme, user, logout } = useGlobal();
   const navigate = useNavigate();
+  const driverName = user?.name || 'Carlos Reparto';
 
   // Availability Toggle
   const [isAvailable, setIsAvailable] = useState(true);
@@ -60,7 +61,7 @@ export default function RepartidorDashboard() {
       address: 'Av. Masferrer #102, Escalón',
       items: '2x Pan Integral, 1x Café Premium',
       total: 16.55,
-      status: 'active',
+      status: 'assigned',
       emoji: '🥖'
     }
   ]);
@@ -85,7 +86,7 @@ export default function RepartidorDashboard() {
     // Remove from available
     setAvailableOrders(prev => prev.filter(o => o.id !== order.id));
     // Add to active
-    setActiveDeliveries(prev => [...prev, { ...order, status: 'active' }]);
+    setActiveDeliveries(prev => [...prev, { ...order, status: 'assigned' }]);
     triggerToast('🛵 ¡Pedido aceptado! Recoge en la tienda.');
   };
 
@@ -131,7 +132,7 @@ export default function RepartidorDashboard() {
               </svg>
             )}
           </button>
-          <button className="lm-theme-toggle" onClick={() => navigate('/login')} title="Cerrar sesión" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button className="lm-theme-toggle" onClick={() => { logout(); navigate('/'); }} title="Cerrar sesión" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
               <polyline points="16 17 21 12 16 7"/>
@@ -148,7 +149,7 @@ export default function RepartidorDashboard() {
           <div className="dash-header-left">
             <h1 className="page-title">Dashboard del Repartidor</h1>
             <p className="driver-subtitle">
-              Hola, <strong>Carlos Reparto</strong> — bienvenido de vuelta
+              Hola, <strong>{driverName}</strong> — bienvenido de vuelta
             </p>
           </div>
           <div className="availability-wrap">
@@ -215,8 +216,33 @@ export default function RepartidorDashboard() {
           </div>
         </div>
 
-        {/* Two-column panels */}
-        <div className="dash-columns">
+        {/* Two-column panels wrapper */}
+        <div className="dash-columns" style={{ position: 'relative' }}>
+          {!isAvailable && (
+            <div className="offline-overlay" style={{
+              position: 'absolute',
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(255, 255, 255, 0.5)',
+              backdropFilter: 'blur(8px)',
+              zIndex: 10,
+              borderRadius: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '40px',
+              textAlign: 'center',
+              border: '2px dashed var(--border)',
+              transition: 'all 0.3s ease'
+            }}>
+              <span style={{ fontSize: '3rem', marginBottom: '16px' }}>😴</span>
+              <h3 style={{ fontSize: '1.4rem', fontWeight: '800', marginBottom: '8px', color: 'var(--text)' }}>Estás Desconectado</h3>
+              <p style={{ fontSize: '0.95rem', color: 'var(--text-muted)', maxWidth: '400px' }}>
+                Activa tu disponibilidad en el interruptor de arriba para empezar a recibir y gestionar pedidos en tu zona.
+              </p>
+            </div>
+          )}
+
           {/* LEFT: Entregas Activas */}
           <div className="panel-card">
             <div className="panel-header">
@@ -247,8 +273,58 @@ export default function RepartidorDashboard() {
                           <p>{o.items}</p>
                         </div>
                       </div>
-                      <span className="dash-item-status active">En camino</span>
+                      <span className={`dash-item-status ${o.status === 'in_transit' ? 'active' : 'avail'}`}>
+                        {o.status === 'assigned' ? 'Asignado' : o.status === 'in_store' ? 'En Tienda' : 'En Camino'}
+                      </span>
                     </div>
+
+                    {/* Step Progress Stepper */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '8px 0' }}>
+                      <div className="delivery-stepper" style={{ display: 'flex', justifyContent: 'space-between', position: 'relative', margin: '12px 0 20px', padding: '0 10px' }}>
+                        {/* Connecting Line */}
+                        <div style={{
+                          position: 'absolute',
+                          top: '12px', left: '20px', right: '20px', height: '3px',
+                          background: '#cbd5e1',
+                          zIndex: 1
+                        }}>
+                          <div style={{
+                            height: '100%',
+                            width: o.status === 'assigned' ? '0%' : o.status === 'in_store' ? '50%' : '100%',
+                            background: 'var(--blue)',
+                            transition: 'width-step 0.3s ease'
+                          }} />
+                        </div>
+                        
+                        {/* Steps */}
+                        {[
+                          { key: 'assigned', label: 'Asignado', icon: '📋' },
+                          { key: 'in_store', label: 'En Tienda', icon: '🏪' },
+                          { key: 'in_transit', label: 'En Camino', icon: '🛵' }
+                        ].map((step, idx) => {
+                          const isDone = (o.status === 'in_store' && idx === 0) || (o.status === 'in_transit' && idx <= 1);
+                          const isActive = o.status === step.key;
+                          return (
+                            <div key={step.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2, position: 'relative', width: '60px' }}>
+                              <div style={{
+                                width: '26px', height: '26px', borderRadius: '50%',
+                                background: isDone || isActive ? 'var(--blue)' : '#cbd5e1',
+                                color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: '0.8rem', fontWeight: '800',
+                                boxShadow: isActive ? '0 0 0 4px rgba(74, 109, 140, 0.2)' : 'none',
+                                transition: 'all 0.3s ease'
+                              }}>
+                                {isDone ? '✓' : step.icon}
+                              </div>
+                              <span style={{ fontSize: '0.65rem', marginTop: '6px', fontWeight: isActive ? '800' : '600', color: isActive ? 'var(--blue)' : 'var(--text-muted)', textAlign: 'center' }}>
+                                {step.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     <div style={{ padding: '8px 12px', background: 'var(--bg)', borderRadius: '10px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                       📍 <strong>Entregar a:</strong> {o.client} <br />
                       🏡 <strong>Dirección:</strong> {o.address}
@@ -257,7 +333,40 @@ export default function RepartidorDashboard() {
                       <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text)' }}>Monto: ${o.total.toFixed(2)}</span>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button className="btn-primary" onClick={() => navigate('/chat')} style={{ padding: '6px 12px', fontSize: '0.78rem' }}>💬 Chat</button>
-                        <button className="btn-primary" onClick={() => handleCompleteDelivery(o)} style={{ padding: '6px 12px', fontSize: '0.78rem', background: 'var(--green)' }}>✓ Entregar</button>
+                        
+                        {o.status === 'assigned' && (
+                          <button 
+                            className="btn-primary" 
+                            onClick={() => {
+                              setActiveDeliveries(prev => prev.map(del => del.id === o.id ? { ...del, status: 'in_store' } : del));
+                              triggerToast('🏪 ¡Llegaste a la tienda! Retira los productos.');
+                            }} 
+                            style={{ padding: '6px 12px', fontSize: '0.78rem', background: 'var(--orange)' }}
+                          >
+                            Llegué a la Tienda
+                          </button>
+                        )}
+                        {o.status === 'in_store' && (
+                          <button 
+                            className="btn-primary" 
+                            onClick={() => {
+                              setActiveDeliveries(prev => prev.map(del => del.id === o.id ? { ...del, status: 'in_transit' } : del));
+                              triggerToast('🛵 ¡Productos retirados! Inicia viaje hacia la dirección.');
+                            }} 
+                            style={{ padding: '6px 12px', fontSize: '0.78rem', background: 'var(--blue)' }}
+                          >
+                            Iniciar Viaje
+                          </button>
+                        )}
+                        {o.status === 'in_transit' && (
+                          <button 
+                            className="btn-primary" 
+                            onClick={() => handleCompleteDelivery(o)} 
+                            style={{ padding: '6px 12px', fontSize: '0.78rem', background: 'var(--green)' }}
+                          >
+                            Entregar
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

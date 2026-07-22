@@ -1,11 +1,10 @@
-import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import '../../css/perfil.css';
 import '../../css/dark.css';
 
 export default function Perfil() {
-  const { toggleTheme, cartCount } = useGlobal();
+  // const { toggleTheme, cartCount } = useGlobal();
   const navigate = useNavigate();
 
   return (

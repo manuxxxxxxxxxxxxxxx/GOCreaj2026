@@ -505,6 +505,7 @@ nav {
 
 .order-action-btn.primary:hover { 
   background: var(--blue-dark); 
+  color: white;
   transform: translateY(-1px);
   box-shadow: 0 6px 16px rgba(74, 109, 140, 0.35);
 }

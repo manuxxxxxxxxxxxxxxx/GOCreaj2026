@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGlobal } from "../context/GlobalContext";
-import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import '../../css/Chat.css';
 import '../../css/dark.css';
@@ -49,8 +48,7 @@ const INITIAL_CONVERSATIONS: Record<number, Message[]> = {
 };
 
 export default function Chat() {
-  const { toggleTheme, cartCount, theme } = useGlobal();
-  const navigate = useNavigate();
+  const { theme } = useGlobal();
 
   const [contacts, setContacts] = useState<Contact[]>(INITIAL_CONTACTS);
   const [selectedChat, setSelectedChat] = useState<Contact | null>(INITIAL_CONTACTS[0]); // default to first chat so it doesn't look empty!

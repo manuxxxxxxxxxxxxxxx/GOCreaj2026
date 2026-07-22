@@ -14,9 +14,20 @@ interface Product {
   active: boolean;
 }
 
+interface SellerOrder {
+  id: string;
+  client: string;
+  items: string;
+  time: string;
+  total: number;
+  status: 'preparando' | 'listo' | 'entregado';
+  emoji: string;
+}
+
 export default function VendedorDashboard() {
-  const { theme, toggleTheme } = useGlobal();
+  const { theme, toggleTheme, user, logout } = useGlobal();
   const navigate = useNavigate();
+  const sellerName = user?.name || 'Panadería Don José';
 
   // Products State
   const [products, setProducts] = useState<Product[]>([
@@ -24,6 +35,29 @@ export default function VendedorDashboard() {
     { emoji: '☕', name: 'Café Premium 250g', price: 8.75, cat: 'bebidas', stock: 42, active: true },
     { emoji: '🥦', name: 'Mix Verduras Orgánicas', price: 12.00, cat: 'alimentos', stock: 23, active: true }
   ]);
+
+  // Orders State (Dynamic)
+  const [orders, setOrders] = useState<SellerOrder[]>([
+    { id: '100450', client: 'Alejandro Cabrera', items: '1x Pan Artesanal Integral', time: 'Hoy, 14:30', total: 4.05, status: 'entregado', emoji: '🥖' },
+    { id: '100451', client: 'María Fernanda', items: '2x Café Premium 250g', time: 'Hoy, 12:10', total: 17.50, status: 'preparando', emoji: '☕' },
+  ]);
+
+  // Chart Tooltip Hover State
+  const [hoveredPoint, setHoveredPoint] = useState<{ day: string; sales: number; x: number; y: number } | null>(null);
+
+  // Dynamic earnings summation
+  const salesToday = orders.reduce((sum, o) => sum + (o.status === 'entregado' ? o.total : 0), 103.25);
+
+  // Chart Data config
+  const chartData = [
+    { day: 'Lunes', sales: 85.00, cx: 40, cy: 160 },
+    { day: 'Martes', sales: 110.50, cx: 110, cy: 130 },
+    { day: 'Miércoles', sales: 95.00, cx: 180, cy: 145 },
+    { day: 'Jueves', sales: 130.00, cx: 250, cy: 110 },
+    { day: 'Viernes', sales: 155.00, cx: 320, cy: 80 },
+    { day: 'Sábado', sales: 210.00, cx: 390, cy: 45 },
+    { day: 'Domingo', sales: salesToday, cx: 460, cy: 60 }
+  ];
 
   // Modal State — Product
   const [showModal, setShowModal] = useState(false);
@@ -43,6 +77,33 @@ export default function VendedorDashboard() {
 
   const [toastMsg, setToastMsg] = useState('');
   const [showToast, setShowToast] = useState(false);
+
+  const handleAddMockOrder = () => {
+    const mockNames = ['Carlos Mendoza', 'Diana Fuentes', 'José Reyes', 'Sofía Alvarado'];
+    const mockItems = [
+      { name: '1x Mix Verduras Orgánicas Mix', price: 12.00, emoji: '🥦' },
+      { name: '2x Croissant de Mantequilla', price: 5.00, emoji: '🥐' },
+      { name: '3x Café Premium 250g', price: 26.25, emoji: '☕' },
+      { name: '1x Pan Artesanal Integral', price: 4.05, emoji: '🥖' },
+    ];
+    
+    const randomName = mockNames[Math.floor(Math.random() * mockNames.length)];
+    const randomItem = mockItems[Math.floor(Math.random() * mockItems.length)];
+    const randomId = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    const newOrder: SellerOrder = {
+      id: randomId,
+      client: randomName,
+      items: randomItem.name,
+      time: 'Hace un momento',
+      total: randomItem.price,
+      status: 'preparando',
+      emoji: randomItem.emoji
+    };
+    
+    setOrders(prev => [newOrder, ...prev]);
+    triggerToast(`🔔 Nuevo pedido recibido de ${randomName} ($${randomItem.price.toFixed(2)})`);
+  };
 
   const triggerToast = (msg: string) => {
     setToastMsg(msg);
@@ -140,7 +201,7 @@ export default function VendedorDashboard() {
               </svg>
             )}
           </button>
-          <button className="lm-theme-toggle" onClick={() => navigate('/login')} title="Cerrar sesión" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <button className="lm-theme-toggle" onClick={() => { logout(); navigate('/'); }} title="Cerrar sesión" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
               <polyline points="16 17 21 12 16 7"/>
@@ -157,7 +218,7 @@ export default function VendedorDashboard() {
           <div className="dash-header-left">
             <h1 className="page-title">Dashboard del Vendedor</h1>
             <p className="dash-seller-name">
-              Comercio: <strong>Panadería Don José</strong> — Panel de Administración
+              Comercio: <strong>{sellerName}</strong> — Panel de Administración
             </p>
           </div>
           <div className="dash-header-actions">
@@ -188,7 +249,7 @@ export default function VendedorDashboard() {
               </svg>
             </div>
             <div className="stat-label">Ventas Hoy</div>
-            <div className="stat-num" style={{ color: 'var(--green)' }}>$124.80</div>
+            <div className="stat-num" style={{ color: 'var(--green)' }}>${salesToday.toFixed(2)}</div>
             <span className="stat-badge">+15% vs ayer</span>
           </div>
           <div className="stat-card">
@@ -200,8 +261,8 @@ export default function VendedorDashboard() {
               </svg>
             </div>
             <div className="stat-label">Pedidos Recibidos</div>
-            <div className="stat-num">{products.length + 5}</div>
-            <span className="stat-badge green">3 por entregar</span>
+            <div className="stat-num">{orders.length}</div>
+            <span className="stat-badge green">{orders.filter(o => o.status !== 'entregado').length} por entregar</span>
           </div>
           <div className="stat-card">
             <div className="stat-icon-wrap purple">
@@ -247,13 +308,13 @@ export default function VendedorDashboard() {
                   </linearGradient>
                 </defs>
                 <path 
-                  d="M 0 160 Q 80 120 160 140 T 320 80 T 480 60 L 480 180 L 0 180 Z" 
+                  d="M 40 160 L 110 130 L 180 145 L 250 110 L 320 80 L 390 45 L 460 60 L 460 180 L 40 180 Z" 
                   fill="url(#chartGradient)" 
                 />
 
                 {/* Main Trend Line */}
                 <path 
-                  d="M 0 160 Q 80 120 160 140 T 320 80 T 480 60" 
+                  d="M 40 160 L 110 130 L 180 145 L 250 110 L 320 80 L 390 45 L 460 60" 
                   fill="none" 
                   stroke="var(--blue)" 
                   strokeWidth="4" 
@@ -261,9 +322,68 @@ export default function VendedorDashboard() {
                 />
 
                 {/* Custom glowing points */}
-                <circle cx="160" cy="140" r="5" fill="var(--blue)" stroke="#fff" strokeWidth="2" />
-                <circle cx="320" cy="80" r="5" fill="var(--blue)" stroke="#fff" strokeWidth="2" />
-                <circle cx="480" cy="60" r="6" fill="var(--green)" stroke="#fff" strokeWidth="2" />
+                {chartData.map((d, idx) => (
+                  <circle
+                    key={idx}
+                    cx={d.cx}
+                    cy={d.cy}
+                    r={hoveredPoint?.day === d.day ? "7" : "5"}
+                    fill={d.day === 'Domingo' ? "var(--green)" : "var(--blue)"}
+                    stroke="#ffffff"
+                    strokeWidth="2"
+                    style={{ transition: 'all 0.15s ease' }}
+                  />
+                ))}
+
+                {/* Invisible hover trigger circles */}
+                {chartData.map((d, idx) => (
+                  <circle
+                    key={idx}
+                    cx={d.cx}
+                    cy={d.cy}
+                    r="15"
+                    fill="transparent"
+                    style={{ cursor: 'pointer' }}
+                    onMouseEnter={() => setHoveredPoint({ day: d.day, sales: d.sales, x: d.cx, y: d.cy })}
+                    onMouseLeave={() => setHoveredPoint(null)}
+                  />
+                ))}
+
+                {/* Pure SVG Tooltip */}
+                {hoveredPoint && (
+                  <g>
+                    <rect
+                      x={hoveredPoint.x - 55}
+                      y={hoveredPoint.y - 48}
+                      width="110"
+                      height="36"
+                      rx="8"
+                      fill="#1e293b"
+                      stroke="#475569"
+                      strokeWidth="1.5"
+                    />
+                    <text
+                      x={hoveredPoint.x}
+                      y={hoveredPoint.y - 34}
+                      textAnchor="middle"
+                      fill="#94a3b8"
+                      fontSize="9"
+                      fontWeight="700"
+                    >
+                      {hoveredPoint.day}
+                    </text>
+                    <text
+                      x={hoveredPoint.x}
+                      y={hoveredPoint.y - 20}
+                      textAnchor="middle"
+                      fill="#38bdf8"
+                      fontSize="10"
+                      fontWeight="800"
+                    >
+                      ${hoveredPoint.sales.toFixed(2)}
+                    </text>
+                  </g>
+                )}
               </svg>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', padding: '0 8px', marginTop: '12px', fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>
                 <span>Lun</span>
@@ -279,34 +399,64 @@ export default function VendedorDashboard() {
 
           {/* Recent Orders List */}
           <div className="dash-card">
-            <div className="dash-card-title">Pedidos Recientes</div>
-            <div className="orders-list">
-              <div className="dash-item-row">
-                <div className="dash-item-left">
-                  <span className="dash-item-emoji">🥖</span>
-                  <div className="dash-item-info">
-                    <h4>Alejandro Cabrera</h4>
-                    <p>Hoy, 14:30 · 1x Pan Artesanal Integral</p>
+            <div className="dash-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Pedidos Recientes</span>
+              <button 
+                className="btn-purple" 
+                onClick={handleAddMockOrder}
+                style={{ padding: '4px 10px', fontSize: '0.72rem', boxShadow: 'none' }}
+              >
+                + Pedido Demo
+              </button>
+            </div>
+            <div className="orders-list" style={{ gap: '12px', maxHeight: '320px', overflowY: 'auto' }}>
+              {orders.map((o) => (
+                <div key={o.id} className="dash-item-row" style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="dash-item-left">
+                      <span className="dash-item-emoji">{o.emoji}</span>
+                      <div className="dash-item-info">
+                        <h4>{o.client}</h4>
+                        <p>{o.time} · {o.items}</p>
+                      </div>
+                    </div>
+                    <div className="dash-item-right" style={{ flexDirection: 'row', alignItems: 'center', gap: '8px' }}>
+                      <span className="dash-item-price">${o.total.toFixed(2)}</span>
+                      <span className={`dash-item-status ${o.status === 'entregado' ? 'avail' : o.status === 'preparando' ? 'active' : 'orange-status'}`} style={{ fontSize: '0.65rem' }}>
+                        {o.status === 'entregado' ? 'Entregado' : o.status === 'preparando' ? 'Preparando' : 'Listo p/ Enviar'}
+                      </span>
+                    </div>
                   </div>
+                  {o.status === 'preparando' && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                      <button 
+                        className="btn-primary" 
+                        onClick={() => {
+                          setOrders(prev => prev.map(order => order.id === o.id ? { ...order, status: 'listo' } : order));
+                          triggerToast('📦 ¡Pedido listo para que el repartidor lo retire!');
+                        }}
+                        style={{ padding: '4px 10px', fontSize: '0.72rem', background: 'var(--blue)' }}
+                      >
+                        Marcar Listo para Enviar
+                      </button>
+                    </div>
+                  )}
+                  {o.status === 'listo' && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                      <button 
+                        className="btn-primary" 
+                        onClick={() => {
+                          setOrders(prev => prev.map(order => order.id === o.id ? { ...order, status: 'entregado' } : order));
+                          triggerToast('✅ Pedido entregado al repartidor/cliente.');
+                        }}
+                        style={{ padding: '4px 10px', fontSize: '0.72rem', background: 'var(--green)' }}
+                      >
+                        Marcar como Entregado
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div className="dash-item-right">
-                  <span className="dash-item-price">$4.05</span>
-                  <span className="dash-item-status avail" style={{ fontSize: '0.65rem' }}>Entregado</span>
-                </div>
-              </div>
-              <div className="dash-item-row">
-                <div className="dash-item-left">
-                  <span className="dash-item-emoji">☕</span>
-                  <div className="dash-item-info">
-                    <h4>María Fernanda</h4>
-                    <p>Hoy, 12:10 · 2x Café Premium 250g</p>
-                  </div>
-                </div>
-                <div className="dash-item-right">
-                  <span className="dash-item-price">$17.50</span>
-                  <span className="dash-item-status active" style={{ fontSize: '0.65rem' }}>Preparando</span>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
@@ -369,6 +519,194 @@ export default function VendedorDashboard() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* ══ MAPA DE COBERTURA Y PEDIDOS ACTIVOS ══ */}
+        <div className="section-header" style={{ marginTop: '8px' }}>
+          <div className="section-title">🗺️ Cobertura y Pedidos en Tiempo Real</div>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+            Vista general de tu zona de entrega
+          </span>
+        </div>
+
+        <div style={{
+          background: 'var(--white)',
+          border: '1px solid var(--border)',
+          borderRadius: '24px',
+          overflow: 'hidden',
+          boxShadow: 'var(--card-shadow)',
+          display: 'grid',
+          gridTemplateColumns: '1fr 280px',
+        }}>
+          {/* SVG Map Mockup */}
+          <div style={{ position: 'relative', minHeight: '360px', background: '#e8f0e8' }}>
+            <svg width="100%" height="360" viewBox="0 0 700 360" preserveAspectRatio="xMidYMid slice">
+              {/* Base map tiles */}
+              <rect width="700" height="360" fill="#e8f0e8"/>
+              {/* Streets grid */}
+              <g stroke="#c5d5c5" strokeWidth="12" fill="none" opacity="0.9">
+                <line x1="0" y1="90"  x2="700" y2="90"/>
+                <line x1="0" y1="180" x2="700" y2="180"/>
+                <line x1="0" y1="270" x2="700" y2="270"/>
+                <line x1="140" y1="0" x2="140" y2="360"/>
+                <line x1="280" y1="0" x2="280" y2="360"/>
+                <line x1="420" y1="0" x2="420" y2="360"/>
+                <line x1="560" y1="0" x2="560" y2="360"/>
+              </g>
+              {/* Secondary roads */}
+              <g stroke="#d4e4d4" strokeWidth="5" fill="none" opacity="0.8">
+                <line x1="0" y1="45"  x2="700" y2="45"/>
+                <line x1="0" y1="135" x2="700" y2="135"/>
+                <line x1="0" y1="225" x2="700" y2="225"/>
+                <line x1="0" y1="315" x2="700" y2="315"/>
+                <line x1="70" y1="0" x2="70" y2="360"/>
+                <line x1="210" y1="0" x2="210" y2="360"/>
+                <line x1="350" y1="0" x2="350" y2="360"/>
+                <line x1="490" y1="0" x2="490" y2="360"/>
+                <line x1="630" y1="0" x2="630" y2="360"/>
+              </g>
+              {/* Block fill colors */}
+              <rect x="142" y="92" width="136" height="86" fill="#dce9dc" rx="4"/>
+              <rect x="282" y="92" width="136" height="86" fill="#e2eee2" rx="4"/>
+              <rect x="142" y="182" width="136" height="86" fill="#e2eee2" rx="4"/>
+              <rect x="282" y="182" width="136" height="86" fill="#dce9dc" rx="4"/>
+              <rect x="422" y="92" width="136" height="86" fill="#dce9dc" rx="4"/>
+              <rect x="422" y="182" width="136" height="86" fill="#e5f0e5" rx="4"/>
+              <rect x="2" y="2" width="136" height="86" fill="#e5f0e5" rx="4"/>
+              <rect x="2" y="92" width="136" height="86" fill="#dce9dc" rx="4"/>
+
+              {/* Delivery zone radius overlay */}
+              <circle cx="350" cy="180" r="160" fill="rgba(74,109,140,0.08)" stroke="rgba(74,109,140,0.25)" strokeWidth="2" strokeDasharray="8 4"/>
+
+              {/* Store marker (center) */}
+              <g transform="translate(330,160)">
+                <circle cx="20" cy="20" r="22" fill="white" opacity="0.95" style={{filter:'drop-shadow(0 4px 8px rgba(0,0,0,0.18))'}}/>
+                <circle cx="20" cy="20" r="16" fill="#4A6D8C"/>
+                <text x="20" y="26" textAnchor="middle" fill="white" fontSize="16">🏪</text>
+                <circle cx="20" cy="20" r="22" fill="none" stroke="#4A6D8C" strokeWidth="3" opacity="0.5">
+                  <animate attributeName="r" from="22" to="36" dur="2s" repeatCount="indefinite"/>
+                  <animate attributeName="opacity" from="0.5" to="0" dur="2s" repeatCount="indefinite"/>
+                </circle>
+              </g>
+              <text x="350" y="215" textAnchor="middle" fill="#4A6D8C" fontSize="11" fontWeight="700">Tu tienda</text>
+
+              {/* Active delivery markers */}
+              <g transform="translate(178,100)">
+                <circle cx="14" cy="14" r="16" fill="white" opacity="0.92" style={{filter:'drop-shadow(0 3px 6px rgba(0,0,0,0.15))'}}/>
+                <circle cx="14" cy="14" r="12" fill="#e67e22"/>
+                <text x="14" y="19" textAnchor="middle" fill="white" fontSize="13">🛵</text>
+              </g>
+              <text x="192" y="133" textAnchor="middle" fill="#e67e22" fontSize="10" fontWeight="700">#100451</text>
+
+              <g transform="translate(450,220)">
+                <circle cx="14" cy="14" r="16" fill="white" opacity="0.92" style={{filter:'drop-shadow(0 3px 6px rgba(0,0,0,0.15))'}}/>
+                <circle cx="14" cy="14" r="12" fill="#2ecc71"/>
+                <text x="14" y="19" textAnchor="middle" fill="white" fontSize="13">🛵</text>
+              </g>
+              <text x="464" y="253" textAnchor="middle" fill="#2ecc71" fontSize="10" fontWeight="700">#100453</text>
+
+              {/* Destination pins */}
+              <g transform="translate(100,60)">
+                <ellipse cx="12" cy="26" rx="5" ry="2" fill="rgba(0,0,0,0.15)"/>
+                <path d="M12 0 C6 0 0 6 0 12 C0 20 12 28 12 28 C12 28 24 20 24 12 C24 6 18 0 12 0Z" fill="#e74c3c"/>
+                <circle cx="12" cy="12" r="5" fill="white" opacity="0.9"/>
+              </g>
+
+              <g transform="translate(500,130)">
+                <ellipse cx="12" cy="26" rx="5" ry="2" fill="rgba(0,0,0,0.15)"/>
+                <path d="M12 0 C6 0 0 6 0 12 C0 20 12 28 12 28 C12 28 24 20 24 12 C24 6 18 0 12 0Z" fill="#e74c3c"/>
+                <circle cx="12" cy="12" r="5" fill="white" opacity="0.9"/>
+              </g>
+
+              {/* Route lines */}
+              <path d="M192 114 Q 150 140 112 73" stroke="#e67e22" strokeWidth="2.5" fill="none" strokeDasharray="6 4" opacity="0.7"/>
+              <path d="M464 234 Q 520 200 512 143" stroke="#2ecc71" strokeWidth="2.5" fill="none" strokeDasharray="6 4" opacity="0.7"/>
+
+              {/* Compass rose */}
+              <g transform="translate(650,20)">
+                <circle cx="18" cy="18" r="18" fill="white" opacity="0.85"/>
+                <text x="18" y="14" textAnchor="middle" fill="#334155" fontSize="8" fontWeight="700">N</text>
+                <path d="M18 16 L22 26 L18 24 L14 26 Z" fill="#e74c3c"/>
+                <path d="M18 20 L22 26 L18 28 L14 26 Z" fill="#334155"/>
+              </g>
+
+              {/* Scale bar */}
+              <g transform="translate(20,330)">
+                <rect x="0" y="8" width="60" height="4" fill="#4A6D8C" opacity="0.5" rx="2"/>
+                <text x="0" y="6" fill="#4A6D8C" fontSize="9" fontWeight="600">0</text>
+                <text x="55" y="6" fill="#4A6D8C" fontSize="9" fontWeight="600">500m</text>
+              </g>
+
+              {/* Watermark */}
+              <text x="350" y="350" textAnchor="middle" fill="#6b7280" fontSize="9" opacity="0.6">Vista de mapa — SVGO LocalMarket</text>
+            </svg>
+
+            {/* Map controls overlay */}
+            <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {['+','−','⌖'].map((btn, i) => (
+                <button key={i} style={{
+                  width: 36, height: 36, borderRadius: 8, border: '1px solid #e2e8f0',
+                  background: 'white', fontWeight: 700, fontSize: i < 2 ? '1.2rem' : '1rem',
+                  cursor: 'pointer', display: 'grid', placeItems: 'center',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)', color: '#334155',
+                  transition: 'background 0.15s'
+                }}
+                  onMouseEnter={e => (e.currentTarget.style.background = '#f1f5f9')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'white')}
+                >{btn}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Right legend panel */}
+          <div style={{ padding: '24px 20px', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
+                Pedidos Activos
+              </div>
+              {[
+                { id: '100451', dest: 'Av. Masferrer #102', status: 'En camino', color: '#e67e22', bg: '#fff7ed' },
+                { id: '100453', dest: 'Escalón #45', status: 'En tienda', color: '#2ecc71', bg: '#e8fcf0' },
+              ].map(p => (
+                <div key={p.id} style={{
+                  padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)',
+                  marginBottom: 8, background: 'var(--bg)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--blue)' }}>#{p.id}</span>
+                    <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '2px 7px', borderRadius: 20, background: p.bg, color: p.color }}>{p.status}</span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>📍 {p.dest}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>
+                Leyenda
+              </div>
+              {[
+                { color: '#4A6D8C', label: 'Tu tienda', icon: '🏪' },
+                { color: '#e67e22', label: 'Repartidor en camino', icon: '🛵' },
+                { color: '#2ecc71', label: 'Repartidor en tienda', icon: '🛵' },
+                { color: '#e74c3c', label: 'Destino de entrega', icon: '📍' },
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: item.color, display: 'grid', placeItems: 'center', fontSize: '0.9rem', flexShrink: 0 }}>
+                    {item.icon}
+                  </div>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>{item.label}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 'auto' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: 1.5, textAlign: 'center' }}>
+                🔵 Radio de cobertura: ~1.5 km<br/>
+                <span style={{ color: 'var(--blue)', fontWeight: 700 }}>2 repartidores</span> activos en tu zona
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

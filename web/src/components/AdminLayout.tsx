@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, Users, ShoppingCart, Store, Settings, LogOut } from 'lucide-react';
+import { useGlobal } from '../context/GlobalContext';
 import '../admin.css';
 import './AdminLayout.css';
 
@@ -13,6 +14,7 @@ const SIDEBAR_ITEMS = [
 
 export default function AdminLayout() {
   const navigate = useNavigate();
+  const { user, logout } = useGlobal();
 
   return (
     <div className="layout-container">
@@ -44,7 +46,7 @@ export default function AdminLayout() {
         </nav>
 
         <div className="sidebar-footer">
-          <button className="nav-item logout-btn" onClick={() => navigate('/login')} style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer', textAlign: 'left' }}>
+          <button className="nav-item logout-btn" onClick={() => { logout(); navigate('/'); }} style={{ background: 'none', border: 'none', width: '100%', cursor: 'pointer', textAlign: 'left' }}>
             <LogOut size={20} />
             <span>Cerrar Sesión</span>
           </button>
@@ -58,9 +60,11 @@ export default function AdminLayout() {
             {/* Search or breadcrumbs could go here */}
           </div>
           <div className="topbar-profile" onClick={() => navigate('/perfil')} style={{ cursor: 'pointer' }}>
-            <div className="avatar" style={{ background: '#4A6D8C', color: '#fff', fontWeight: '800' }}>A</div>
+            <div className="avatar" style={{ background: '#4A6D8C', color: '#fff', fontWeight: '800' }}>
+              {user?.name ? user.name.charAt(0).toUpperCase() : 'A'}
+            </div>
             <div className="profile-info">
-              <p className="name">Admin User</p>
+              <p className="name">{user?.name || 'Admin User'}</p>
               <p className="role">Master Admin</p>
             </div>
           </div>

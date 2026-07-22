@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import '../../css/carritoypago.css';
@@ -23,7 +22,6 @@ function detectBrand(num: string): 'visa' | 'mastercard' | 'amex' | null {
 }
 
 export default function CarritoYpago() {
-  const { toggleTheme } = useGlobal();
   const navigate = useNavigate();
 
   const [step, setStep] = useState(1);

@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useGlobal } from '../context/GlobalContext';
 
 import '../../css/auth.css';
 import '../../css/dark.css';
 
 export default function Login() {
+  const { login } = useGlobal();
   const [searchParams] = useSearchParams();
   const [isRegister, setIsRegister] = useState(searchParams.get('tab') === 'register');
   const [role, setRole] = useState(searchParams.get('role') || 'buyer');
@@ -46,16 +48,20 @@ export default function Login() {
 
     // Dynamic redirection: If email contains "admin", log them in as Administrator immediately
     if (emailInput.toLowerCase().includes('admin')) {
+      login({ name: 'Administrador Master', email: emailInput, role: 'admin' });
       navigate('/admin/dashboard');
       return;
     }
 
     // Redirect based on selected role
     if (role === 'seller') {
+      login({ name: 'Panadería Don José', email: emailInput, role: 'seller' });
       navigate('/dashboard-vendedor');
     } else if (role === 'driver') {
+      login({ name: 'Carlos Reparto', email: emailInput, role: 'driver' });
       navigate('/dashboard-repartidor');
     } else {
+      login({ name: emailInput.split('@')[0], email: emailInput, role: 'buyer' });
       navigate('/');
     }
   };
@@ -98,16 +104,20 @@ export default function Login() {
 
     // Dynamic redirection: If email contains "admin", register & escalate to admin immediately
     if (emailInput.toLowerCase().includes('admin')) {
+      login({ name: nameInput, email: emailInput, role: 'admin' });
       navigate('/admin/dashboard');
       return;
     }
 
     // Redirect based on selected role
     if (role === 'seller') {
+      login({ name: nameInput, email: emailInput, role: 'seller' });
       navigate('/dashboard-vendedor');
     } else if (role === 'driver') {
+      login({ name: nameInput, email: emailInput, role: 'driver' });
       navigate('/dashboard-repartidor');
     } else {
+      login({ name: nameInput, email: emailInput, role: 'buyer' });
       navigate('/');
     }
   };

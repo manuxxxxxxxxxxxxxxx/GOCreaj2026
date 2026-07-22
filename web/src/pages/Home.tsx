@@ -3,8 +3,22 @@ import { useGlobal } from '../context/GlobalContext';
 import '../../css/index.css';
 
 export default function Home() {
-  const { theme, toggleTheme, cartCount } = useGlobal();
+  const { theme, toggleTheme, cartCount, user, logout } = useGlobal();
   const navigate = useNavigate();
+
+  const getDashboardPath = () => {
+    if (user?.role === 'seller') return '/dashboard-vendedor';
+    if (user?.role === 'driver') return '/dashboard-repartidor';
+    if (user?.role === 'admin') return '/dashboard-admin';
+    return '/perfil';
+  };
+
+  const getRoleLabel = () => {
+    if (user?.role === 'seller') return '🏪 Panel Vendedor';
+    if (user?.role === 'driver') return '🛵 Panel Repartidor';
+    if (user?.role === 'admin') return '⚙️ Panel Admin';
+    return `👤 ${user?.name?.split(' ')[0] || 'Mi Perfil'}`;
+  };
 
   return (
     <div className="home-page">
@@ -47,10 +61,16 @@ export default function Home() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
             <span className="cart-badge">{cartCount}</span>
           </button>
-          <button className="roles-btn" onClick={() => navigate('/login')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            Perfil / Ingresar
-          </button>
+          {user ? (
+            <button className="roles-btn" onClick={() => navigate(getDashboardPath())} style={{ background: 'rgba(79,110,247,0.08)', color: 'var(--blue)', fontWeight: 700, borderRadius: 10, padding: '6px 14px' }}>
+              {getRoleLabel()}
+            </button>
+          ) : (
+            <button className="roles-btn" onClick={() => navigate('/login')}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Perfil / Ingresar
+            </button>
+          )}
         </div>
       </nav>
 
@@ -221,8 +241,21 @@ export default function Home() {
         <p>Únete a nuestra comunidad de emprendedores y forma parte del cambio económico local</p>
         <div className="cta-btns">
           <button className="cta-btn" onClick={() => navigate('/market')}>Explorar como Comprador</button>
-          <button className="cta-btn" onClick={() => navigate('/login')}>Registrarme como Vendedor</button>
-          <button className="cta-btn" onClick={() => navigate('/login')}>Ser Repartidor</button>
+          {(!user || user.role === 'buyer') && (
+            <button className="cta-btn" onClick={() => navigate('/login?role=seller')}>Registrarme como Vendedor</button>
+          )}
+          {user?.role === 'seller' && (
+            <button className="cta-btn" onClick={() => navigate('/dashboard-vendedor')}>🏪 Ver mi Panel de Vendedor</button>
+          )}
+          {(!user || user.role === 'buyer') && (
+            <button className="cta-btn" onClick={() => navigate('/login?role=driver')}>Ser Repartidor</button>
+          )}
+          {user?.role === 'driver' && (
+            <button className="cta-btn" onClick={() => navigate('/dashboard-repartidor')}>🛵 Ver mi Panel de Repartidor</button>
+          )}
+          {user && (
+            <button className="cta-btn" onClick={() => { logout(); }} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)' }}>Cerrar Sesión</button>
+          )}
         </div>
       </section>
 

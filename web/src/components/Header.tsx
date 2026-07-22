@@ -9,7 +9,7 @@ interface HeaderProps {
 }
 
 export default function Header({ activeTab = 'none', searchQuery = '', setSearchQuery }: HeaderProps) {
-  const { theme, toggleTheme, cartCount } = useGlobal();
+  const { theme, toggleTheme, cartCount, user, logout } = useGlobal();
   const navigate = useNavigate();
 
   const handleSearchFocus = () => {
@@ -76,10 +76,53 @@ export default function Header({ activeTab = 'none', searchQuery = '', setSearch
             )}
           </button>
           
-          <a onClick={() => navigate('/perfil')} className="user-profile-trigger" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#FFFFFF', textDecoration: 'none' }}>
-            <div className="user-avatar-mini" style={{ background: 'rgba(255,255,255,0.2)', width: '30px', height: '30px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.85rem' }}>C</div>
-            <span className="user-name-mini" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Hola, Comprador</span>
-          </a>
+          {user ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <a 
+                onClick={() => {
+                  if (user.role === 'seller') navigate('/dashboard-vendedor');
+                  else if (user.role === 'driver') navigate('/dashboard-repartidor');
+                  else if (user.role === 'admin') navigate('/admin');
+                  else navigate('/perfil');
+                }} 
+                className="user-profile-trigger" 
+                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#FFFFFF', textDecoration: 'none' }}
+              >
+                <div className="user-avatar-mini" style={{ background: 'rgba(255,255,255,0.2)', width: '30px', height: '30px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.85rem' }}>
+                  {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                </div>
+                <span className="user-name-mini" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Hola, {user.name}</span>
+              </a>
+              <button 
+                onClick={() => { logout(); navigate('/'); }} 
+                title="Cerrar sesión" 
+                style={{ 
+                  background: 'rgba(255,255,255,0.15)', 
+                  color: '#FFFFFF', 
+                  border: 'none', 
+                  borderRadius: '10px', 
+                  width: '32px', 
+                  height: '32px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  cursor: 'pointer',
+                  transition: 'background 0.2s' 
+                }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="16" height="16">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16 17 21 12 16 7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <a onClick={() => navigate('/login')} className="user-profile-trigger" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#FFFFFF', textDecoration: 'none' }}>
+              <div className="user-avatar-mini" style={{ background: 'rgba(255,255,255,0.2)', width: '30px', height: '30px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.85rem' }}>I</div>
+              <span className="user-name-mini" style={{ fontSize: '0.85rem', fontWeight: '600' }}>Hola, Iniciar Sesión</span>
+            </a>
+          )}
 
           <button className="cart-btn" onClick={() => navigate('/carritoypago')} style={{ background: 'rgba(255,255,255,0.15)', color: '#FFFFFF', border: 'none', borderRadius: '10px', padding: '8px', position: 'relative', cursor: 'pointer' }}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
@@ -99,7 +142,18 @@ export default function Header({ activeTab = 'none', searchQuery = '', setSearch
           <li><a onClick={() => navigate('/historial')} className={activeTab === 'history' ? 'active' : ''}>Historial</a></li>
           <li><a onClick={() => navigate('/reels')} className={activeTab === 'reels' ? 'active' : ''}>Reels</a></li>
           <li><a onClick={() => navigate('/chat')} className={activeTab === 'chat' ? 'active' : ''}>Mensajes</a></li>
-          <li><a onClick={() => navigate('/login')} className="sell-action-link">Vender con nosotros</a></li>
+          {(!user || user.role === 'buyer') && (
+            <li><a onClick={() => navigate('/login?role=seller')} className="sell-action-link">Vender con nosotros</a></li>
+          )}
+          {user && user.role === 'seller' && (
+            <li><a onClick={() => navigate('/dashboard-vendedor')} className="sell-action-link" style={{ fontWeight: '800', background: 'rgba(255,255,255,0.15)', color: '#fff', padding: '4px 12px', borderRadius: '20px' }}>Panel Vendedor</a></li>
+          )}
+          {user && user.role === 'driver' && (
+            <li><a onClick={() => navigate('/dashboard-repartidor')} className="sell-action-link" style={{ fontWeight: '800', background: 'rgba(255,255,255,0.15)', color: '#fff', padding: '4px 12px', borderRadius: '20px' }}>Panel Repartidor</a></li>
+          )}
+          {user && user.role === 'admin' && (
+            <li><a onClick={() => navigate('/admin')} className="sell-action-link" style={{ fontWeight: '800', background: 'rgba(255,255,255,0.15)', color: '#fff', padding: '4px 12px', borderRadius: '20px' }}>Panel Admin</a></li>
+          )}
         </ul>
 
         <div className="header-address-tag">

@@ -109,7 +109,7 @@ const CAROUSEL_SLIDES = [
 ];
 
 export default function Market() {
-  const { toggleTheme, cartCount, addToCart } = useGlobal();
+  const { addToCart, user } = useGlobal();
   const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -283,13 +283,39 @@ export default function Market() {
               </div>
             </div>
 
-            <div className="quick-card highlight" onClick={() => navigate('/login')}>
-              <div className="quick-card-icon" style={{ background: '#e0f2fe', color: '#0284c7' }}>🏪</div>
-              <div className="quick-card-info">
-                <h3>Vende con SVGO</h3>
-                <p>Publica productos gratis hoy</p>
+            {user?.role === 'seller' ? (
+              <div className="quick-card highlight" onClick={() => navigate('/dashboard-vendedor')} style={{ cursor: 'pointer' }}>
+                <div className="quick-card-icon" style={{ background: '#f5f3ff', color: '#7c3aed' }}>📊</div>
+                <div className="quick-card-info">
+                  <h3>Mi Tienda</h3>
+                  <p>Gestiona productos y reels</p>
+                </div>
               </div>
-            </div>
+            ) : user?.role === 'driver' ? (
+              <div className="quick-card highlight" onClick={() => navigate('/dashboard-repartidor')} style={{ cursor: 'pointer' }}>
+                <div className="quick-card-icon" style={{ background: '#ecfdf5', color: '#059669' }}>🛵</div>
+                <div className="quick-card-info">
+                  <h3>Panel Repartidor</h3>
+                  <p>Gestiona tus entregas activas</p>
+                </div>
+              </div>
+            ) : user?.role === 'admin' ? (
+              <div className="quick-card highlight" onClick={() => navigate('/admin')} style={{ cursor: 'pointer' }}>
+                <div className="quick-card-icon" style={{ background: '#fffbeb', color: '#d97706' }}>👑</div>
+                <div className="quick-card-info">
+                  <h3>Panel Admin</h3>
+                  <p>Administra la plataforma</p>
+                </div>
+              </div>
+            ) : (
+              <div className="quick-card highlight" onClick={() => navigate('/login?role=seller')} style={{ cursor: 'pointer' }}>
+                <div className="quick-card-icon" style={{ background: '#e0f2fe', color: '#0284c7' }}>🏪</div>
+                <div className="quick-card-info">
+                  <h3>Vende con SVGO</h3>
+                  <p>Publica productos gratis hoy</p>
+                </div>
+              </div>
+            )}
 
           </div>
         </div>

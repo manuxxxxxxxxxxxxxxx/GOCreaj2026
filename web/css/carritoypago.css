@@ -670,46 +670,36 @@ nav {
   appearance: none;
   width: 100%;
   height: 48px;
-  background: var(--ink);
-  color: var(--surface);
-  border: 1px solid var(--ink);
+  background: var(--accent, #4A6D8C);
+  color: #fff;
+  border: none;
   border-radius: var(--r);
   font-family: inherit;
   font-size: 14.5px;
   font-weight: 600;
   cursor: pointer;
   margin-top: 18px;
-  transition: all 0.18s var(--ease);
+  transition: background 0.18s var(--ease), transform 0.15s var(--ease), box-shadow 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   letter-spacing: 0.005em;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 2px 0 rgba(0,0,0,0.05);
+  box-shadow: 0 2px 8px rgba(74,109,140,0.25);
 }
-.btn-primary::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--accent);
-  transform: translateY(100%);
-  transition: transform 0.3s var(--ease-out);
-  z-index: 0;
+.btn-primary:hover {
+  background: var(--accent-hi, #355068);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(74,109,140,0.35);
 }
-.btn-primary > * { position: relative; z-index: 1; }
-.btn-primary:hover::before { transform: translateY(0); }
-.btn-primary:hover { border-color: var(--accent); }
-
 .btn-primary:disabled {
   background: var(--bg-deep);
-  border-color: var(--line);
+  border: 1px solid var(--line);
   color: var(--ink-4);
   cursor: not-allowed;
   box-shadow: none;
+  transform: none;
 }
-.btn-primary:disabled::before { display: none; }
 
 .btn-outline {
   appearance: none;
