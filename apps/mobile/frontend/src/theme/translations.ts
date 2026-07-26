@@ -49,6 +49,9 @@ export interface Translations {
     terminos: string;
     emailInvalido: string;
     contrasenaCorta: string;
+    confirmarContrasena: string;
+    contrasenasNoCoinciden: string;
+    googleNoConfigurado: string;
     sinConexion: string;
     username: string;
     usernamePlaceholder: string;
@@ -336,6 +339,9 @@ const es: Translations = {
     terminos: 'Al registrarte aceptas nuestros Términos de Servicio y Política de Privacidad',
     emailInvalido: 'Correo electrónico no válido',
     contrasenaCorta: 'La contraseña debe tener al menos 6 caracteres',
+    confirmarContrasena: 'Confirmar contraseña',
+    contrasenasNoCoinciden: 'Las contraseñas no coinciden',
+    googleNoConfigurado: 'Google Sign-In no está configurado en este entorno',
     sinConexion: 'Verifica tu conexión a internet',
     username: 'Nombre de usuario',
     usernamePlaceholder: '@tusername',
@@ -636,6 +642,9 @@ const en: Translations = {
     terminos: 'By signing up you accept our Terms of Service and Privacy Policy',
     emailInvalido: 'Invalid email address',
     contrasenaCorta: 'Password must be at least 6 characters',
+    confirmarContrasena: 'Confirm password',
+    contrasenasNoCoinciden: 'Passwords do not match',
+    googleNoConfigurado: 'Google Sign-In is not configured in this environment',
     sinConexion: 'Check your internet connection',
     username: 'Username',
     usernamePlaceholder: '@yourusername',
@@ -936,6 +945,9 @@ const fr: Translations = {
     terminos: 'En vous inscrivant, vous acceptez nos Conditions d\'utilisation et notre Politique de confidentialité',
     emailInvalido: 'Adresse email invalide',
     contrasenaCorta: 'Le mot de passe doit comporter au moins 6 caractères',
+    confirmarContrasena: 'Confirmer le mot de passe',
+    contrasenasNoCoinciden: 'Les mots de passe ne correspondent pas',
+    googleNoConfigurado: "La connexion Google n'est pas configurée dans cet environnement",
     sinConexion: 'Vérifiez votre connexion internet',
     username: "Nom d'utilisateur",
     usernamePlaceholder: '@votrenom',

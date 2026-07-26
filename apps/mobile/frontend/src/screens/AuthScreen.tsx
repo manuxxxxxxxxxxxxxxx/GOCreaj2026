@@ -33,6 +33,7 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [telefono, setTelefono] = useState('');
   const [passwordRegistro, setPasswordRegistro] = useState('');
+  const [passwordConfirm, setPasswordConfirm] = useState('');
 
   const logoFloat  = useRef(new Animated.Value(0)).current;
   const formOpacity = useRef(new Animated.Value(0)).current;
@@ -68,10 +69,15 @@ export default function AuthScreen() {
     } finally { setCargando(false); }
   };
 
+  const onGoogleAuth = () => {
+    Alert.alert(t.auth.oContinuaCon, t.auth.googleNoConfigurado);
+  };
+
   const onRegistro = async () => {
     if (!nombre || !passwordRegistro || (!email && !telefono))
       return Alert.alert(t.auth.datosRequeridos, t.auth.completaCampos);
     if (passwordRegistro.length < 6) return Alert.alert(t.common.error, t.auth.contrasenaCorta);
+    if (passwordRegistro !== passwordConfirm) return Alert.alert(t.common.error, t.auth.contrasenasNoCoinciden);
     if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))
       return Alert.alert(t.common.error, t.auth.emailInvalido);
     setCargando(true);
@@ -175,6 +181,8 @@ export default function AuthScreen() {
                 secureTextEntry
               />
               <Button label={t.auth.iniciarSesion} icon="log-in-outline" onPress={onLogin} loading={cargando} />
+
+              <GoogleButton colors={colors} label={t.auth.oContinuaCon} onPress={onGoogleAuth} />
             </View>
           )}
 
@@ -220,8 +228,17 @@ export default function AuthScreen() {
                 onChangeText={setPasswordRegistro}
                 secureTextEntry
               />
+              <Input
+                label={t.auth.confirmarContrasena}
+                icon="lock-closed-outline"
+                value={passwordConfirm}
+                onChangeText={setPasswordConfirm}
+                secureTextEntry
+              />
 
               <Button label={t.auth.crearCuenta} icon="person-add-outline" onPress={onRegistro} loading={cargando} />
+
+              <GoogleButton colors={colors} label={t.auth.oContinuaCon} onPress={onGoogleAuth} />
 
               <Text style={[styles.terms, { color: colors.muted }]}>{t.auth.terminos}</Text>
             </View>
@@ -231,6 +248,26 @@ export default function AuthScreen() {
         <View style={{ height: 32 }} />
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+function GoogleButton({ colors, label, onPress }: { colors: any; label: string; onPress: () => void }) {
+  return (
+    <View style={styles.googleWrap}>
+      <View style={styles.googleDividerRow}>
+        <View style={[styles.googleDivider, { backgroundColor: colors.border }]} />
+        <Text style={[styles.googleLabel, { color: colors.muted }]}>{label}</Text>
+        <View style={[styles.googleDivider, { backgroundColor: colors.border }]} />
+      </View>
+      <TouchableOpacity
+        style={[styles.googleBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+        onPress={onPress}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="logo-google" size={18} color="#EA4335" style={{ marginRight: 8 }} />
+        <Text style={[styles.googleBtnTxt, { color: colors.text }]}>Google</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -268,4 +305,13 @@ const styles = StyleSheet.create({
   formSub: { fontSize: Fonts.small + 1, fontWeight: '500', marginBottom: Spacing.lg, lineHeight: 20 },
   row2: { flexDirection: 'row' },
   terms: { fontSize: Fonts.small - 1, textAlign: 'center', marginTop: Spacing.sm, lineHeight: 17 },
+  googleWrap: { marginTop: Spacing.md },
+  googleDividerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm },
+  googleDivider: { flex: 1, height: StyleSheet.hairlineWidth },
+  googleLabel: { fontSize: Fonts.small - 1, fontWeight: '700', marginHorizontal: 10 },
+  googleBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderRadius: Radius.md, paddingVertical: 12,
+  },
+  googleBtnTxt: { fontWeight: '800', fontSize: Fonts.small + 1 },
 });
