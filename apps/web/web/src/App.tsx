@@ -5,6 +5,7 @@ import Users from './pages/Users';
 import AdminOrders from './pages/AdminOrders';
 import AdminProducts from './pages/AdminProducts';
 import AdminArbol from './pages/AdminArbol';
+import AdminCupones from './pages/AdminCupones';
 
 import Login from './pages/Login';
 import Market from './pages/Market';
@@ -48,6 +49,7 @@ function App() {
             <Route path="users"    element={<Users />} />
             <Route path="orders"   element={<AdminOrders />} />
             <Route path="products" element={<AdminProducts />} />
+            <Route path="cupones"  element={<AdminCupones />} />
             {/* Redirección de las rutas obsoletas — preserva enlaces antiguos */}
             <Route path="dashboard" element={<Navigate to="/admin/arbol" replace />} />
             <Route path="settings"  element={<Navigate to="/admin/arbol" replace />} />

@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Users, ShoppingCart, Store, GitBranch, LogOut, ArrowLeftCircle } from 'lucide-react';
+import { Users, ShoppingCart, Store, GitBranch, LogOut, ArrowLeftCircle, Tag } from 'lucide-react';
 import { useGlobal } from '../context/GlobalContext';
 import '../admin.css';
 import './AdminLayout.css';
@@ -11,6 +11,7 @@ const SIDEBAR_ITEMS = [
   { path: '/admin/users',    label: 'Usuarios y Roles', icon: <Users size={20} /> },
   { path: '/admin/orders',   label: 'Pedidos',          icon: <ShoppingCart size={20} /> },
   { path: '/admin/products', label: 'Productos',        icon: <Store size={20} /> },
+  { path: '/admin/cupones',  label: 'Cupones',          icon: <Tag size={20} /> },
 ];
 
 export default function AdminLayout() {

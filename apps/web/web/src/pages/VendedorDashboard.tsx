@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useGlobal } from '../context/GlobalContext';
 import Header from '../components/Header';
+import TiendaWizard from '../components/TiendaWizard';
 import { api, API_URL } from '../api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -90,7 +90,6 @@ const IC = {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function VendedorDashboard() {
-  const navigate = useNavigate();
   const { theme } = useGlobal();
   const isDark = theme === 'dark';
 
@@ -472,23 +471,8 @@ export default function VendedorDashboard() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: 80, color: muted }}>Cargando...</div>
         ) : !tienda ? (
-          /* ── Sin tienda ──────────────────────────────────────────── */
-          <div style={{
-            background: card, border: `1px solid ${border}`, borderRadius: 20,
-            padding: 48, textAlign: 'center',
-            boxShadow: '0 2px 16px rgba(0,0,0,0.06)',
-          }}>
-            <div style={{
-              width: 80, height: 80, borderRadius: 40, background: `${accent}18`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 20px', color: accent,
-            }}>
-              {IC.store}
-            </div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 8px', color: text }}>No tienes tienda registrada</h2>
-            <p style={{ color: muted, fontSize: 14, margin: '0 0 24px' }}>Contacta al administrador para activar tu tienda.</p>
-            <Btn onClick={() => navigate('/perfil')}>Ver mi perfil</Btn>
-          </div>
+          /* ── Sin tienda: asistente de creación ──────────────────── */
+          <TiendaWizard isDark={isDark} onCreated={() => void fetchAll()} />
         ) : (
           <>
             {/* ── Tienda Header ─────────────────────────────────────── */}

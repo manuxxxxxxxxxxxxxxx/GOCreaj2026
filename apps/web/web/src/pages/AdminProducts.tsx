@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Plus, Edit2, Trash2, Eye, EyeOff, X } from 'lucide-react';
+import { Search, Edit2, Trash2, Eye, EyeOff, X } from 'lucide-react';
 import { api } from '../api';
 import './Dashboard.css';
 
@@ -47,7 +47,7 @@ export default function AdminProducts() {
           name: p.nombre,
           seller: p.tienda_nombre || 'Tienda',
           category: p.categoria || 'otros',
-          price: parseFloat(p.precio_unitario) || 0,
+          price: parseFloat(p.precio) || 0,
           stock: p.stock || 0,
           status: p.activo == '1' ? 'active' : 'inactive'
         })));
@@ -64,42 +64,50 @@ export default function AdminProducts() {
     return ms && mc && mst;
   });
 
-  const openAdd = () => {
-    setEditProduct(null);
-    setForm({ emoji: '🛍️', name: '', seller: '', category: 'panadería', price: '', stock: '' });
-    setShowModal(true);
-  };
-
   const openEdit = (p: AdminProduct) => {
     setEditProduct(p);
     setForm({ emoji: p.emoji, name: p.name, seller: p.seller, category: p.category, price: String(p.price), stock: String(p.stock) });
     setShowModal(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!editProduct) { setShowModal(false); return; }
     if (!form.name.trim() || !form.price) return;
-    const updated: AdminProduct = {
-      id: editProduct?.id ?? `P${Date.now()}`,
-      emoji: form.emoji || '🛍️',
-      name: form.name,
-      seller: form.seller,
-      category: form.category,
-      price: parseFloat(form.price) || 0,
-      stock: parseInt(form.stock) || 0,
-      status: editProduct?.status ?? 'active',
-    };
-    if (editProduct) {
-      setProducts(prev => prev.map(p => p.id === editProduct.id ? updated : p));
-    } else {
-      setProducts(prev => [...prev, updated]);
-    }
-    setShowModal(false);
+    try {
+      const res = await api.post('/admin_dashboard.php?action=actualizar_producto', {
+        producto_id: editProduct.id,
+        nombre: form.name,
+        categoria: form.category,
+        precio: parseFloat(form.price) || 0,
+        stock: parseInt(form.stock) || 0,
+      });
+      if (res.data.ok) {
+        setProducts(prev => prev.map(p => p.id === editProduct.id
+          ? { ...p, name: form.name, category: form.category, price: parseFloat(form.price) || 0, stock: parseInt(form.stock) || 0 }
+          : p));
+        setShowModal(false);
+      }
+    } catch (e) { console.error(e); }
   };
 
-  const deleteProduct = (id: string) => setProducts(prev => prev.filter(p => p.id !== id));
+  const deleteProduct = async (id: string) => {
+    if (!confirm('¿Eliminar (suspender) este producto? Dejará de verse en la tienda.')) return;
+    try {
+      const res = await api.post('/admin_dashboard.php?action=eliminar_producto', { producto_id: id });
+      if (res.data.ok) setProducts(prev => prev.map(p => p.id === id ? { ...p, status: 'inactive' } : p));
+    } catch (e) { console.error(e); }
+  };
 
-  const toggleStatus = (id: string) => {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, status: p.status === 'active' ? 'inactive' : 'active' } : p));
+  const toggleStatus = async (id: string) => {
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    const nuevoActivo = p.status === 'active' ? 0 : 1;
+    try {
+      const res = await api.post('/admin_dashboard.php?action=actualizar_producto', { producto_id: id, activo: nuevoActivo });
+      if (res.data.ok) {
+        setProducts(prev => prev.map(x => x.id === id ? { ...x, status: nuevoActivo ? 'active' : 'inactive' } : x));
+      }
+    } catch (e) { console.error(e); }
   };
 
   return (
@@ -147,10 +155,6 @@ export default function AdminProducts() {
             <option value="all">Todos los estados</option>
             {Object.keys(STATUS_LABELS).map(s => <option key={s} value={s}>{STATUS_LABELS[s].label}</option>)}
           </select>
-          <button onClick={openAdd}
-            style={{ marginLeft: 'auto', padding: '9px 18px', borderRadius: 10, border: 'none', background: '#355068', color: '#fff', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'inherit' }}>
-            <Plus size={16} /> Nuevo Producto
-          </button>
         </div>
       </div>
 

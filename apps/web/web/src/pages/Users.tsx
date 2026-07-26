@@ -67,8 +67,12 @@ function RolBadge({ rol }: { rol: string }) {
   );
 }
 
+const PAGE_SIZE = 15;
+
 export default function Users() {
   const [users, setUsers]             = useState<UserRow[]>([]);
+  const [totalUsers, setTotalUsers]   = useState(0);
+  const [page, setPage]               = useState(1);
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([]);
   const [search, setSearch]           = useState('');
   const [loading, setLoading]         = useState(true);
@@ -81,14 +85,24 @@ export default function Users() {
   // Toast
   const [toast, setToast]             = useState<{ msg: string; ok: boolean } | null>(null);
 
+  const fetchUsuarios = async (targetPage: number, q: string) => {
+    const res = await api.get('/admin_dashboard.php?action=usuarios', {
+      params: { page: targetPage, limit: PAGE_SIZE, q: q.trim() || undefined },
+    });
+    if (res.data.ok) {
+      setUsers(res.data.usuarios ?? []);
+      setTotalUsers(res.data.total ?? 0);
+      setPage(res.data.page ?? targetPage);
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [resU, resS] = await Promise.all([
-        api.get('/admin_dashboard.php?action=usuarios'),
+      const [, resS] = await Promise.all([
+        fetchUsuarios(1, search),
         api.get('/admin_dashboard.php?action=solicitudes&estado=pendiente'),
       ]);
-      if (resU.data.ok) setUsers(resU.data.usuarios ?? []);
       if (resS.data.ok) setSolicitudes(resS.data.solicitudes ?? []);
     } catch (e) {
       console.error('Error fetching data', e);
@@ -98,11 +112,15 @@ export default function Users() {
 
   useEffect(() => { void fetchData(); }, []);
 
-  const filteredUsers = users.filter(u =>
-    (u.nombre || '').toLowerCase().includes(search.toLowerCase()) ||
-    (u.email || '').toLowerCase().includes(search.toLowerCase()) ||
-    (u.username || '').toLowerCase().includes(search.toLowerCase())
-  );
+  // Búsqueda server-side con debounce — resetea a la página 1 en cada cambio
+  useEffect(() => {
+    const t = setTimeout(() => { void fetchUsuarios(1, search); }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
+
+  const totalPages = Math.max(1, Math.ceil(totalUsers / PAGE_SIZE));
+  const filteredUsers = users;
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -284,6 +302,28 @@ export default function Users() {
                 </tbody>
               </table>
             </div>
+
+            {totalUsers > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 4px 4px', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted, #6b7280)', fontWeight: 600 }}>
+                  {totalUsers} usuario{totalUsers !== 1 ? 's' : ''} · página {page} de {totalPages}
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn btn-outline"
+                    disabled={page <= 1 || loading}
+                    onClick={() => void fetchUsuarios(page - 1, search)}
+                    style={{ padding: '0.4rem 0.9rem', fontSize: '0.82rem', opacity: page <= 1 ? 0.5 : 1 }}
+                  >← Anterior</button>
+                  <button
+                    className="btn btn-outline"
+                    disabled={page >= totalPages || loading}
+                    onClick={() => void fetchUsuarios(page + 1, search)}
+                    style={{ padding: '0.4rem 0.9rem', fontSize: '0.82rem', opacity: page >= totalPages ? 0.5 : 1 }}
+                  >Siguiente →</button>
+                </div>
+              </div>
+            )}
           </>
         )}
 
