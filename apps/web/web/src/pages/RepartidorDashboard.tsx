@@ -435,7 +435,6 @@ export default function RepartidorDashboard() {
             </div>
           </div>
         </div>
-        </div>
         {/* Mi Perfil — foto, bio, reseñas (Fase 2 · Módulo 1) */}
         <div className="panel-card" style={{ marginTop: '24px' }}>
           <div className="panel-header">
