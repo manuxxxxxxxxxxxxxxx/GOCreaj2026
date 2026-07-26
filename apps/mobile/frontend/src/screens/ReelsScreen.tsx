@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, Dimensions,
   TouchableOpacity, TextInput, Modal, Image, ActivityIndicator, Pressable, Alert,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
@@ -330,7 +331,10 @@ export default function ReelsScreen(): React.JSX.Element {
 
       {/* ── Modal Comentarios ── */}
       <Modal visible={comVisible} animationType="slide" transparent onRequestClose={() => setComVisible(false)}>
-        <View style={[styles.modalRoot, { backgroundColor: 'rgba(0,0,0,0.65)' }]}>
+        <KeyboardAvoidingView
+          style={[styles.modalRoot, { backgroundColor: 'rgba(0,0,0,0.65)' }]}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={[styles.modalBox, { backgroundColor: colors.background }]}>
             <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
             <View style={[styles.modalHeader, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
@@ -386,7 +390,7 @@ export default function ReelsScreen(): React.JSX.Element {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── Modal Compartir por chat ── */}

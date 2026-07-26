@@ -1653,7 +1653,7 @@ function makeStyles(isDark: boolean): Record<string, React.CSSProperties> {
   const emptyIconBg  = isDark ? '#1E293B' : '#E2E8F0';
 
   return {
-    page:   { display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: pageBg, fontFamily: 'system-ui,-apple-system,sans-serif' },
+    page:   { display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: pageBg, fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" },
     layout: { display: 'flex', flex: 1, overflow: 'hidden' },
 
     sidebar:          { width: 320, minWidth: 260, display: 'flex', flexDirection: 'column', background: sidebarBg, borderRight: `1px solid ${sideBorder}` },
