@@ -79,6 +79,7 @@ export default function Market() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [qty, setQty] = useState(1);
   const [toast, setToast] = useState('');
+  const [toastCartAction, setToastCartAction] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [likedIds, setLikedIds] = useState<Set<number>>(new Set());
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
@@ -233,8 +234,9 @@ export default function Market() {
   if (activeSort === 'rating_desc') filtered.sort((a, b) => b.rating - a.rating);
   if (activeSort === 'reviews_desc') filtered.sort((a, b) => b.reviews - a.reviews);
 
-  const showToast = (msg: string) => {
+  const showToast = (msg: string, cartAction = false) => {
     setToast(msg);
+    setToastCartAction(cartAction);
     setTimeout(() => setToast(''), 2800);
   };
 
@@ -461,7 +463,7 @@ export default function Market() {
                       <span className="price-new">${p.price.toFixed(2)}</span>
                       {p.oldPrice && <span className="price-old">${p.oldPrice.toFixed(2)}</span>}
                     </div>
-                    <button className="pc-add" onClick={(e) => { e.stopPropagation(); addToCart(p, 1); showToast(`¡${p.name} añadido al carrito!`); }}>
+                    <button className="pc-add" onClick={(e) => { e.stopPropagation(); addToCart(p, 1); showToast(`¡${p.name} añadido al carrito!`, true); }}>
                       <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
                     </button>
                   </div>
@@ -605,7 +607,7 @@ export default function Market() {
                     Comprar Ahora
                   </button>
 
-                  <button className="pd-cart-btn-secondary" onClick={() => { addToCart(selectedProduct, qty); showToast(`¡${qty} añadido(s) al carrito!`); }}>
+                  <button className="pd-cart-btn-secondary" onClick={() => { addToCart(selectedProduct, qty); showToast(`¡${qty} añadido(s) al carrito!`, true); }}>
                     Agregar al Carrito
                   </button>
 
@@ -627,11 +629,17 @@ export default function Market() {
       )}
 
       {toast && (
-        <div className="toast show">
+        <div
+          className="toast show"
+          onClick={() => { if (toastCartAction) navigate('/carritoypago'); }}
+          style={toastCartAction ? { cursor: 'pointer' } : undefined}
+          title={toastCartAction ? 'Ver carrito' : undefined}
+        >
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3">
             <polyline points="20 6 9 17 4 12"/>
           </svg>
           <span id="toast-msg">{toast}</span>
+          {toastCartAction && <span style={{ marginLeft: 8, fontWeight: 800, textDecoration: 'underline' }}>Ver carrito →</span>}
         </div>
       )}
     </>

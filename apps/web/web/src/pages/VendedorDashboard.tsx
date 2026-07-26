@@ -16,6 +16,7 @@ interface Producto {
   id: number; tienda_id: number; nombre: string; descripcion?: string;
   precio: number; stock: number; imagen?: string | null; video?: string | null;
   imagen_url?: string | null; categoria?: string; es_reel: number; activo: number;
+  precio_oferta?: number | null; oferta_hasta?: string | null;
 }
 interface Venta {
   id: number; comprador_id: number; comprador_nombre: string;
@@ -24,7 +25,17 @@ interface Venta {
 }
 type DashTab = 'productos' | 'ventas';
 
-const CATEGORIAS = ['Panadería','Alimentos','Bebidas','Artesanías','Ropa','Electrónica','Hogar','Mascotas','Deportes','Belleza','Otro'];
+// Debe coincidir exactamente con el whitelist CATS_VALIDAS de vendedor_dashboard.php
+const CATEGORIAS = [
+  { value: 'alimentos',  label: 'Alimentos' },
+  { value: 'panaderia',  label: 'Panadería' },
+  { value: 'bebidas',    label: 'Bebidas' },
+  { value: 'artesanias', label: 'Artesanías' },
+  { value: 'ropa',       label: 'Ropa' },
+  { value: 'hogar',      label: 'Hogar' },
+  { value: 'servicios',  label: 'Servicios' },
+  { value: 'general',    label: 'General' },
+];
 const MUNICIPIOS = ['San Salvador','Mejicanos','Soyapango','Apopa','Ilopango','Delgado','Santa Tecla','Antiguo Cuscatlán','San Miguel','Santa Ana','Ahuachapán','Sonsonate','Usulután'];
 
 const ESTADO_MAP: Record<string, { label: string; bg: string; text: string }> = {
@@ -106,11 +117,27 @@ export default function VendedorDashboard() {
   const [cpNombre, setCpNombre]     = useState('');
   const [cpPrecio, setCpPrecio]     = useState('');
   const [cpDesc, setCpDesc]         = useState('');
-  const [cpCat, setCpCat]           = useState(CATEGORIAS[0]);
+  const [cpCat, setCpCat]           = useState(CATEGORIAS[0].value);
   const [cpStock, setCpStock]       = useState('10');
   const [cpImagen, setCpImagen]     = useState<string | null>(null);
   const [cpEsReel, setCpEsReel]     = useState(false);
   const [saving, setSaving]         = useState(false);
+
+  // Edit product modal
+  const [showEditProd, setShowEditProd] = useState(false);
+  const [epId, setEpId]             = useState<number | null>(null);
+  const [epNombre, setEpNombre]     = useState('');
+  const [epPrecio, setEpPrecio]     = useState('');
+  const [epDesc, setEpDesc]         = useState('');
+  const [epCat, setEpCat]           = useState(CATEGORIAS[0].value);
+  const [epStock, setEpStock]       = useState('0');
+  const [epImagen, setEpImagen]     = useState<string | null>(null);
+  const [epVideo, setEpVideo]       = useState<string | null>(null);
+  const [epImagenActual, setEpImagenActual] = useState<string | null>(null);
+  const [epOferta, setEpOferta]     = useState('');
+  const [epOfertaHasta, setEpOfertaHasta] = useState('');
+  const [epQuitarOferta, setEpQuitarOferta] = useState(false);
+  const [epSaving, setEpSaving]     = useState(false);
 
   // Reel modal
   const [showReel, setShowReel]         = useState(false);
@@ -119,7 +146,7 @@ export default function VendedorDashboard() {
   const [rlVideoFile, setRlVideoFile]   = useState<File | null>(null);
   const [rlVideoPreview, setRlVideoPreview] = useState<string | null>(null);
   const [rlImagen, setRlImagen]         = useState<string | null>(null);
-  const [rlCat, setRlCat]               = useState(CATEGORIAS[0]);
+  const [rlCat, setRlCat]               = useState(CATEGORIAS[0].value);
   const [rlPrecio, setRlPrecio]         = useState('');
   const [rlUploading, setRlUploading]   = useState(false);
   const [rlProgress, setRlProgress]     = useState(0);
@@ -241,6 +268,55 @@ export default function VendedorDashboard() {
       } else showToast(res.data.error ?? 'Error', false);
     } catch (e: any) { showToast(e.message ?? 'Error al publicar', false); }
     setRlUploading(false); setRlProgress(0);
+  };
+
+  const openEditProd = (p: Producto) => {
+    setEpId(p.id);
+    setEpNombre(p.nombre ?? '');
+    setEpPrecio(String(p.precio ?? ''));
+    setEpDesc(p.descripcion ?? '');
+    setEpCat(p.categoria || CATEGORIAS[0].value);
+    setEpStock(String(p.stock ?? 0));
+    setEpImagen(null);
+    setEpVideo(null);
+    setEpImagenActual(p.imagen_url || p.imagen || null);
+    setEpOferta(p.precio_oferta ? String(p.precio_oferta) : '');
+    setEpOfertaHasta(p.oferta_hasta ? p.oferta_hasta.slice(0, 16) : '');
+    setEpQuitarOferta(false);
+    setShowEditProd(true);
+  };
+
+  const handleGuardarProducto = async () => {
+    if (epId === null) return;
+    if (!epNombre.trim()) return showToast('El nombre es requerido', false);
+    const precio = parseFloat(epPrecio);
+    if (!epPrecio || isNaN(precio) || precio < 0) return showToast('El precio debe ser válido', false);
+    setEpSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        producto_id: epId,
+        nombre: epNombre.trim(),
+        descripcion: epDesc,
+        precio,
+        stock: parseInt(epStock) || 0,
+        categoria: epCat,
+      };
+      if (epImagen) body.imagen = epImagen;
+      if (epVideo) body.video = epVideo;
+      if (epQuitarOferta) {
+        body.quitar_oferta = true;
+      } else if (epOferta) {
+        body.precio_oferta = parseFloat(epOferta);
+        if (epOfertaHasta) body.oferta_hasta = epOfertaHasta.replace('T', ' ') + ':00';
+      }
+      const res = await api.post('/vendedor_dashboard.php?action=actualizar_producto', body);
+      if (res.data.ok) {
+        showToast('Producto actualizado');
+        setShowEditProd(false);
+        void fetchAll();
+      } else showToast(res.data.error ?? 'Error al guardar', false);
+    } catch { showToast('Error de conexión', false); }
+    setEpSaving(false);
   };
 
   const toggleActivo = async (p: Producto) => {
@@ -576,9 +652,14 @@ export default function VendedorDashboard() {
                                 </button>
                               </td>
                               <td style={{ padding: '12px 16px' }}>
-                                <button onClick={() => toggleActivo({ ...p, activo: 1 })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444' }} title="Desactivar">
-                                  {IC.trash}
-                                </button>
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                  <button onClick={() => openEditProd(p)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: accent }} title="Editar producto">
+                                    {IC.edit}
+                                  </button>
+                                  <button onClick={() => toggleActivo({ ...p, activo: 1 })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444' }} title="Desactivar">
+                                    {IC.trash}
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -670,7 +751,7 @@ export default function VendedorDashboard() {
         </Field>
         <Field label="Categoría">
           <select style={inpStyle} value={cpCat} onChange={e => setCpCat(e.target.value)}>
-            {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+            {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
         </Field>
         <Field label="Imagen del producto">
@@ -691,6 +772,73 @@ export default function VendedorDashboard() {
           </div>
           <span style={{ marginLeft: 'auto', color: cpEsReel ? accent : muted }}>{IC.play}</span>
         </label>
+      </Modal>
+
+      {/* ── MODAL: Editar Producto ────────────────────────────────────────────── */}
+      <Modal
+        show={showEditProd} onClose={() => setShowEditProd(false)}
+        title={<span style={{ display: 'flex', alignItems: 'center', gap: 8, color: text }}>{IC.edit} Editar producto</span>}
+        footer={<>
+          <Btn onClick={() => setShowEditProd(false)} variant="ghost">Cancelar</Btn>
+          <Btn onClick={handleGuardarProducto} disabled={epSaving}>{epSaving ? 'Guardando...' : 'Guardar cambios'}</Btn>
+        </>}
+      >
+        <Field label="Nombre *">
+          <input style={inpStyle} value={epNombre} onChange={e => setEpNombre(e.target.value)}
+            onFocus={e => (e.target.style.borderColor = accent)} onBlur={e => (e.target.style.borderColor = border)} />
+        </Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field label="Precio ($) *">
+            <input style={inpStyle} type="number" step="0.01" min="0" value={epPrecio} onChange={e => setEpPrecio(e.target.value)}
+              onFocus={e => (e.target.style.borderColor = accent)} onBlur={e => (e.target.style.borderColor = border)} />
+          </Field>
+          <Field label="Stock">
+            <input style={inpStyle} type="number" min="0" value={epStock} onChange={e => setEpStock(e.target.value)}
+              onFocus={e => (e.target.style.borderColor = accent)} onBlur={e => (e.target.style.borderColor = border)} />
+          </Field>
+        </div>
+        <Field label="Descripción">
+          <textarea style={{ ...inpStyle, minHeight: 72, resize: 'vertical' }} value={epDesc} onChange={e => setEpDesc(e.target.value)}
+            onFocus={e => (e.target.style.borderColor = accent)} onBlur={e => (e.target.style.borderColor = border)} />
+        </Field>
+        <Field label="Categoría">
+          <select style={inpStyle} value={epCat} onChange={e => setEpCat(e.target.value)}>
+            {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </Field>
+        <Field label="Imagen del producto">
+          <UploadZone
+            src={epImagen ?? epImagenActual} accept="image/*" height={130}
+            placeholder={<span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>{IC.img}<span style={{ fontSize: 12, fontWeight: 600 }}>Reemplazar imagen</span></span>}
+            onFile={async f => setEpImagen(await fileToBase64(f))}
+          />
+        </Field>
+        <Field label="Video (opcional — reemplaza el actual)">
+          <UploadZone
+            src={epVideo} accept="video/mp4,video/quicktime,video/webm,video/*" height={130}
+            placeholder={<span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>{IC.video}<span style={{ fontSize: 12, fontWeight: 600 }}>Reemplazar video</span></span>}
+            onFile={f => { const r = new FileReader(); r.onload = () => setEpVideo(r.result as string); r.readAsDataURL(f); }}
+          />
+        </Field>
+
+        <div style={{ borderTop: `1px solid ${border}`, paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: text }}>Promoción / precio de oferta</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <Field label="Precio de oferta ($)">
+              <input style={inpStyle} type="number" step="0.01" min="0" value={epOferta} disabled={epQuitarOferta}
+                onChange={e => setEpOferta(e.target.value)} placeholder="Ej: 2.50"
+                onFocus={e => (e.target.style.borderColor = accent)} onBlur={e => (e.target.style.borderColor = border)} />
+            </Field>
+            <Field label="Válida hasta">
+              <input style={inpStyle} type="datetime-local" value={epOfertaHasta} disabled={epQuitarOferta}
+                onChange={e => setEpOfertaHasta(e.target.value)} />
+            </Field>
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={epQuitarOferta} onChange={e => setEpQuitarOferta(e.target.checked)} />
+            <span style={{ fontSize: 13, color: text }}>Quitar oferta activa de este producto</span>
+          </label>
+        </div>
       </Modal>
 
       {/* ── MODAL: Crear Reel ─────────────────────────────────────────────────── */}
@@ -715,7 +863,7 @@ export default function VendedorDashboard() {
           </Field>
           <Field label="Categoría">
             <select style={inpStyle} value={rlCat} onChange={e => setRlCat(e.target.value)}>
-              {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+              {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </Field>
         </div>

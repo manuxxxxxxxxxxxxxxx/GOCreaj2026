@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useGlobal } from '../context/GlobalContext';
 import Header from '../components/Header';
 import { api } from '../api';
@@ -10,7 +11,17 @@ const LEAFLET_JS  = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
 const SV_CENTER: [number, number] = [13.7200, -89.2100];
 const SV_ZOOM = 12;
 
-const CATS = ['Todo','Comida','Bebidas','Ropa','Electrónica','Artesanía','Salud','Mascotas','Otros'];
+// Los value deben coincidir con el whitelist CATS_VALIDAS del backend (vendedor_dashboard.php)
+const CATS = [
+  { value: 'Todo',       label: 'Todo' },
+  { value: 'alimentos',  label: 'Comida' },
+  { value: 'bebidas',    label: 'Bebidas' },
+  { value: 'ropa',       label: 'Ropa' },
+  { value: 'artesanias', label: 'Artesanía' },
+  { value: 'hogar',      label: 'Hogar' },
+  { value: 'servicios',  label: 'Servicios' },
+  { value: 'general',    label: 'Otros' },
+];
 
 interface Producto {
   id: number;
@@ -67,6 +78,12 @@ export default function Explorar() {
   const { theme } = useGlobal();
   const isDark = theme === 'dark';
   const leafletReady = useLeaflet();
+  const navigate = useNavigate();
+
+  const verDetalle = (id: number) => {
+    sessionStorage.setItem('localmarket_open_product', String(id));
+    navigate('/');
+  };
 
   const mapEl   = useRef<HTMLDivElement>(null);
   const mapObj  = useRef<any>(null);
@@ -356,11 +373,11 @@ export default function Explorar() {
         {/* Category Chips */}
         <div style={{ display: 'flex', gap: 8, overflowX: 'auto', scrollbarWidth: 'none' }}>
           {CATS.map(c => {
-            const active = cat === c;
+            const active = cat === c.value;
             return (
               <button
-                key={c}
-                onClick={() => setCat(c)}
+                key={c.value}
+                onClick={() => setCat(c.value)}
                 style={{
                   flexShrink: 0,
                   background: active ? accent : elevated,
@@ -372,7 +389,7 @@ export default function Explorar() {
                   transition: 'all 0.18s',
                 }}
               >
-                {c}
+                {c.label}
               </button>
             );
           })}
@@ -518,6 +535,15 @@ export default function Explorar() {
                           fontSize: 10, fontWeight: 700,
                         }}>OFERTA</div>
                       )}
+                      <button
+                        onClick={e => { e.stopPropagation(); verDetalle(prod.id); }}
+                        style={{
+                          position: 'absolute', bottom: 8, right: 8,
+                          background: 'rgba(255,255,255,0.95)', color: accent,
+                          border: 'none', borderRadius: 8, padding: '3px 9px',
+                          fontSize: 11, fontWeight: 800, cursor: 'pointer',
+                        }}
+                      >Ver →</button>
                     </div>
                     {/* Info */}
                     <div style={{ padding: '10px 12px' }}>
@@ -584,6 +610,7 @@ export default function Explorar() {
               return (
                 <div
                   key={prod.id}
+                  onClick={() => verDetalle(prod.id)}
                   style={{
                     background: card, border: `1px solid ${border}`,
                     borderRadius: 20, overflow: 'hidden', cursor: 'pointer',
@@ -642,12 +669,14 @@ export default function Explorar() {
                           </span>
                         )}
                       </div>
-                      <button style={{
-                        background: accent, color: '#fff', border: 'none',
-                        borderRadius: 12, padding: '8px 18px',
-                        fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                        transition: 'opacity 0.18s',
-                      }}
+                      <button
+                        onClick={e => { e.stopPropagation(); verDetalle(prod.id); }}
+                        style={{
+                          background: accent, color: '#fff', border: 'none',
+                          borderRadius: 12, padding: '8px 18px',
+                          fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                          transition: 'opacity 0.18s',
+                        }}
                         onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
                         onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
                       >

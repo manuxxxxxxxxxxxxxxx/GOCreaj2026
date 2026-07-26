@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useGlobal } from '../context/GlobalContext';
+import GoogleAuthButton from '../components/GoogleAuthButton';
 
 import '../../css/auth.css';
 import '../../css/dark.css';
@@ -19,6 +20,7 @@ export default function Login() {
     regName: '',
     regEmail: '',
     regPassword: '',
+    regPasswordConfirm: '',
     regTerms: '',
     general: ''
   });
@@ -84,16 +86,18 @@ export default function Login() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     let hasError = false;
-    const newErrors = { ...errors, regName: '', regEmail: '', regPassword: '', regTerms: '', general: '' };
+    const newErrors = { ...errors, regName: '', regEmail: '', regPassword: '', regPasswordConfirm: '', regTerms: '', general: '' };
 
     const nameInput = (e.target as any).elements['reg-name'].value;
     const emailInput = (e.target as any).elements['reg-email'].value;
     const passwordInput = (e.target as any).elements['reg-password'].value;
+    const passwordConfirmInput = (e.target as any).elements['reg-password-confirm'].value;
     const termsInput = (e.target as any).elements['reg-terms'].checked;
 
     if (!nameInput) { newErrors.regName = 'Ingresa tu nombre.'; hasError = true; }
     if (!emailInput || !emailInput.includes('@')) { newErrors.regEmail = 'Ingresa un correo válido.'; hasError = true; }
     if (!passwordInput || passwordInput.length < 6) { newErrors.regPassword = 'La contraseña debe tener al menos 6 caracteres.'; hasError = true; }
+    if (passwordConfirmInput !== passwordInput) { newErrors.regPasswordConfirm = 'Las contraseñas no coinciden.'; hasError = true; }
     if (!termsInput) { newErrors.regTerms = 'Debes aceptar los términos y condiciones.'; hasError = true; }
     if (hasError) { setErrors(newErrors); return; }
 
@@ -122,6 +126,18 @@ export default function Login() {
 
   return (
     <div className="auth-page-wrapper" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 16px', position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => navigate('/')}
+        style={{
+          position: 'absolute', top: '20px', left: '20px', display: 'flex', alignItems: 'center', gap: '6px',
+          background: 'rgba(255,255,255,0.9)', border: '1px solid #E2DCEF', borderRadius: '12px',
+          padding: '9px 16px', fontWeight: 700, fontSize: '0.85rem', color: '#334155', cursor: 'pointer',
+        }}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="15" height="15"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Volver
+      </button>
       <div className="auth-card" style={{ maxWidth: '480px', borderRadius: '24px', boxShadow: '0 20px 50px rgba(15,23,42,0.10)' }}>
         <div
           className="auth-logo"
@@ -205,6 +221,8 @@ export default function Login() {
             >
               {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
             </button>
+
+            <GoogleAuthButton onError={(msg) => setErrors(prev => ({ ...prev, general: msg }))} />
           </form>
         )}
 
@@ -244,6 +262,17 @@ export default function Login() {
             </div>
 
             <div className="field-group">
+              <label className="field-label" htmlFor="reg-password-confirm">Confirmar contraseña</label>
+              <div className="auth-input-wrap">
+                <span className="field-icon">
+                  <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <input className="auth-input" id="reg-password-confirm" name="reg-password-confirm" type="password" placeholder="Repite tu contraseña" />
+              </div>
+              {errors.regPasswordConfirm && <span className="field-error show">{errors.regPasswordConfirm}</span>}
+            </div>
+
+            <div className="field-group">
               <label className="terms-label">
                 <input type="checkbox" id="reg-terms" name="reg-terms" className="terms-checkbox" />
                 <span>Acepto los Términos y Condiciones</span>
@@ -265,6 +294,8 @@ export default function Login() {
             >
               {loading ? 'Creando cuenta...' : 'Crear cuenta'}
             </button>
+
+            <GoogleAuthButton onError={(msg) => setErrors(prev => ({ ...prev, general: msg }))} />
 
             <p className="auth-link-row" style={{ marginTop: '20px', textAlign: 'center' }}>
               ¿Ya tienes cuenta?
