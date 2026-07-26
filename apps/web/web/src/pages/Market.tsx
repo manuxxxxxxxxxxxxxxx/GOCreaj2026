@@ -215,15 +215,17 @@ export default function Market() {
     return () => clearInterval(timer);
   }, []);
 
+  // Debe coincidir con el whitelist CATS_VALIDAS de vendedor_dashboard.php
+  // (mismo contrato que ya usa la app móvil en SellerScreen.tsx)
   const categories = [
     { id: 'all', label: 'Todos' },
-    { id: 'alimentos', label: 'Alimentos' },
-    { id: 'panaderia', label: 'Panadería' },
+    { id: 'comida', label: 'Comida' },
     { id: 'bebidas', label: 'Bebidas' },
-    { id: 'artesanias', label: 'Artesanías' },
-    { id: 'ropa', label: 'Ropa' },
-    { id: 'hogar', label: 'Hogar' },
-    { id: 'servicios', label: 'Servicios' }
+    { id: 'panaderia', label: 'Panadería' },
+    { id: 'postres', label: 'Postres' },
+    { id: 'frutas', label: 'Frutas' },
+    { id: 'verduras', label: 'Verduras' },
+    { id: 'general', label: 'Otros' },
   ];
 
   let filtered = [...products];
@@ -323,7 +325,7 @@ export default function Market() {
               </div>
             </div>
 
-            <div className="quick-card" onClick={() => { setActiveCategory('alimentos'); window.scrollTo({top: 800, behavior: 'smooth'}); }}>
+            <div className="quick-card" onClick={() => { setActiveCategory('verduras'); window.scrollTo({top: 800, behavior: 'smooth'}); }}>
               <div className="quick-card-icon" style={{ background: '#dcfce7', color: '#16a34a' }}>🥦</div>
               <div className="quick-card-info">
                 <h3>Huertos Locales</h3>
@@ -331,11 +333,11 @@ export default function Market() {
               </div>
             </div>
 
-            <div className="quick-card" onClick={() => { setActiveCategory('artesanias'); window.scrollTo({top: 800, behavior: 'smooth'}); }}>
-              <div className="quick-card-icon" style={{ background: '#f3e8ff', color: '#9333ea' }}>🏺</div>
+            <div className="quick-card" onClick={() => { setActiveCategory('comida'); window.scrollTo({top: 800, behavior: 'smooth'}); }}>
+              <div className="quick-card-icon" style={{ background: '#f3e8ff', color: '#9333ea' }}>🍽️</div>
               <div className="quick-card-info">
-                <h3>Artesanías</h3>
-                <p>Piezas decorativas manuales</p>
+                <h3>Comida</h3>
+                <p>Platillos preparados y comida rápida</p>
               </div>
             </div>
 

@@ -11,16 +11,17 @@ const LEAFLET_JS  = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
 const SV_CENTER: [number, number] = [13.7200, -89.2100];
 const SV_ZOOM = 12;
 
-// Los value deben coincidir con el whitelist CATS_VALIDAS del backend (vendedor_dashboard.php)
+// Los value deben coincidir con el whitelist CATS_VALIDAS del backend (vendedor_dashboard.php),
+// el mismo contrato que ya usa la app móvil en SellerScreen.tsx
 const CATS = [
-  { value: 'Todo',       label: 'Todo' },
-  { value: 'alimentos',  label: 'Comida' },
-  { value: 'bebidas',    label: 'Bebidas' },
-  { value: 'ropa',       label: 'Ropa' },
-  { value: 'artesanias', label: 'Artesanía' },
-  { value: 'hogar',      label: 'Hogar' },
-  { value: 'servicios',  label: 'Servicios' },
-  { value: 'general',    label: 'Otros' },
+  { value: 'Todo',      label: 'Todo' },
+  { value: 'comida',    label: 'Comida' },
+  { value: 'bebidas',   label: 'Bebidas' },
+  { value: 'panaderia', label: 'Panadería' },
+  { value: 'postres',   label: 'Postres' },
+  { value: 'frutas',    label: 'Frutas' },
+  { value: 'verduras',  label: 'Verduras' },
+  { value: 'general',   label: 'Otros' },
 ];
 
 interface Producto {

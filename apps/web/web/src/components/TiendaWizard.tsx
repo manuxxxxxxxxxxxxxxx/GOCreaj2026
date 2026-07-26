@@ -4,13 +4,12 @@ import { api } from '../api';
 interface MunicipioCat { id: number; nombre: string; departamento: string; lat: number; lng: number; }
 
 const CATEGORIAS = [
-  { value: 'alimentos',  label: 'Alimentos' },
-  { value: 'panaderia',  label: 'Panadería' },
+  { value: 'comida',     label: 'Comida' },
   { value: 'bebidas',    label: 'Bebidas' },
-  { value: 'artesanias', label: 'Artesanías' },
-  { value: 'ropa',       label: 'Ropa' },
-  { value: 'hogar',      label: 'Hogar' },
-  { value: 'servicios',  label: 'Servicios' },
+  { value: 'panaderia',  label: 'Panadería' },
+  { value: 'postres',    label: 'Postres' },
+  { value: 'frutas',     label: 'Frutas' },
+  { value: 'verduras',   label: 'Verduras' },
   { value: 'general',    label: 'General' },
 ];
 

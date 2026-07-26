@@ -26,14 +26,14 @@ interface Venta {
 type DashTab = 'productos' | 'ventas';
 
 // Debe coincidir exactamente con el whitelist CATS_VALIDAS de vendedor_dashboard.php
+// (mismo contrato que ya usa la app móvil en SellerScreen.tsx)
 const CATEGORIAS = [
-  { value: 'alimentos',  label: 'Alimentos' },
-  { value: 'panaderia',  label: 'Panadería' },
+  { value: 'comida',     label: 'Comida' },
   { value: 'bebidas',    label: 'Bebidas' },
-  { value: 'artesanias', label: 'Artesanías' },
-  { value: 'ropa',       label: 'Ropa' },
-  { value: 'hogar',      label: 'Hogar' },
-  { value: 'servicios',  label: 'Servicios' },
+  { value: 'panaderia',  label: 'Panadería' },
+  { value: 'postres',    label: 'Postres' },
+  { value: 'frutas',     label: 'Frutas' },
+  { value: 'verduras',   label: 'Verduras' },
   { value: 'general',    label: 'General' },
 ];
 const MUNICIPIOS = ['San Salvador','Mejicanos','Soyapango','Apopa','Ilopango','Delgado','Santa Tecla','Antiguo Cuscatlán','San Miguel','Santa Ana','Ahuachapán','Sonsonate','Usulután'];

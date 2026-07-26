@@ -95,7 +95,7 @@ switch ($action) {
 
     case 'crear_producto':
         require_fields($data, ['tienda_id','nombre','precio']);
-        $CATS_VALIDAS = ['alimentos','panaderia','bebidas','artesanias','ropa','hogar','servicios','general'];
+        $CATS_VALIDAS = ['comida','bebidas','panaderia','general','postres','frutas','verduras'];
         $cat = $data['categoria'] ?? 'general';
         if (!in_array($cat, $CATS_VALIDAS, true)) jout(['ok' => false, 'error' => 'Categoría inválida'], 400);
 
@@ -136,7 +136,7 @@ switch ($action) {
 
     case 'actualizar_producto':
         require_fields($data, ['producto_id']);
-        $CATS_VALIDAS = ['alimentos','panaderia','bebidas','artesanias','ropa','hogar','servicios','general'];
+        $CATS_VALIDAS = ['comida','bebidas','panaderia','general','postres','frutas','verduras'];
         if (isset($data['categoria']) && !in_array($data['categoria'], $CATS_VALIDAS, true)) {
             jout(['ok' => false, 'error' => 'Categoría inválida'], 400);
         }
