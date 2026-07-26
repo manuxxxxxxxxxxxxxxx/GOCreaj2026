@@ -49,6 +49,13 @@ switch ($action) {
         jout(['ok' => true, 'accion' => $accion, 'contadores' => contadores($pid)]);
         break;
 
+    // Contador de vistas de Reels: el frontend lo llama una vez por reel al quedar visible.
+    case 'registrar_vista':
+        require_fields($data, ['producto_id']);
+        db()->prepare("UPDATE productos SET vistas_count = vistas_count + 1 WHERE id = ?")->execute([(int)$data['producto_id']]);
+        jout(['ok' => true]);
+        break;
+
     case 'compartir':
         require_fields($data, ['producto_id']);
         $pid = (int)$data['producto_id'];

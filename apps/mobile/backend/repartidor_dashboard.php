@@ -11,10 +11,31 @@ $data = jread();
 const COMISION_PLATAFORMA_PCT = 0.10;   // 10% para la plataforma
 const COMISION_REPARTIDOR_PCT = 0.20;   // 20% del subtotal para el repartidor (envío base)
 
+// Secuencia de sub-estados de una entrega en curso
+const PROGRESO_SECUENCIA = [null, 'camino_tienda', 'recolectado', 'camino_cliente'];
+
+// Un repartidor no puede traer más de N entregas en curso a la vez
+const MAX_PEDIDOS_ACTIVOS = 3;
+
+/** Agrega a cada pedido su lista de items con el stock actual del producto. */
+function adjuntar_items_con_stock(array &$pedidos): void {
+    if (!$pedidos) return;
+    $st = db()->prepare(
+        "SELECT i.pedido_id, i.producto_id, i.cantidad, i.precio_unitario,
+                pr.nombre, pr.imagen, pr.stock, pr.estado_stock
+         FROM pedido_items i
+         JOIN productos pr ON pr.id = i.producto_id
+         WHERE i.pedido_id = ?"
+    );
+    foreach ($pedidos as &$p) {
+        $st->execute([$p['id']]);
+        $p['items'] = $st->fetchAll();
+    }
+}
+
 switch ($action) {
 
     case 'disponibles':
-        // Solo si el repartidor está EN LÍNEA verá pedidos. Si está fuera de línea, lista vacía.
         $r = db()->prepare("SELECT en_linea FROM usuarios WHERE id = ?");
         $r->execute([$user['id']]);
         $en_linea = (int)$r->fetchColumn();
@@ -35,15 +56,28 @@ switch ($action) {
              WHERE p.repartidor_id IS NULL
                AND p.estado = 'preparacion'
                AND p.pago_estado = 'pagado'
+               AND NOT EXISTS (
+                   SELECT 1 FROM pedido_repartidor_descartes d
+                   WHERE d.pedido_id = p.id AND d.repartidor_id = ?
+               )
              ORDER BY p.created_at ASC"
         );
-        $st->execute([COMISION_REPARTIDOR_PCT]);
-        jout(['ok' => true, 'pedidos' => $st->fetchAll(), 'en_linea' => true]);
+        $st->execute([COMISION_REPARTIDOR_PCT, $user['id']]);
+        $pedidos = $st->fetchAll();
+        adjuntar_items_con_stock($pedidos);
+        jout(['ok' => true, 'pedidos' => $pedidos, 'en_linea' => true]);
         break;
 
     case 'aceptar':
         require_fields($data, ['pedido_id']);
         $pid = (int)$data['pedido_id'];
+
+        $activos = (int)db()->query(
+            "SELECT COUNT(*) FROM pedidos WHERE repartidor_id = {$user['id']} AND estado = 'en_camino'"
+        )->fetchColumn();
+        if ($activos >= MAX_PEDIDOS_ACTIVOS) {
+            jout(['ok' => false, 'error' => "Ya tienes {$activos} entregas en curso. Completa alguna antes de aceptar otra."], 400);
+        }
 
         try {
             db()->beginTransaction();
@@ -55,13 +89,13 @@ switch ($action) {
             db()->prepare("UPDATE pedidos SET repartidor_id = ?, estado = 'en_camino' WHERE id = ?")
                 ->execute([$user['id'], $pid]);
 
-            // Notificar al comprador + vendedor
             $msg = "🛵 Tu pedido fue aceptado por el repartidor {$user['nombre']}. Va en camino.";
             $msgV = "🛵 Repartidor {$user['nombre']} aceptó el pedido #{$pid}.";
             db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
                 ->execute([$user['id'], (int)$row['comprador_id'], $msg]);
             db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
                 ->execute([$user['id'], (int)$row['vendedor_id'], $msgV]);
+            crear_notificacion((int)$row['comprador_id'], 'pedido', 'Tu pedido va en camino', $msg, $pid);
 
             db()->commit();
             jout(['ok' => true]);
@@ -71,23 +105,66 @@ switch ($action) {
         }
         break;
 
+    // ─── Descartar un pedido disponible: NO lo bloquea para el resto de la flota ───
     case 'rechazar':
         require_fields($data, ['pedido_id']);
-        $st = db()->prepare("UPDATE pedidos SET estado = 'rechazado_repartidor' WHERE id = ?");
-        $st->execute([$data['pedido_id']]);
+        $st = db()->prepare(
+            "INSERT IGNORE INTO pedido_repartidor_descartes (pedido_id, repartidor_id) VALUES (?, ?)"
+        );
+        $st->execute([(int)$data['pedido_id'], $user['id']]);
         jout(['ok' => true]);
         break;
 
     case 'mis_entregas':
         $st = db()->prepare(
-            "SELECT p.*, v.nombre as vendedor_nombre, c.nombre as comprador_nombre
+            "SELECT p.*,
+                    v.nombre as vendedor_nombre,
+                    c.nombre as comprador_nombre, c.telefono as comprador_telefono,
+                    t.nombre AS tienda_nombre, t.lat AS tienda_lat, t.lng AS tienda_lng, t.direccion AS tienda_direccion
              FROM pedidos p
              JOIN usuarios v ON v.id = p.vendedor_id
              JOIN usuarios c ON c.id = p.comprador_id
+             LEFT JOIN tiendas t ON t.vendedor_id = v.id
              WHERE p.repartidor_id = ? ORDER BY p.created_at DESC"
         );
         $st->execute([$user['id']]);
-        jout(['ok' => true, 'pedidos' => $st->fetchAll()]);
+        $pedidos = $st->fetchAll();
+        adjuntar_items_con_stock($pedidos);
+        jout(['ok' => true, 'pedidos' => $pedidos]);
+        break;
+
+    // ─── Avanzar el sub-estado de una entrega en curso ───
+    case 'avanzar_estado':
+        require_fields($data, ['pedido_id']);
+        $pid = (int)$data['pedido_id'];
+
+        $sel = db()->prepare("SELECT progreso_repartidor FROM pedidos WHERE id = ? AND repartidor_id = ? AND estado = 'en_camino'");
+        $sel->execute([$pid, $user['id']]);
+        if ($sel->rowCount() === 0) jout(['ok' => false, 'error' => 'Pedido no encontrado o no está en curso'], 404);
+        $actual = $sel->fetchColumn();
+
+        $idx = array_search($actual, PROGRESO_SECUENCIA, true);
+        if ($idx === false || $idx === count(PROGRESO_SECUENCIA) - 1) {
+            jout(['ok' => false, 'error' => 'No hay siguiente estado disponible'], 400);
+        }
+        $siguiente = PROGRESO_SECUENCIA[$idx + 1];
+
+        if (isset($data['lat'], $data['lng'])) {
+            db()->prepare("UPDATE pedidos SET progreso_repartidor = ?, repartidor_lat = ?, repartidor_lng = ? WHERE id = ?")
+                ->execute([$siguiente, $data['lat'], $data['lng'], $pid]);
+        } else {
+            db()->prepare("UPDATE pedidos SET progreso_repartidor = ? WHERE id = ?")->execute([$siguiente, $pid]);
+        }
+
+        $compradorSt = db()->prepare("SELECT comprador_id FROM pedidos WHERE id = ?");
+        $compradorSt->execute([$pid]);
+        $compradorId = (int)$compradorSt->fetchColumn();
+        $labels = ['camino_tienda' => 'El repartidor va hacia la tienda', 'recolectado' => 'El repartidor recolectó tu pedido', 'camino_cliente' => 'El repartidor va en camino a tu dirección'];
+        if ($compradorId && isset($labels[$siguiente])) {
+            crear_notificacion($compradorId, 'pedido', $labels[$siguiente], "Pedido #{$pid}", $pid);
+        }
+
+        jout(['ok' => true, 'progreso_repartidor' => $siguiente]);
         break;
 
     // ─── COMPLETAR PEDIDO — MOTOR DE COMISIONES TRANSACCIONAL ───
@@ -109,17 +186,16 @@ switch ($action) {
             $ganancia_rp = round($total * COMISION_REPARTIDOR_PCT, 2);
             $ganancia_vd = round($total - $comision - $ganancia_rp, 2);
 
-            // 1. Marcar pedido entregado y guardar los montos calculados
             db()->prepare(
                 "UPDATE pedidos
                  SET estado = 'entregado',
+                     progreso_repartidor = 'entregado',
                      comision_plataforma = ?,
                      total_repartidor = ?,
                      total_vendedor = ?
                  WHERE id = ?"
             )->execute([$comision, $ganancia_rp, $ganancia_vd, $pid]);
 
-            // 2. Inyectar saldo neto al VENDEDOR
             db()->prepare(
                 "INSERT INTO wallets (usuario_id, saldo) VALUES (?, ?)
                  ON DUPLICATE KEY UPDATE saldo = saldo + VALUES(saldo)"
@@ -129,7 +205,6 @@ switch ($action) {
                  VALUES (?, 'venta', ?, 'Venta neta', ?)"
             )->execute([(int)$ped['vendedor_id'], $ganancia_vd, $pid]);
 
-            // 3. Inyectar saldo neto al REPARTIDOR
             db()->prepare(
                 "INSERT INTO wallets (usuario_id, saldo) VALUES (?, ?)
                  ON DUPLICATE KEY UPDATE saldo = saldo + VALUES(saldo)"
@@ -139,9 +214,11 @@ switch ($action) {
                  VALUES (?, 'entrega', ?, 'Entrega completada', ?)"
             )->execute([$user['id'], $ganancia_rp, $pid]);
 
-            // 4. Notificar a las dos partes
             db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
                 ->execute([$user['id'], (int)$ped['comprador_id'], '✅ Pedido entregado. ¡Gracias por preferirnos!']);
+            crear_notificacion((int)$ped['comprador_id'], 'pedido', 'Pedido entregado', '¡Gracias por preferirnos! Califica tu experiencia.', $pid);
+            crear_notificacion((int)$ped['vendedor_id'], 'pedido', 'Venta completada', "Ganaste \$" . number_format($ganancia_vd, 2) . " por el pedido #{$pid}.", $pid);
+            crear_notificacion($user['id'], 'pedido', 'Entrega completada', "Ganaste \$" . number_format($ganancia_rp, 2) . ".", $pid);
 
             db()->commit();
             jout([
@@ -178,7 +255,6 @@ switch ($action) {
         );
         $mov->execute([$user['id']]);
 
-        // Estadísticas rápidas
         $hoy   = (float)db()->query("SELECT COALESCE(SUM(monto),0) FROM wallet_movimientos WHERE usuario_id = {$user['id']} AND tipo = 'entrega' AND DATE(created_at) = CURDATE()")->fetchColumn();
         $semana = (float)db()->query("SELECT COALESCE(SUM(monto),0) FROM wallet_movimientos WHERE usuario_id = {$user['id']} AND tipo = 'entrega' AND YEARWEEK(created_at,1) = YEARWEEK(CURDATE(),1)")->fetchColumn();
         $entregas_hoy = (int)db()->query("SELECT COUNT(*) FROM pedidos WHERE repartidor_id = {$user['id']} AND estado = 'entregado' AND DATE(created_at) = CURDATE()")->fetchColumn();
@@ -193,6 +269,48 @@ switch ($action) {
                 'entregas_hoy' => $entregas_hoy,
             ],
         ]);
+        break;
+
+    // ─── Perfil del repartidor: foto + descripción personal ───
+    case 'mi_perfil':
+        $st = db()->prepare(
+            "SELECT id, nombre, foto_perfil, descripcion, telefono,
+                    repartidor_calificacion_promedio, repartidor_total_resenas
+             FROM usuarios WHERE id = ?"
+        );
+        $st->execute([$user['id']]);
+        $entregas = (int)db()->query("SELECT COUNT(*) FROM pedidos WHERE repartidor_id = {$user['id']} AND estado = 'entregado'")->fetchColumn();
+        $perfil = $st->fetch();
+        $perfil['entregas_completadas'] = $entregas;
+        jout(['ok' => true, 'perfil' => $perfil]);
+        break;
+
+    case 'actualizar_perfil':
+        $foto = null;
+        if (!empty($data['foto_perfil']) && str_starts_with($data['foto_perfil'], 'data:image')) {
+            $foto = save_base64_image($data['foto_perfil'], 'perfiles', 'rep_' . $user['id']);
+        }
+        $st = db()->prepare(
+            "UPDATE usuarios SET
+                descripcion = COALESCE(?, descripcion),
+                foto_perfil = COALESCE(?, foto_perfil)
+             WHERE id = ?"
+        );
+        $st->execute([$data['descripcion'] ?? null, $foto, $user['id']]);
+        jout(['ok' => true, 'foto_perfil' => $foto]);
+        break;
+
+    // ─── Reseñas recibidas por el repartidor ───
+    case 'mis_resenas':
+        $st = db()->prepare(
+            "SELECT cr.id, cr.estrellas, cr.comentario, cr.created_at, u.nombre AS comprador_nombre
+             FROM calificaciones_repartidor cr
+             JOIN usuarios u ON u.id = cr.comprador_id
+             WHERE cr.repartidor_id = ?
+             ORDER BY cr.created_at DESC LIMIT 100"
+        );
+        $st->execute([$user['id']]);
+        jout(['ok' => true, 'resenas' => $st->fetchAll()]);
         break;
 
     default:

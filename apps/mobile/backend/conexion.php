@@ -14,7 +14,10 @@ define('DB_NAME', 'svgo_db');
 define('DB_USER', 'root');
 define('DB_PASS', '');
 define('UPLOAD_BASE', __DIR__ . '/uploads/');
-define('UPLOAD_URL', 'http://localhost/GOCreaj2026/apps/mobile/backend/uploads/');
+// Clave de firma de tokens de sesión. En producción esto debe venir de una variable de entorno,
+// no vivir en el código fuente.
+define('AUTH_SECRET', 'svgo_2026_9f3a7c1e4b8d5601a2f9c4e7b3d8016fa5c2e9b7d4f1a806');
+define('AUTH_TTL_SECONDS', 60 * 60 * 24 * 30); // 30 días
 
 function db(): PDO {
     static $pdo = null;
@@ -114,6 +117,8 @@ function db_migrate(): void {
         "ALTER TABLE productos ADD COLUMN video_url VARCHAR(500) NULL",
         // productos — estado AGOTADO automático
         "ALTER TABLE productos ADD COLUMN estado_stock VARCHAR(20) NOT NULL DEFAULT 'disponible'",
+        // productos — contador de vistas de Reels
+        "ALTER TABLE productos ADD COLUMN vistas_count INT NOT NULL DEFAULT 0",
         // productos_reportes — moderación de reels
         "CREATE TABLE IF NOT EXISTS productos_reportes (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -197,6 +202,158 @@ function db_migrate(): void {
             UNIQUE KEY uk_reaccion (chat_id, usuario_id),
             INDEX idx_chat (chat_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        // ─── Módulo Repartidor: sub-estados de entrega en tiempo real ───
+        "ALTER TABLE pedidos ADD COLUMN progreso_repartidor VARCHAR(20) NULL AFTER estado",
+
+        // pedido_repartidor_descartes — un repartidor puede "rechazar" un pedido disponible
+        // sin bloquearlo para el resto de la flota
+        "CREATE TABLE IF NOT EXISTS pedido_repartidor_descartes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pedido_id INT NOT NULL,
+            repartidor_id INT NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_descarte (pedido_id, repartidor_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        // calificaciones_repartidor — reputación del repartidor, separada de la de la tienda
+        "CREATE TABLE IF NOT EXISTS calificaciones_repartidor (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pedido_id INT NOT NULL,
+            comprador_id INT NOT NULL,
+            repartidor_id INT NOT NULL,
+            estrellas TINYINT NOT NULL,
+            comentario TEXT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_cal_rep (pedido_id, comprador_id),
+            INDEX idx_repartidor (repartidor_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        // usuarios — promedio de calificación acumulado del repartidor
+        "ALTER TABLE usuarios ADD COLUMN repartidor_calificacion_promedio DECIMAL(3,2) NOT NULL DEFAULT 0",
+        "ALTER TABLE usuarios ADD COLUMN repartidor_total_resenas INT NOT NULL DEFAULT 0",
+        // usuarios — descripción personal del repartidor (bio de perfil)
+        "ALTER TABLE usuarios ADD COLUMN descripcion VARCHAR(500) NULL",
+
+        // pedidos — pago en efectivo: con cuánto billete paga el cliente
+        "ALTER TABLE pedidos ADD COLUMN efectivo_paga_con DECIMAL(10,2) NULL",
+
+        // tiendas — campos del wizard de creación
+        "ALTER TABLE tiendas ADD COLUMN telefono VARCHAR(20) NULL",
+        "ALTER TABLE tiendas ADD COLUMN metodos_pago VARCHAR(120) NULL",
+
+        // retiros — solicitudes de retiro de saldo de wallet hacia una cuenta real
+        "CREATE TABLE IF NOT EXISTS retiros (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            monto DECIMAL(10,2) NOT NULL,
+            metodo VARCHAR(30) NOT NULL,
+            datos_cuenta VARCHAR(255) NOT NULL,
+            estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+            notas_admin VARCHAR(255) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            resuelto_at DATETIME NULL,
+            INDEX idx_usuario (usuario_id),
+            INDEX idx_estado (estado)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        // productos — promociones reales
+        "ALTER TABLE productos ADD COLUMN precio_oferta DECIMAL(10,2) NULL",
+        "ALTER TABLE productos ADD COLUMN oferta_hasta DATETIME NULL",
+
+        // productos_reportes — moderación: estado de resolución del reporte
+        "ALTER TABLE productos_reportes ADD COLUMN estado VARCHAR(20) NOT NULL DEFAULT 'pendiente'",
+        "ALTER TABLE productos_reportes ADD COLUMN resuelto_por INT NULL",
+        "ALTER TABLE productos_reportes ADD COLUMN resuelto_at DATETIME NULL",
+
+        // calificaciones — permitir respuesta pública del vendedor
+        "ALTER TABLE calificaciones ADD COLUMN respuesta_vendedor TEXT NULL",
+        "ALTER TABLE calificaciones ADD COLUMN respuesta_at DATETIME NULL",
+
+        // notificaciones — centro de notificaciones in-app
+        "CREATE TABLE IF NOT EXISTS notificaciones (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            titulo VARCHAR(180) NOT NULL,
+            cuerpo TEXT NULL,
+            tipo ENUM('pedido','chat','sistema','promocion') NOT NULL DEFAULT 'sistema',
+            leida TINYINT(1) NOT NULL DEFAULT 0,
+            referencia_id INT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_usuario_leida (usuario_id, leida)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        // municipios_sv — bandera de cobertura activa
+        "ALTER TABLE municipios_sv ADD COLUMN cobertura_activa TINYINT(1) NOT NULL DEFAULT 1",
+
+        // ─── Interacciones de Reels ───
+        "CREATE TABLE IF NOT EXISTS video_likes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            producto_id INT NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_video_like (usuario_id, producto_id),
+            INDEX idx_producto (producto_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS video_guardados (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            producto_id INT NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_video_guardado (usuario_id, producto_id),
+            INDEX idx_producto (producto_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS video_compartidos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            producto_id INT NOT NULL,
+            canal VARCHAR(20) NOT NULL DEFAULT 'app',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_producto (producto_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS video_comentarios (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            producto_id INT NOT NULL,
+            comentario TEXT NOT NULL,
+            parent_id INT NULL,
+            likes_count INT NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_producto (producto_id),
+            INDEX idx_parent (parent_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        // usuarios — recuperación de contraseña y push token
+        "ALTER TABLE usuarios ADD COLUMN reset_password_code VARCHAR(6) NULL",
+        "ALTER TABLE usuarios ADD COLUMN reset_password_exp DATETIME NULL",
+        "ALTER TABLE usuarios ADD COLUMN expo_push_token VARCHAR(120) NULL",
+
+        // cupones — códigos de descuento globales de la plataforma
+        "CREATE TABLE IF NOT EXISTS cupones (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            codigo VARCHAR(40) NOT NULL,
+            tipo ENUM('porcentaje','monto') NOT NULL DEFAULT 'porcentaje',
+            valor DECIMAL(10,2) NOT NULL,
+            min_compra DECIMAL(10,2) NOT NULL DEFAULT 0,
+            usos_max INT NULL,
+            usos_actuales INT NOT NULL DEFAULT 0,
+            activo TINYINT(1) NOT NULL DEFAULT 1,
+            expira_at DATETIME NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_codigo (codigo)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS cupones_usos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            cupon_id INT NOT NULL,
+            usuario_id INT NOT NULL,
+            pedido_id INT NULL,
+            monto_descontado DECIMAL(10,2) NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_cupon (cupon_id),
+            INDEX idx_usuario (usuario_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "ALTER TABLE pedidos ADD COLUMN cupon_codigo VARCHAR(40) NULL",
+        "ALTER TABLE pedidos ADD COLUMN descuento_cupon DECIMAL(10,2) NOT NULL DEFAULT 0",
     ];
     foreach ($stmts as $sql) {
         try { db()->exec($sql); } catch (PDOException $e) {}
@@ -276,6 +433,17 @@ function require_fields(array $data, array $fields): void {
     }
 }
 
+/**
+ * URL pública de /uploads/, derivada del Host real de CADA petición en vez de un
+ * valor fijo. Así funciona igual desde localhost (web) que desde la IP de LAN
+ * (teléfono en Expo Go) o un dominio real en producción.
+ */
+function upload_url(): string {
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    return "{$scheme}://{$host}/GOCreaj2026/apps/mobile/backend/uploads/";
+}
+
 function save_base64_image(string $b64, string $subdir, string $prefix): ?string {
     if (!preg_match('/^data:image\/(\w+);base64,/', $b64, $m)) return null;
     $ext = strtolower($m[1]);
@@ -286,7 +454,7 @@ function save_base64_image(string $b64, string $subdir, string $prefix): ?string
     if (!is_dir($dir)) mkdir($dir, 0777, true);
     $name = $prefix . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     file_put_contents($dir . '/' . $name, $data);
-    return UPLOAD_URL . $subdir . '/' . $name;
+    return upload_url() . $subdir . '/' . $name;
 }
 
 /**
@@ -304,7 +472,7 @@ function save_base64_video(string $b64, string $subdir, string $prefix): ?string
     if (!is_dir($dir)) mkdir($dir, 0777, true);
     $name = $prefix . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     file_put_contents($dir . '/' . $name, $data);
-    return UPLOAD_URL . $subdir . '/' . $name;
+    return upload_url() . $subdir . '/' . $name;
 }
 
 /**
@@ -319,7 +487,7 @@ function save_base64_pdf(string $b64, string $subdir, string $prefix): ?string {
     if (!is_dir($dir)) mkdir($dir, 0777, true);
     $name = $prefix . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.pdf';
     file_put_contents($dir . '/' . $name, $data);
-    return UPLOAD_URL . $subdir . '/' . $name;
+    return upload_url() . $subdir . '/' . $name;
 }
 
 /**
@@ -337,18 +505,31 @@ function save_base64_audio(string $b64, string $subdir, string $prefix): ?string
     if (!is_dir($dir)) mkdir($dir, 0777, true);
     $name = $prefix . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     file_put_contents($dir . '/' . $name, $data);
-    return UPLOAD_URL . $subdir . '/' . $name;
+    return upload_url() . $subdir . '/' . $name;
 }
 
+/**
+ * Token firmado: base64(uid|emitido|expira|nonce) + "." + HMAC-SHA256 del payload.
+ * Impide falsificar un token sin conocer AUTH_SECRET, y expira a los AUTH_TTL_SECONDS.
+ */
 function gen_token(int $uid): string {
-    return base64_encode($uid . '|' . time() . '|' . bin2hex(random_bytes(16)));
+    $payload = $uid . '|' . time() . '|' . (time() + AUTH_TTL_SECONDS) . '|' . bin2hex(random_bytes(16));
+    $b64 = base64_encode($payload);
+    $sig = hash_hmac('sha256', $b64, AUTH_SECRET);
+    return $b64 . '.' . $sig;
 }
 
 function uid_from_token(?string $token): ?int {
-    if (!$token) return null;
-    $dec = base64_decode($token, true);
+    if (!$token || strpos($token, '.') === false) return null;
+    [$b64, $sig] = explode('.', $token, 2);
+    $expected = hash_hmac('sha256', $b64, AUTH_SECRET);
+    if (!hash_equals($expected, $sig)) return null;
+    $dec = base64_decode($b64, true);
     if (!$dec) return null;
     $parts = explode('|', $dec);
+    if (count($parts) < 3) return null;
+    $expira = (int)$parts[2];
+    if ($expira > 0 && time() > $expira) return null;
     return isset($parts[0]) ? (int)$parts[0] : null;
 }
 
@@ -371,6 +552,45 @@ function current_user(): ?array {
         db()->prepare("UPDATE usuarios SET ultimo_visto = NOW() WHERE id = ?")->execute([$uid]);
     }
     return $u ?: null;
+}
+
+/**
+ * Crea una notificación in-app y, si el usuario tiene un expo_push_token, dispara
+ * también un push real vía la API de Expo. No lanza si algo falla.
+ */
+function crear_notificacion(int $usuarioId, string $tipo, string $titulo, ?string $cuerpo = null, ?int $referenciaId = null): void {
+    if (!in_array($tipo, ['pedido', 'chat', 'sistema', 'promocion'], true)) $tipo = 'sistema';
+    try {
+        db()->prepare(
+            "INSERT INTO notificaciones (usuario_id, titulo, cuerpo, tipo, referencia_id) VALUES (?, ?, ?, ?, ?)"
+        )->execute([$usuarioId, $titulo, $cuerpo, $tipo, $referenciaId]);
+    } catch (Throwable $e) { /* no crítico */ }
+    enviar_push_expo($usuarioId, $titulo, $cuerpo);
+}
+
+function enviar_push_expo(int $usuarioId, string $titulo, ?string $cuerpo): void {
+    try {
+        $st = db()->prepare("SELECT expo_push_token FROM usuarios WHERE id = ?");
+        $st->execute([$usuarioId]);
+        $token = $st->fetchColumn();
+        if (!$token || !str_starts_with($token, 'ExponentPushToken')) return;
+        $payload = json_encode([
+            'to' => $token,
+            'title' => $titulo,
+            'body' => $cuerpo ?? '',
+            'sound' => 'default',
+        ]);
+        $ch = curl_init('https://exp.host/--/api/v2/push/send');
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json'],
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 3,
+        ]);
+        curl_exec($ch);
+        curl_close($ch);
+    } catch (Throwable $e) { /* no crítico */ }
 }
 
 function distancia_km(float $lat1, float $lng1, float $lat2, float $lng2): float {

@@ -202,6 +202,49 @@ switch ($action) {
         jout(['ok' => true, 'usuario' => $updated]);
         break;
 
+    // Recuperar contraseña: no requiere sesión. Genera un código de 6 dígitos válido 15 min.
+    // NOTA: no hay proveedor real de email/SMS configurado en este entorno, así que el código
+    // se devuelve en la misma respuesta en vez de enviarse de verdad.
+    case 'recuperar_solicitar':
+        require_fields($data, ['identificador']);
+        $id = trim($data['identificador']);
+        $st = db()->prepare("SELECT id FROM usuarios WHERE (username = ? OR email = ? OR telefono = ?) AND auth_provider = 'local' LIMIT 1");
+        $st->execute([$id, $id, $id]);
+        $u = $st->fetch();
+        if (!$u) jout(['ok' => true, 'enviado' => true]);
+        $codigo = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        db()->prepare("UPDATE usuarios SET reset_password_code = ?, reset_password_exp = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?")
+            ->execute([$codigo, $u['id']]);
+        jout(['ok' => true, 'enviado' => true, 'codigo_dev' => $codigo]);
+        break;
+
+    case 'recuperar_confirmar':
+        require_fields($data, ['identificador', 'codigo', 'password_nueva']);
+        $id = trim($data['identificador']);
+        $st = db()->prepare("SELECT id, reset_password_code, reset_password_exp FROM usuarios WHERE (username = ? OR email = ? OR telefono = ?) LIMIT 1");
+        $st->execute([$id, $id, $id]);
+        $u = $st->fetch();
+        if (!$u || !$u['reset_password_code'] || $u['reset_password_code'] !== $data['codigo']) {
+            jout(['ok' => false, 'error' => 'Código inválido'], 400);
+        }
+        if (!$u['reset_password_exp'] || strtotime($u['reset_password_exp']) < time()) {
+            jout(['ok' => false, 'error' => 'Código expirado'], 400);
+        }
+        if (strlen($data['password_nueva']) < 6) jout(['ok' => false, 'error' => 'La contraseña debe tener al menos 6 caracteres'], 400);
+        $hash = password_hash($data['password_nueva'], PASSWORD_BCRYPT);
+        db()->prepare("UPDATE usuarios SET password_hash = ?, reset_password_code = NULL, reset_password_exp = NULL WHERE id = ?")
+            ->execute([$hash, $u['id']]);
+        jout(['ok' => true]);
+        break;
+
+    case 'guardar_push_token':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        require_fields($data, ['expo_push_token']);
+        db()->prepare("UPDATE usuarios SET expo_push_token = ? WHERE id = ?")->execute([$data['expo_push_token'], $u['id']]);
+        jout(['ok' => true]);
+        break;
+
     default:
         jout(['ok' => false, 'error' => 'Accion no valida'], 400);
 }

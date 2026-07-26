@@ -52,7 +52,21 @@ switch ($action) {
 
     case 'estado':
         $pid = (int)($_GET['pedido_id'] ?? 0);
-        $st = db()->prepare("SELECT p.*, v.nombre as vendedor_nombre, r.nombre as repartidor_nombre, c.nombre as comprador_nombre FROM pedidos p JOIN usuarios v ON v.id = p.vendedor_id LEFT JOIN usuarios r ON r.id = p.repartidor_id JOIN usuarios c ON c.id = p.comprador_id WHERE p.id = ?");
+        $st = db()->prepare(
+            "SELECT p.*,
+                    v.nombre as vendedor_nombre,
+                    r.nombre as repartidor_nombre, r.foto_perfil as repartidor_foto, r.telefono as repartidor_telefono,
+                    r.repartidor_calificacion_promedio, r.repartidor_total_resenas,
+                    (SELECT COUNT(*) FROM pedidos WHERE repartidor_id = r.id AND estado = 'entregado') AS repartidor_entregas_completadas,
+                    c.nombre as comprador_nombre, c.telefono as comprador_telefono,
+                    t.nombre as tienda_nombre, t.lat as tienda_lat, t.lng as tienda_lng, t.direccion as tienda_direccion
+             FROM pedidos p
+             JOIN usuarios v ON v.id = p.vendedor_id
+             LEFT JOIN usuarios r ON r.id = p.repartidor_id
+             JOIN usuarios c ON c.id = p.comprador_id
+             LEFT JOIN tiendas t ON t.vendedor_id = v.id
+             WHERE p.id = ?"
+        );
         $st->execute([$pid]);
         $pedido = $st->fetch();
         if (!$pedido) jout(['ok' => false, 'error' => 'No existe'], 404);

@@ -29,7 +29,7 @@ if ($type === 'video') {
     if (!move_uploaded_file($file['tmp_name'], $dir . $name)) {
         jout(['ok' => false, 'error' => 'No se pudo guardar el video.'], 500);
     }
-    $url = UPLOAD_URL . 'videos/' . $name;
+    $url = upload_url() . 'videos/' . $name;
     jout(['ok' => true, 'url' => $url, 'nombre' => $name]);
 
 } else {
@@ -53,6 +53,6 @@ if ($type === 'video') {
     if (!move_uploaded_file($file['tmp_name'], $dir . $name)) {
         jout(['ok' => false, 'error' => 'No se pudo guardar la imagen.'], 500);
     }
-    $url = UPLOAD_URL . 'imagenes/' . $name;
+    $url = upload_url() . 'imagenes/' . $name;
     jout(['ok' => true, 'url' => $url, 'nombre' => $name]);
 }

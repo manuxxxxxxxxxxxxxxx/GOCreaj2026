@@ -3,37 +3,48 @@ require_once __DIR__ . '/conexion.php';
 
 $action = $_GET['action'] ?? 'listar';
 
+/** Anula la oferta si ya venció, para que el frontend nunca muestre un precio de oferta caduco. */
+function aplicar_oferta(array &$rows): void {
+    foreach ($rows as &$r) {
+        if (!empty($r['precio_oferta']) && !empty($r['oferta_hasta']) && strtotime($r['oferta_hasta']) < time()) {
+            $r['precio_oferta'] = null;
+            $r['oferta_hasta'] = null;
+        }
+    }
+}
+
 switch ($action) {
 
     case 'listar':
         $municipio = $_GET['municipio'] ?? null;
         $cat       = $_GET['categoria']  ?? null;
+        $tiendaId  = isset($_GET['tienda_id']) ? (int)$_GET['tienda_id'] : null;
         $page      = max(1, (int)($_GET['page'] ?? 1));
-        $limit     = min(60, max(1, (int)($_GET['limit'] ?? 20))); // ⚡ paginación de 20 en 20
+        $limit     = min(60, max(1, (int)($_GET['limit'] ?? 20)));
         $offset    = ($page - 1) * $limit;
 
+        // Los productos agotados NO se ocultan — se listan igual para que el frontend
+        // los muestre sombreados/deshabilitados ("AGOTADO"), solo se ordenan al final.
         $q = "SELECT p.*, t.nombre as tienda_nombre, t.municipio, t.lat as tienda_lat, t.lng as tienda_lng, t.vendedor_id,
                      t.calificacion_promedio as tienda_calificacion
               FROM productos p JOIN tiendas t ON t.id = p.tienda_id
-              WHERE p.activo = 1 AND t.activo = 1
-                AND (p.estado_stock IS NULL OR p.estado_stock <> 'agotado')
-                AND p.stock > 0";
+              WHERE p.activo = 1 AND t.activo = 1";
         $params = [];
         if ($municipio) { $q .= " AND t.municipio = ?"; $params[] = $municipio; }
         if ($cat)       { $q .= " AND p.categoria = ?"; $params[] = $cat; }
-        $q .= " ORDER BY p.created_at DESC LIMIT $limit OFFSET $offset";
+        if ($tiendaId)  { $q .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
+        $q .= " ORDER BY (p.stock > 0 AND (p.estado_stock IS NULL OR p.estado_stock <> 'agotado')) DESC, p.created_at DESC LIMIT $limit OFFSET $offset";
         $st = db()->prepare($q);
         $st->execute($params);
         $rows = $st->fetchAll();
+        aplicar_oferta($rows);
 
-        // Conteo total para saber si hay más páginas
         $qc = "SELECT COUNT(*) FROM productos p JOIN tiendas t ON t.id = p.tienda_id
-               WHERE p.activo = 1 AND t.activo = 1
-                 AND (p.estado_stock IS NULL OR p.estado_stock <> 'agotado')
-                 AND p.stock > 0";
+               WHERE p.activo = 1 AND t.activo = 1";
         $cparams = [];
         if ($municipio) { $qc .= " AND t.municipio = ?"; $cparams[] = $municipio; }
         if ($cat)       { $qc .= " AND p.categoria = ?"; $cparams[] = $cat; }
+        if ($tiendaId)  { $qc .= " AND p.tienda_id = ?"; $cparams[] = $tiendaId; }
         $stc = db()->prepare($qc);
         $stc->execute($cparams);
         $total = (int)$stc->fetchColumn();
@@ -76,7 +87,6 @@ switch ($action) {
               WHERE t.activo = 1 AND t.calificacion_promedio > 0";
         $params = [];
         if ($municipio) { $q .= " AND t.municipio = ?"; $params[] = $municipio; }
-        // Orden matemático: estrellas DESC, luego # de reseñas DESC, luego ventas
         $q .= " ORDER BY t.calificacion_promedio DESC, t.total_resenas DESC, t.ventas_completadas DESC LIMIT $limit";
         $st = db()->prepare($q);
         $st->execute($params);
@@ -102,7 +112,6 @@ switch ($action) {
               WHERE t.activo = 1 AND t.lat IS NOT NULL AND t.lng IS NOT NULL";
         $params = [$lat, $lng, $lat];
         if ($cat) { $q .= " AND t.categoria = ?"; $params[] = $cat; }
-        // Pines ordenados por calificación DESC dentro del radio cercano
         $q .= " HAVING distancia_km < 50 ORDER BY t.calificacion_promedio DESC, distancia_km ASC LIMIT $limit";
         $st = db()->prepare($q);
         $st->execute($params);
@@ -113,6 +122,7 @@ switch ($action) {
         $q_str  = trim($_GET['q']        ?? '');
         $municipio = $_GET['municipio']  ?? null;
         $cat    = $_GET['categoria']     ?? null;
+        $tiendaId = isset($_GET['tienda_id']) ? (int)$_GET['tienda_id'] : null;
         $page   = max(1, (int)($_GET['page']  ?? 1));
         $limit  = min(60, max(1, (int)($_GET['limit'] ?? 20)));
         $offset = ($page - 1) * $limit;
@@ -120,7 +130,6 @@ switch ($action) {
 
         $params = [];
         if ($q_str !== '') {
-            // Try FULLTEXT first, fall back to LIKE
             try {
                 $base = "SELECT p.*, t.nombre as tienda_nombre, t.municipio,
                                  t.lat as tienda_lat, t.lng as tienda_lng,
@@ -132,13 +141,13 @@ switch ($action) {
                 $params = [$q_str . '*', $q_str . '*'];
                 if ($municipio) { $base .= " AND t.municipio = ?"; $params[] = $municipio; }
                 if ($cat)       { $base .= " AND p.categoria = ?"; $params[] = $cat; }
+                if ($tiendaId)  { $base .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
                 if ($con_coords) $base .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL";
                 $base .= " ORDER BY relevancia DESC LIMIT $limit OFFSET $offset";
                 $st = db()->prepare($base);
                 $st->execute($params);
                 $rows = $st->fetchAll();
             } catch (PDOException $e) {
-                // FULLTEXT not available — LIKE fallback
                 $like = '%' . $q_str . '%';
                 $base = "SELECT p.*, t.nombre as tienda_nombre, t.municipio,
                                  t.lat as tienda_lat, t.lng as tienda_lng, t.vendedor_id
@@ -148,6 +157,7 @@ switch ($action) {
                 $params = [$like, $like];
                 if ($municipio) { $base .= " AND t.municipio = ?"; $params[] = $municipio; }
                 if ($cat)       { $base .= " AND p.categoria = ?"; $params[] = $cat; }
+                if ($tiendaId)  { $base .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
                 if ($con_coords) $base .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL";
                 $base .= " ORDER BY p.created_at DESC LIMIT $limit OFFSET $offset";
                 $st = db()->prepare($base);
@@ -162,24 +172,32 @@ switch ($action) {
             $params = [];
             if ($municipio) { $base .= " AND t.municipio = ?"; $params[] = $municipio; }
             if ($cat)       { $base .= " AND p.categoria = ?"; $params[] = $cat; }
+            if ($tiendaId)  { $base .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
             if ($con_coords) $base .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL";
             $base .= " ORDER BY p.created_at DESC LIMIT $limit OFFSET $offset";
             $st = db()->prepare($base);
             $st->execute($params);
             $rows = $st->fetchAll();
         }
+        aplicar_oferta($rows);
         jout(['ok' => true, 'productos' => $rows, 'q' => $q_str, 'page' => $page, 'limit' => $limit, 'total' => count($rows)]);
         break;
 
     case 'reels':
         $municipio = $_GET['municipio'] ?? null;
+        $me = current_user(); // Los reels son públicos; si hay sesión, agregamos el estado personal
+        $meId = $me ? (int)$me['id'] : 0;
         $q = "SELECT p.*, t.nombre as tienda_nombre, t.municipio, t.vendedor_id,
               (SELECT COUNT(*) FROM video_likes WHERE producto_id = p.id) as likes_count,
               (SELECT COUNT(*) FROM video_comentarios WHERE producto_id = p.id) as comentarios_count,
-              (SELECT COUNT(*) FROM video_compartidos WHERE producto_id = p.id) as compartidos_count
+              (SELECT COUNT(*) FROM video_compartidos WHERE producto_id = p.id) as compartidos_count,
+              (SELECT COUNT(*) FROM seguidores_tienda WHERE tienda_id = t.id) as seguidores_count,
+              (SELECT COUNT(*) FROM video_likes WHERE producto_id = p.id AND usuario_id = ?) as yo_like,
+              (SELECT COUNT(*) FROM video_guardados WHERE producto_id = p.id AND usuario_id = ?) as yo_guardado,
+              (SELECT COUNT(*) FROM seguidores_tienda WHERE tienda_id = t.id AND usuario_id = ?) as yo_sigo
               FROM productos p JOIN tiendas t ON t.id = p.tienda_id
               WHERE p.es_reel = 1 AND p.activo = 1";
-        $params = [];
+        $params = [$meId, $meId, $meId];
         if ($municipio) { $q .= " AND t.municipio = ?"; $params[] = $municipio; }
         $q .= " ORDER BY p.created_at DESC LIMIT 100";
         $st = db()->prepare($q);
@@ -193,7 +211,23 @@ switch ($action) {
         $st->execute([$id]);
         $p = $st->fetch();
         if (!$p) jout(['ok' => false, 'error' => 'No existe'], 404);
-        jout(['ok' => true, 'producto' => $p]);
+        $rowsTmp = [$p];
+        aplicar_oferta($rowsTmp);
+        jout(['ok' => true, 'producto' => $rowsTmp[0]]);
+        break;
+
+    // ─── Reseñas públicas de una tienda (con respuesta del vendedor si existe) ───
+    case 'tienda_resenas':
+        $tiendaId = (int)($_GET['tienda_id'] ?? 0);
+        if (!$tiendaId) jout(['ok' => false, 'error' => 'tienda_id requerido'], 400);
+        $st = db()->prepare(
+            "SELECT c.id, c.estrellas, c.comentario, c.respuesta_vendedor, c.respuesta_at, c.created_at,
+                    u.nombre AS comprador_nombre
+             FROM calificaciones c JOIN usuarios u ON u.id = c.comprador_id
+             WHERE c.tienda_id = ? ORDER BY c.created_at DESC LIMIT 50"
+        );
+        $st->execute([$tiendaId]);
+        jout(['ok' => true, 'resenas' => $st->fetchAll()]);
         break;
 
     case 'municipios':

@@ -168,6 +168,51 @@ export default function MapTrackingScreen() {
       <View style={[styles.panel, { backgroundColor: colors.card, paddingBottom: insets.bottom + 16 }]}>
         <View style={[styles.panelHandle, { backgroundColor: colors.border }]} />
 
+        {/* Ficha flotante del repartidor asignado — foto, nombre, calificación, entregas */}
+        {usuario?.rol !== 'repartidor' && pedido.repartidor_nombre && (
+          <View style={[styles.driverCard, { backgroundColor: colors.accentLight, borderColor: `${colors.accent}30` }]}>
+            {pedido.repartidor_foto
+              ? <Image source={{ uri: resolveMediaUrl(pedido.repartidor_foto) }} style={styles.driverAvatar} />
+              : <View style={[styles.driverAvatar, { backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }]}>
+                  <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 18 }}>{pedido.repartidor_nombre[0]}</Text>
+                </View>
+            }
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.muted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                Tu repartidor
+              </Text>
+              <Text style={{ color: colors.text, fontWeight: '900', fontSize: 15 }} numberOfLines={1}>{pedido.repartidor_nombre}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                {!!pedido.repartidor_calificacion_promedio && (
+                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>
+                    ★ {Number(pedido.repartidor_calificacion_promedio).toFixed(1)}
+                    <Text style={{ color: colors.muted, fontWeight: '600' }}> ({pedido.repartidor_total_resenas ?? 0})</Text>
+                  </Text>
+                )}
+                <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '600' }}>
+                  {pedido.repartidor_entregas_completadas ?? 0} entregas
+                </Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {pedido.repartidor_telefono && (
+                <TouchableOpacity
+                  onPress={() => Linking.openURL(`tel:${pedido.repartidor_telefono}`)}
+                  style={[styles.driverBtn, { backgroundColor: colors.card }]}
+                >
+                  <Ionicons name="call-outline" size={16} color={colors.accent} />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                onPress={() => nav.navigate('Chat', { otroId: pedido.repartidor_id!, nombre: pedido.repartidor_nombre! })}
+                style={[styles.driverBtn, { backgroundColor: colors.accent }]}
+              >
+                <Ionicons name="chatbubble-ellipses" size={16} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Countdown */}
         {remaining > 0 && pedido.estado !== 'entregado' && (
           <View style={[styles.countdownBox, { backgroundColor: colors.accentLight, borderColor: `${colors.accent}30` }]}>
