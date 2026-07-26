@@ -91,7 +91,7 @@ const styles = StyleSheet.create({
   titulo: { fontSize: Fonts.heading - 2, color: Colors.text, fontWeight: '800', textAlign: 'center', marginBottom: Spacing.md, letterSpacing: -0.5 },
   desc: { fontSize: Fonts.regular, color: Colors.muted, textAlign: 'center', lineHeight: 24, paddingHorizontal: Spacing.md },
   dots: { flexDirection: 'row', justifyContent: 'center', marginVertical: Spacing.lg },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border, marginHorizontal: 4, transition: 'all 0.3s' },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.border, marginHorizontal: 4 },
   dotActive: { backgroundColor: Colors.accent, width: 22 },
   footer: { padding: Spacing.lg, paddingBottom: 16 },
   btnPrimary: {

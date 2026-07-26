@@ -50,6 +50,32 @@ io.on('connection', socket => {
     io.to(`user_${otroId}`).emit('message-deleted', { chatId });
   });
 
+  // ── Sync tri-party de pedidos (Usuario/Vendedor/Repartidor) ───────────────────
+  // Los tres se unen a la sala "pedido_<id>" mientras siguen el pedido; PHP sigue
+  // siendo la fuente de verdad (persistencia vía REST) — el socket solo empuja un
+  // aviso instantáneo a los otros dos para que refresquen, sin esperar su poll.
+  socket.on('join-pedido', ({ pedidoId }) => {
+    if (!pedidoId) return;
+    socket.join(`pedido_${pedidoId}`);
+  });
+
+  socket.on('leave-pedido', ({ pedidoId }) => {
+    if (!pedidoId) return;
+    socket.leave(`pedido_${pedidoId}`);
+  });
+
+  // ── Cambio de estado/progreso del pedido (aceptado, en camino, entregado...) ──
+  socket.on('pedido-estado-cambio', ({ pedidoId, ...payload }) => {
+    if (!pedidoId) return;
+    socket.to(`pedido_${pedidoId}`).emit('pedido-estado-cambio', payload);
+  });
+
+  // ── Ubicación en vivo del repartidor + ETA/tráfico recalculado ────────────────
+  socket.on('pedido-ubicacion', ({ pedidoId, ...payload }) => {
+    if (!pedidoId) return;
+    socket.to(`pedido_${pedidoId}`).emit('pedido-ubicacion', payload);
+  });
+
   // ── Join a call room ─────────────────────────────────────────────────────────
   socket.on('join-call', ({ room, userId }) => {
     socket.join(room);

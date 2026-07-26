@@ -16,7 +16,7 @@ const ROL_LABEL: Record<string, string> = {
  * Banner global que aparece cuando el admin cambia el rol del usuario.
  * Se monta en la raíz del navigator y escucha el contexto de Auth.
  */
-export default function RoleChangeBanner(): JSX.Element | null {
+export default function RoleChangeBanner(): React.JSX.Element | null {
   const { rolCambio, limpiarNotifRol } = useAuth();
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();

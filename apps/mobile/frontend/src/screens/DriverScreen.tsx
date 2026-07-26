@@ -4,12 +4,15 @@ import {
   Animated, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { io, Socket } from 'socket.io-client';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, Endpoints, traducirError } from '@/services/api';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing } from '@/theme/colors';
+
+const SOCKET_URL: string = process.env.EXPO_PUBLIC_SOCKET_URL ?? 'http://192.168.0.12:3001';
 
 interface PedidoMatch {
   id: number;
@@ -57,6 +60,13 @@ export default function DriverScreen() {
   const [tab, setTab]               = useState<'match' | 'mias' | 'wallet'>('match');
 
   const switchAnim = useRef(new Animated.Value(enLinea ? 1 : 0)).current;
+  const socketRef  = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    const socket = io(SOCKET_URL, { reconnection: true, reconnectionDelay: 1500 });
+    socketRef.current = socket;
+    return () => { socket.disconnect(); };
+  }, []);
 
   const cargar = useCallback(async () => {
     try {
@@ -103,7 +113,11 @@ export default function DriverScreen() {
 
   const aceptar = async (p: PedidoMatch) => {
     const r = await api<{ ok: boolean; error?: string }>(Endpoints.repartidorAceptar, { body: { pedido_id: p.id } });
-    if (r.ok) { Alert.alert('Pedido tomado', `Vas a recoger en ${p.tienda_nombre ?? p.vendedor_nombre}`); void cargar(); }
+    if (r.ok) {
+      Alert.alert('Pedido tomado', `Vas a recoger en ${p.tienda_nombre ?? p.vendedor_nombre}`);
+      socketRef.current?.emit('pedido-estado-cambio', { pedidoId: p.id, estado: 'en_camino' });
+      void cargar();
+    }
     else Alert.alert(t.common.error, traducirError(r.error, lang) || 'Error');
   };
 
@@ -113,6 +127,7 @@ export default function DriverScreen() {
     );
     if (r.ok) {
       Alert.alert('Entrega registrada', `+US$ ${Number(r.ganancia_repartidor ?? 0).toFixed(2)} a tu wallet`);
+      socketRef.current?.emit('pedido-estado-cambio', { pedidoId: p.id, estado: 'entregado' });
       void cargar();
     } else Alert.alert(t.common.error, traducirError(r.error, lang) || 'Error');
   };

@@ -8,7 +8,7 @@ interface Props {
   light?: boolean;
 }
 
-export default function LangToggle({ style, light }: Props): JSX.Element {
+export default function LangToggle({ style, light }: Props): React.JSX.Element {
   const { lang, cambiarIdioma } = useLang();
   const slideAnim = useRef(new Animated.Value(lang === 'es' ? 0 : 1)).current;
 

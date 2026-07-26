@@ -294,7 +294,7 @@ export default function ExploreScreen() {
                         borderWidth: selected === item.id ? 2 : StyleSheet.hairlineWidth,
                       },
                     ]}
-                    onPress={() => { selectItem(item); nav.navigate('Product', { productId: item.id }); }}
+                    onPress={() => { selectItem(item); nav.navigate('Product', { productoId: item.id }); }}
                     activeOpacity={0.88}
                   >
                     {imgUri(item.imagen)
@@ -336,7 +336,7 @@ export default function ExploreScreen() {
           }
           ListFooterComponent={hasMore && items.length > 0 ? <ActivityIndicator color={colors.accent} style={{ marginTop: 16 }} /> : null}
           renderItem={({ item }) => (
-            <ProductCard item={item} onPress={() => nav.navigate('Product', { productId: item.id })} />
+            <ProductCard item={item} onPress={() => nav.navigate('Product', { productoId: item.id })} />
           )}
         />
       )}

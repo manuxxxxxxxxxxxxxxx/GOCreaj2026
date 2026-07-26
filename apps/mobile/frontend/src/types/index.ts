@@ -15,6 +15,10 @@ export interface Usuario {
   municipio?: string | null;
   lat?: number | null;
   lng?: number | null;
+  en_linea?: number;
+  descripcion?: string | null;
+  repartidor_calificacion_promedio?: number;
+  repartidor_total_resenas?: number;
 }
 
 export interface Tienda {
@@ -28,11 +32,16 @@ export interface Tienda {
   lng: number;
   logo?: string | null;
   rating?: number;
+  calificacion_promedio?: number;
+  total_resenas?: number;
+  ventas_completadas?: number;
   activo: number;
   portada?: string | null;
   hora_apertura?: string | null;
   hora_cierre?: string | null;
   categoria?: string | null;
+  telefono?: string | null;
+  metodos_pago?: string | null;
 }
 
 export interface Producto {
@@ -87,10 +96,19 @@ export interface Pedido {
   trafico?: string | null;
   vendedor_nombre?: string;
   comprador_nombre?: string;
+  comprador_telefono?: string | null;
   repartidor_nombre?: string;
+  repartidor_foto?: string | null;
+  repartidor_telefono?: string | null;
+  repartidor_calificacion_promedio?: number;
+  repartidor_total_resenas?: number;
+  repartidor_entregas_completadas?: number;
+  tienda_nombre?: string;
   tienda_lat?: number;
   tienda_lng?: number;
   tienda_direccion?: string;
+  progreso_repartidor?: string | null;
+  created_at?: string;
   items?: PedidoItem[];
 }
 
@@ -210,8 +228,8 @@ export type RootStackParamList = {
 
 export type TabParamList = {
   Home: undefined;
+  Explore: undefined;
   Reels: undefined;
-  Cart: undefined;
   Chats: undefined;
   Profile: undefined;
 };

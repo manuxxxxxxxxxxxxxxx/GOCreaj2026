@@ -6,7 +6,7 @@ interface Props {
   mensaje?: string;
 }
 
-export default function LoadingScreen({ mensaje = 'Cargando' }: Props): JSX.Element {
+export default function LoadingScreen({ mensaje = 'Cargando' }: Props): React.JSX.Element {
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color={Colors.accent} />

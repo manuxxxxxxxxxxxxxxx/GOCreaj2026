@@ -720,7 +720,7 @@ export default function SellerScreen() {
                         <View>
                           <Text style={[S.orderClient, { color: colors.text }]}>{v.comprador_nombre}</Text>
                           <Text style={[S.orderMeta, { color: colors.muted }]}>
-                            Pago: {v.metodo_pago} · {new Date(v.created_at).toLocaleDateString('es-SV', { day: '2-digit', month: 'short' })}
+                            Pago: {v.metodo_pago} · {new Date(v.created_at ?? Date.now()).toLocaleDateString('es-SV', { day: '2-digit', month: 'short' })}
                           </Text>
                         </View>
                         <Text style={[S.orderTotal, { color: colors.accent }]}>${Number(v.total).toFixed(2)}</Text>

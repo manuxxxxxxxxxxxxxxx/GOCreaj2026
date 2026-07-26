@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, Animated, Easing } from 'react-native';
+import { View, Text, Image, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, Animated, Easing, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
+import { io, Socket } from 'socket.io-client';
 import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +13,9 @@ import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
 import { Pedido, RootStackParamList } from '@/types';
 import { useAuth } from '@/context/AuthContext';
+import { resolveMediaUrl } from '@/utils/media';
+
+const SOCKET_URL: string = process.env.EXPO_PUBLIC_SOCKET_URL ?? 'http://192.168.0.12:3001';
 
 type Nav   = NativeStackNavigationProp<RootStackParamList, 'Tracking'>;
 type Route = RouteProp<RootStackParamList, 'Tracking'>;
@@ -52,6 +56,7 @@ export default function MapTrackingScreen() {
   const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRef   = useRef<ReturnType<typeof setInterval> | null>(null);
   const gpsRef    = useRef<ReturnType<typeof setInterval> | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -75,9 +80,28 @@ export default function MapTrackingScreen() {
 
   useEffect(() => {
     void cargar();
-    pollRef.current = setInterval(() => { void cargar(); }, 8000);
+    // El poll REST queda como respaldo de baja frecuencia; el socket es la vía principal de refresco
+    pollRef.current = setInterval(() => { void cargar(); }, 15000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [cargar]);
+
+  // Sync tri-party en tiempo real: usuario, vendedor y repartidor comparten la sala `pedido_<id>`
+  useEffect(() => {
+    const socket: Socket = io(SOCKET_URL, { reconnection: true, reconnectionDelay: 1500 });
+    socketRef.current = socket;
+    socket.on('connect', () => socket.emit('join-pedido', { pedidoId }));
+    socket.on('pedido-estado-cambio', () => { void cargar(); });
+    socket.on('pedido-ubicacion', (payload: { lat: number; lng: number; tiempo_estimado?: number; trafico?: string }) => {
+      setPedido(prev => prev ? {
+        ...prev,
+        lat_repartidor: payload.lat,
+        lng_repartidor: payload.lng,
+        tiempo_estimado: payload.tiempo_estimado ?? prev.tiempo_estimado,
+        trafico: payload.trafico ?? prev.trafico,
+      } : prev);
+    });
+    return () => { socket.emit('leave-pedido', { pedidoId }); socket.disconnect(); };
+  }, [pedidoId, cargar]);
 
   // Countdown
   useEffect(() => {
@@ -99,7 +123,11 @@ export default function MapTrackingScreen() {
       gpsRef.current = setInterval(async () => {
         try {
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-          await api<RespUbic>(Endpoints.trackingActualizar, { body: { pedido_id: pedidoId, lat: loc.coords.latitude, lng: loc.coords.longitude } });
+          const r = await api<RespUbic>(Endpoints.trackingActualizar, { body: { pedido_id: pedidoId, lat: loc.coords.latitude, lng: loc.coords.longitude } });
+          socketRef.current?.emit('pedido-ubicacion', {
+            pedidoId, lat: loc.coords.latitude, lng: loc.coords.longitude,
+            tiempo_estimado: r.tiempo_estimado, trafico: r.trafico,
+          });
         } catch { /**/ }
       }, 10000);
     }
@@ -318,6 +346,16 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 10,
   },
   panelHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.md },
+  driverCard: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    borderRadius: Radius.md, padding: Spacing.sm,
+    borderWidth: 1, marginBottom: Spacing.md,
+  },
+  driverAvatar: { width: 46, height: 46, borderRadius: 23 },
+  driverBtn: {
+    width: 34, height: 34, borderRadius: 17,
+    justifyContent: 'center', alignItems: 'center',
+  },
   countdownBox: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
     borderRadius: Radius.md, padding: Spacing.sm,

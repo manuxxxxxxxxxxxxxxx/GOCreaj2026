@@ -45,7 +45,7 @@ function buildCommentTree(flat: Comentario[]): Comentario[] {
   return roots;
 }
 
-export default function ReelsScreen(): JSX.Element {
+export default function ReelsScreen(): React.JSX.Element {
   const nav = useNavigation<NavigationProp<RootStackParamList>>();
   const { colors } = useTheme();
   const { usuario } = useAuth();
@@ -433,7 +433,7 @@ function CommentItem({ c, colors, depth = 0, onResponder, onLike }: {
   c: Comentario; colors: any; depth?: number;
   onResponder: (c: Comentario) => void;
   onLike: (id: number) => void;
-}): JSX.Element {
+}): React.JSX.Element {
   return (
     <View style={{ marginLeft: depth * 24, marginBottom: 10 }}>
       <View style={{ flexDirection: 'row', gap: 10 }}>

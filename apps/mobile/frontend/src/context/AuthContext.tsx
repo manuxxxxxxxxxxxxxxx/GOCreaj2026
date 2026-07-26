@@ -21,7 +21,7 @@ interface MeResponse {
   error?: string;
 }
 
-export function AuthProvider({ children }: { children: ReactNode }): JSX.Element {
+export function AuthProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [cargando, setCargando] = useState<boolean>(true);
   // Notificación de cambio de rol (admin aprobó solicitud)
