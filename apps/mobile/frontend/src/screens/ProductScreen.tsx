@@ -35,8 +35,12 @@ export default function ProductScreen() {
 
   const addCarrito = async (): Promise<void> => {
     const r = await api<{ ok: boolean; error?: string }>(Endpoints.carritoAgregar, { body: { producto_id: prod.id, cantidad } });
-    if (r.ok) Alert.alert(t.cart.miCarrito, t.product.agregado);
-    else Alert.alert(t.common.error, r.error ?? t.common.falloRed);
+    if (r.ok) {
+      Alert.alert(t.cart.miCarrito, `${prod.nombre} — ${t.product.agregado}`, [
+        { text: t.common.cancelar, style: 'cancel' },
+        { text: `${t.cart.miCarrito} →`, onPress: () => nav.navigate('Cart') },
+      ]);
+    } else Alert.alert(t.common.error, r.error ?? t.common.falloRed);
   };
 
   const guardar = async (): Promise<void> => {

@@ -210,7 +210,12 @@ export default function HomeScreen() {
   const agregarCarrito = async (p: Producto) => {
     try {
       const r = await api<{ ok: boolean; error?: string }>(Endpoints.carritoAgregar, { body: { producto_id: p.id } });
-      if (r.ok) Alert.alert(t.cart.miCarrito, `${p.nombre} — ${t.product.agregado}`);
+      if (r.ok) {
+        Alert.alert(t.cart.miCarrito, `${p.nombre} — ${t.product.agregado}`, [
+          { text: t.common.cancelar, style: 'cancel' },
+          { text: `${t.cart.miCarrito} →`, onPress: () => nav.navigate('Cart') },
+        ]);
+      }
       else Alert.alert(t.common.error, traducirError(r.error, lang) || t.common.falloRed);
     } catch { Alert.alert(t.common.error, t.common.falloRed); }
   };

@@ -76,10 +76,10 @@ export default function CartScreen() {
     setPagoVisible(true);
   };
 
-  const onPaySuccess = async () => {
+  const onPaySuccess = async (metodo: 'tarjeta' | 'paypal' | 'efectivo') => {
     try {
       const r = await api<CheckoutResp>(Endpoints.carritoCheckout, {
-        body: { metodo_pago: 'tarjeta', direccion_entrega: direccion },
+        body: { metodo_pago: metodo, direccion_entrega: direccion },
       });
       if (r.ok && r.pedidos && r.pedidos.length > 0) {
         const pid = r.pedidos[0];
@@ -222,6 +222,8 @@ export default function CartScreen() {
       <PaymentModal
         visible={pagoVisible}
         total={total}
+        items={items}
+        direccion={direccion}
         onClose={() => setPagoVisible(false)}
         onSuccess={onPaySuccess}
       />

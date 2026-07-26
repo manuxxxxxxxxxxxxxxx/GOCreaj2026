@@ -8,8 +8,10 @@ import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
 import Input from '@/components/Input';
+import { CarritoItem } from '@/types';
 
-type PayStep = 'select' | 'card' | 'paypal_auth' | 'paypal_2fa' | 'processing' | 'success';
+type PayStep = 'select' | 'card' | 'paypal_auth' | 'paypal_2fa' | 'review' | 'processing' | 'success';
+type MetodoPago = 'tarjeta' | 'paypal' | 'efectivo';
 
 function luhn(num: string): boolean {
   const digits = num.replace(/\D/g, '');
@@ -32,15 +34,18 @@ function generateRef(): string {
 interface Props {
   visible: boolean;
   total: number;
+  items?: CarritoItem[];
+  direccion?: string;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (metodo: MetodoPago) => void;
 }
 
-export default function PaymentModal({ visible, total, onClose, onSuccess }: Props) {
+export default function PaymentModal({ visible, total, items = [], direccion, onClose, onSuccess }: Props) {
   const { colors } = useTheme();
   const { t } = useLang();
 
   const [step, setStep] = useState<PayStep>('select');
+  const [metodoElegido, setMetodoElegido] = useState<MetodoPago>('tarjeta');
   const [cardNum, setCardNum] = useState('');
   const [cardName, setCardName] = useState('');
   const [cardExp, setCardExp] = useState('');
@@ -56,6 +61,7 @@ export default function PaymentModal({ visible, total, onClose, onSuccess }: Pro
 
   const resetState = () => {
     setStep('select');
+    setMetodoElegido('tarjeta');
     setCardNum(''); setCardName(''); setCardExp(''); setCardCvv('');
     setPpEmail(''); setPpPass(''); setPpCode('');
     progressAnim.setValue(0);
@@ -105,7 +111,13 @@ export default function PaymentModal({ visible, total, onClose, onSuccess }: Pro
             <View style={[styles.header, { borderBottomColor: c.border }]}>
               {step !== 'select' && step !== 'processing' ? (
                 <TouchableOpacity
-                  onPress={() => setStep('select')}
+                  onPress={() => {
+                    if (step === 'review') {
+                      setStep(metodoElegido === 'tarjeta' ? 'card' : metodoElegido === 'paypal' ? 'paypal_2fa' : 'select');
+                    } else {
+                      setStep('select');
+                    }
+                  }}
                   style={[styles.backBtn, { backgroundColor: c.background }]}
                 >
                   <Ionicons name="arrow-back" size={18} color={c.text} />
@@ -149,9 +161,9 @@ export default function PaymentModal({ visible, total, onClose, onSuccess }: Pro
                       key={opt.key}
                       style={[styles.methodCard, { backgroundColor: c.background, borderColor: c.border }]}
                       onPress={() => {
-                        if (opt.key === 'card') setStep('card');
-                        else if (opt.key === 'paypal') setStep('paypal_auth');
-                        else startProcessing();
+                        if (opt.key === 'card') { setMetodoElegido('tarjeta'); setStep('card'); }
+                        else if (opt.key === 'paypal') { setMetodoElegido('paypal'); setStep('paypal_auth'); }
+                        else { setMetodoElegido('efectivo'); setStep('review'); }
                       }}
                       activeOpacity={0.8}
                     >
@@ -232,7 +244,7 @@ export default function PaymentModal({ visible, total, onClose, onSuccess }: Pro
                 <Text style={[styles.cvvHint, { color: c.muted }]}>{t.payment.cvvHint}</Text>
                 <TouchableOpacity
                   style={[styles.payBtn, { backgroundColor: canPayCard ? c.accent : c.border }]}
-                  onPress={startProcessing}
+                  onPress={() => canPayCard && setStep('review')}
                   disabled={!canPayCard}
                   activeOpacity={0.85}
                 >
@@ -286,13 +298,70 @@ export default function PaymentModal({ visible, total, onClose, onSuccess }: Pro
                 />
                 <TouchableOpacity
                   style={[styles.payBtn, { backgroundColor: canVerify2fa ? '#003087' : c.border }]}
-                  onPress={() => canVerify2fa && startProcessing()}
+                  onPress={() => canVerify2fa && setStep('review')}
                   disabled={!canVerify2fa}
                   activeOpacity={0.85}
                 >
                   <Text style={[styles.payBtnTxt, { color: canVerify2fa ? '#FFF' : c.muted }]}>
                     {t.payment.verificar} · ${total.toFixed(2)}
                   </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* STEP: REVIEW — confirmación previa al cargo real */}
+            {step === 'review' && (
+              <View>
+                <Text style={[styles.stepTitle, { color: c.text }]}>Revisa tu pedido</Text>
+
+                {items.length > 0 && (
+                  <View style={[styles.reviewCard, { backgroundColor: c.background, borderColor: c.border }]}>
+                    {items.map(it => (
+                      <View key={it.id} style={styles.reviewItemRow}>
+                        <Text style={[styles.reviewItemTxt, { color: c.text }]} numberOfLines={1}>
+                          {it.cantidad}× {it.nombre}
+                        </Text>
+                        <Text style={[styles.reviewItemPrice, { color: c.muted }]}>
+                          ${(Number(it.precio) * it.cantidad).toFixed(2)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {!!direccion && (
+                  <View style={[styles.reviewCard, { backgroundColor: c.background, borderColor: c.border }]}>
+                    <View style={styles.reviewItemRow}>
+                      <Ionicons name="location-outline" size={15} color={c.accent} style={{ marginRight: 6 }} />
+                      <Text style={[styles.reviewItemTxt, { color: c.text, flex: 1 }]} numberOfLines={2}>{direccion}</Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={[styles.reviewCard, { backgroundColor: c.background, borderColor: c.border }]}>
+                  <View style={styles.reviewItemRow}>
+                    <Ionicons
+                      name={metodoElegido === 'tarjeta' ? 'card-outline' : metodoElegido === 'paypal' ? 'logo-paypal' : 'cash-outline'}
+                      size={15} color={c.accent} style={{ marginRight: 6 }}
+                    />
+                    <Text style={[styles.reviewItemTxt, { color: c.text }]}>
+                      {metodoElegido === 'tarjeta' ? `${t.cart.tarjeta} •••• ${cardNum.replace(/\s/g, '').slice(-4)}` : metodoElegido === 'paypal' ? 'PayPal' : t.cart.efectivo}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={[styles.reviewTotalRow, { borderTopColor: c.border }]}>
+                  <Text style={[styles.reviewTotalLbl, { color: c.muted }]}>Total a pagar</Text>
+                  <Text style={[styles.reviewTotalVal, { color: c.accent }]}>${total.toFixed(2)}</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.payBtn, { backgroundColor: c.accent }]}
+                  onPress={startProcessing}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
+                  <Text style={[styles.payBtnTxt, { color: '#FFF' }]}>Sí, confirmar y pagar</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -361,7 +430,7 @@ export default function PaymentModal({ visible, total, onClose, onSuccess }: Pro
 
                 <TouchableOpacity
                   style={[styles.payBtn, { backgroundColor: c.accent, marginTop: Spacing.lg }]}
-                  onPress={() => { resetState(); onSuccess(); }}
+                  onPress={() => { const metodo = metodoElegido; resetState(); onSuccess(metodo); }}
                   activeOpacity={0.85}
                 >
                   <Ionicons name="bicycle-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
@@ -472,4 +541,14 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   gateTxt: { flex: 1, fontSize: Fonts.small, fontWeight: '600', lineHeight: 16 },
+  reviewCard: { borderRadius: Radius.md, borderWidth: 1.5, padding: Spacing.md, marginBottom: Spacing.sm },
+  reviewItemRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 3 },
+  reviewItemTxt: { fontSize: Fonts.small + 1, fontWeight: '600', flexShrink: 1 },
+  reviewItemPrice: { fontSize: Fonts.small + 1, fontWeight: '700' },
+  reviewTotalRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderTopWidth: 1, paddingTop: Spacing.sm, marginBottom: Spacing.lg,
+  },
+  reviewTotalLbl: { fontSize: Fonts.regular, fontWeight: '700' },
+  reviewTotalVal: { fontSize: Fonts.title - 4, fontWeight: '900' },
 });
