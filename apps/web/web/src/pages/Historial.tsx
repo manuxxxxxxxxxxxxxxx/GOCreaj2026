@@ -163,8 +163,8 @@ export default function Historial() {
                   </div>
                   <div className="order-actions">
                     <button className="order-action-btn secondary" onClick={() => navigate('/chat')}>💬 Mensaje</button>
-                    {o.estado === 'en_camino' ? (
-                      <button className="order-action-btn primary" onClick={() => navigate('/entregas')}>📍 Rastrear</button>
+                    {(o.estado === 'en_camino' || o.estado === 'preparacion') ? (
+                      <button className="order-action-btn primary" onClick={() => navigate(`/entregas/${o.id}`)}>📍 Rastrear</button>
                     ) : (
                       <button className="order-action-btn primary" onClick={() => navigate('/market')}>🛍️ Pedir de nuevo</button>
                     )}

@@ -35,6 +35,7 @@ function App() {
           <Route path="/historial" element={<Historial />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/call-embed" element={<CallEmbed />} />
+          <Route path="/entregas/:pedidoId" element={<Entregas />} />
           <Route path="/entregas" element={<Entregas />} />
           <Route path="/reels" element={<Reels />} />
           <Route path="/dashboard-vendedor" element={<VendedorDashboard />} />

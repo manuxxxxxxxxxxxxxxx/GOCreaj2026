@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
-import { api, API_URL } from '../api';
+import { io, Socket } from 'socket.io-client';
+import { api, API_URL, SOCKET_URL } from '../api';
 import '../../css/index.css';
 import '../../css/dashboards.css';
 import '../../css/dark.css';
@@ -53,6 +54,13 @@ export default function RepartidorDashboard() {
   const { theme, toggleTheme } = useGlobal();
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
+  const socketRef = useRef<Socket | null>(null);
+
+  useEffect(() => {
+    const socket = io(SOCKET_URL, { reconnection: true, reconnectionDelay: 1500 });
+    socketRef.current = socket;
+    return () => { socket.disconnect(); };
+  }, []);
 
   // Perfil y reseñas (Fase 2 — Módulo 1)
   const [perfil, setPerfil] = useState<Perfil | null>(null);
@@ -179,6 +187,7 @@ export default function RepartidorDashboard() {
     try {
       const res = await api.post('/repartidor_dashboard.php?action=aceptar', { pedido_id: order.id });
       if (res.data.ok) {
+        socketRef.current?.emit('pedido-estado-cambio', { pedidoId: Number(order.id), estado: 'en_camino' });
         fetchData();
         triggerToast('Pedido aceptado. Recoge en la tienda.');
       }
@@ -191,6 +200,7 @@ export default function RepartidorDashboard() {
     try {
       const res = await api.post('/repartidor_dashboard.php?action=completar', { pedido_id: order.id });
       if (res.data.ok) {
+        socketRef.current?.emit('pedido-estado-cambio', { pedidoId: Number(order.id), estado: 'entregado' });
         fetchData();
         triggerToast('Pedido entregado exitosamente. +$3.50');
       }
