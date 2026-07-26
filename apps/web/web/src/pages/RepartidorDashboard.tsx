@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
+import { api, API_URL } from '../api';
 import '../../css/index.css';
 import '../../css/dashboards.css';
 import '../../css/dark.css';
@@ -16,9 +16,83 @@ interface Order {
   status: 'pending' | 'active' | 'completed';
 }
 
+interface Perfil {
+  nombre: string;
+  foto_perfil: string | null;
+  descripcion: string | null;
+  repartidor_calificacion_promedio: number;
+  repartidor_total_resenas: number;
+  entregas_completadas: number;
+}
+
+interface Resena {
+  id: number;
+  estrellas: number;
+  comentario: string | null;
+  created_at: string;
+  comprador_nombre: string;
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+function fotoUri(foto?: string | null): string | undefined {
+  if (!foto) return undefined;
+  if (foto.startsWith('data:') || foto.startsWith('http')) return foto;
+  const m = foto.match(/\/uploads\/(.+)$/);
+  return `${API_URL}/uploads/${m ? m[1] : foto}`;
+}
+
 export default function RepartidorDashboard() {
   const { theme, toggleTheme } = useGlobal();
   const navigate = useNavigate();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Perfil y reseñas (Fase 2 — Módulo 1)
+  const [perfil, setPerfil] = useState<Perfil | null>(null);
+  const [resenas, setResenas] = useState<Resena[]>([]);
+  const [editandoBio, setEditandoBio] = useState(false);
+  const [bioDraft, setBioDraft] = useState('');
+  const [guardandoPerfil, setGuardandoPerfil] = useState(false);
+
+  const fetchPerfil = async () => {
+    try {
+      const [resP, resR] = await Promise.all([
+        api.get('/repartidor_dashboard.php?action=mi_perfil'),
+        api.get('/repartidor_dashboard.php?action=mis_resenas'),
+      ]);
+      if (resP.data.ok) { setPerfil(resP.data.perfil); setBioDraft(resP.data.perfil.descripcion || ''); }
+      if (resR.data.ok) setResenas(resR.data.resenas || []);
+    } catch (e) { console.error(e); }
+  };
+
+  useEffect(() => { void fetchPerfil(); }, []);
+
+  const subirFoto = async (file: File) => {
+    const b64 = await fileToBase64(file);
+    try {
+      const res = await api.post('/repartidor_dashboard.php?action=actualizar_perfil', { foto_perfil: b64 });
+      if (res.data.ok) setPerfil(prev => prev ? { ...prev, foto_perfil: res.data.foto_perfil } : prev);
+    } catch (e) { console.error(e); }
+  };
+
+  const guardarBio = async () => {
+    setGuardandoPerfil(true);
+    try {
+      const res = await api.post('/repartidor_dashboard.php?action=actualizar_perfil', { descripcion: bioDraft });
+      if (res.data.ok) {
+        setPerfil(prev => prev ? { ...prev, descripcion: bioDraft } : prev);
+        setEditandoBio(false);
+      }
+    } catch (e) { console.error(e); }
+    setGuardandoPerfil(false);
+  };
 
   // Availability Toggle
   const [isAvailable, setIsAvailable] = useState(true);
@@ -79,6 +153,14 @@ export default function RepartidorDashboard() {
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const toggleDisponibilidad = async () => {
+    const nuevo = !isAvailable;
+    setIsAvailable(nuevo);
+    try {
+      await api.post('/repartidor_dashboard.php?action=toggle_en_linea', { en_linea: nuevo });
+    } catch (e) { console.error(e); setIsAvailable(!nuevo); }
   };
 
   const triggerToast = (msg: string) => {
@@ -167,7 +249,7 @@ export default function RepartidorDashboard() {
           <div className="dash-header-left">
             <h1 className="page-title">Dashboard del Repartidor</h1>
             <p className="driver-subtitle">
-              Hola, <strong>Carlos Reparto</strong> — bienvenido de vuelta
+              Hola, <strong>{perfil?.nombre ?? '...'}</strong> — bienvenido de vuelta
             </p>
           </div>
           <div className="availability-wrap">
@@ -176,7 +258,7 @@ export default function RepartidorDashboard() {
             </span>
             <button 
               className={`toggle-pill ${isAvailable ? 'active' : ''}`} 
-              onClick={() => setIsAvailable(!isAvailable)} 
+              onClick={toggleDisponibilidad} 
               aria-label="Alternar disponibilidad"
             >
               <span className="pill-track"></span>
@@ -218,8 +300,8 @@ export default function RepartidorDashboard() {
               </svg>
             </div>
             <div className="stat-label">Calificación</div>
-            <div className="stat-value">4.9</div>
-            <div className="stat-sub">★ Promedio general</div>
+            <div className="stat-value">{perfil?.repartidor_calificacion_promedio ? Number(perfil.repartidor_calificacion_promedio).toFixed(1) : '—'}</div>
+            <div className="stat-sub">★ {perfil?.repartidor_total_resenas ?? 0} reseñas</div>
           </div>
           <div className="stat-card">
             <div className="stat-card-icon orange">
@@ -339,6 +421,98 @@ export default function RepartidorDashboard() {
                     </div>
                   </div>
                 ))
+              )}
+            </div>
+          </div>
+        </div>
+        </div>
+        {/* Mi Perfil — foto, bio, reseñas (Fase 2 · Módulo 1) */}
+        <div className="panel-card" style={{ marginTop: '24px' }}>
+          <div className="panel-header">
+            <span className="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--blue)' }}>
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+              </svg>
+              Mi Perfil
+            </span>
+          </div>
+          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', gap: '18px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <div
+                  onClick={() => fileRef.current?.click()}
+                  style={{
+                    width: 84, height: 84, borderRadius: '50%', overflow: 'hidden', cursor: 'pointer',
+                    background: 'var(--bg)', border: '2px solid var(--border, #E2E8F0)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                  title="Cambiar foto de perfil"
+                >
+                  {perfil?.foto_perfil
+                    ? <img src={fotoUri(perfil.foto_perfil)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontSize: '1.8rem', fontWeight: 900, color: 'var(--blue)' }}>{(perfil?.nombre ?? 'R').charAt(0).toUpperCase()}</span>
+                  }
+                </div>
+                <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) void subirFoto(f); }} />
+              </div>
+
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text)' }}>{perfil?.nombre}</div>
+                <div style={{ display: 'flex', gap: '14px', marginTop: '6px', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  <span>★ {perfil?.repartidor_calificacion_promedio ? Number(perfil.repartidor_calificacion_promedio).toFixed(1) : '—'} ({perfil?.repartidor_total_resenas ?? 0})</span>
+                  <span>🚴 {perfil?.entregas_completadas ?? 0} entregas completadas</span>
+                </div>
+
+                {!editandoBio ? (
+                  <div style={{ marginTop: '10px' }}>
+                    <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text)' }}>
+                      {perfil?.descripcion || 'Sin descripción todavía.'}
+                    </p>
+                    <button className="btn-primary" onClick={() => setEditandoBio(true)} style={{ marginTop: '8px', padding: '6px 12px', fontSize: '0.78rem' }}>
+                      Editar descripción
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: '10px' }}>
+                    <textarea
+                      value={bioDraft}
+                      onChange={e => setBioDraft(e.target.value)}
+                      placeholder="Cuéntale a tus clientes sobre ti..."
+                      rows={3}
+                      style={{ width: '100%', padding: '10px 12px', borderRadius: '10px', border: '1.5px solid var(--border, #E2E8F0)', fontFamily: 'inherit', fontSize: '0.88rem', resize: 'vertical', boxSizing: 'border-box' }}
+                    />
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                      <button className="btn-primary" onClick={guardarBio} disabled={guardandoPerfil} style={{ padding: '6px 12px', fontSize: '0.78rem' }}>
+                        {guardandoPerfil ? 'Guardando...' : 'Guardar'}
+                      </button>
+                      <button onClick={() => { setEditandoBio(false); setBioDraft(perfil?.descripcion || ''); }} style={{ padding: '6px 12px', fontSize: '0.78rem', background: 'transparent', border: '1.5px solid var(--border, #E2E8F0)', borderRadius: '10px', cursor: 'pointer' }}>
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.4px', color: 'var(--text-muted)', marginBottom: '10px' }}>
+                Reseñas de clientes
+              </div>
+              {resenas.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Aún no tienes reseñas.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {resenas.map(r => (
+                    <div key={r.id} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <strong style={{ fontSize: '0.85rem', color: 'var(--text)' }}>{r.comprador_nombre}</strong>
+                        <span style={{ color: '#F59E0B', fontWeight: 700, fontSize: '0.85rem' }}>{'★'.repeat(r.estrellas)}</span>
+                      </div>
+                      {r.comentario && <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{r.comentario}</p>}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>

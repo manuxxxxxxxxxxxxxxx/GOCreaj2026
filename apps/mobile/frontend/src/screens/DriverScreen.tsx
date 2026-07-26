@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
-  Animated, RefreshControl,
+  Animated, RefreshControl, Image, TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { io, Socket } from 'socket.io-client';
+import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, Endpoints, traducirError } from '@/services/api';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing } from '@/theme/colors';
+import { resolveMediaUrl } from '@/utils/media';
 
 const SOCKET_URL: string = process.env.EXPO_PUBLIC_SOCKET_URL ?? 'http://192.168.0.12:3001';
 
@@ -35,6 +37,21 @@ interface WalletResp {
   movimientos: Array<{ id: number; tipo: string; monto: number; referencia?: string; pedido_id?: number | null; created_at: string }>;
   stats: { hoy: number; semana: number; entregas_hoy: number };
 }
+interface Perfil {
+  nombre: string;
+  foto_perfil: string | null;
+  descripcion: string | null;
+  repartidor_calificacion_promedio: number;
+  repartidor_total_resenas: number;
+  entregas_completadas: number;
+}
+interface Resena {
+  id: number;
+  estrellas: number;
+  comentario: string | null;
+  created_at: string;
+  comprador_nombre: string;
+}
 
 export default function DriverScreen() {
   const { colors } = useTheme();
@@ -57,7 +74,48 @@ export default function DriverScreen() {
   const [entregas, setEntregas]     = useState<PedidoEntrega[]>([]);
   const [wallet, setWallet]         = useState<WalletResp | null>(null);
   const [refresh, setRefresh]       = useState(false);
-  const [tab, setTab]               = useState<'match' | 'mias' | 'wallet'>('match');
+  const [tab, setTab]               = useState<'match' | 'mias' | 'wallet' | 'perfil'>('match');
+
+  // Perfil y reseñas (Fase 2 — Módulo 1)
+  const [perfil, setPerfil]         = useState<Perfil | null>(null);
+  const [resenas, setResenas]       = useState<Resena[]>([]);
+  const [editandoBio, setEditandoBio] = useState(false);
+  const [bioDraft, setBioDraft]     = useState('');
+  const [guardandoPerfil, setGuardandoPerfil] = useState(false);
+
+  const cargarPerfil = useCallback(async () => {
+    try {
+      const [rp, rr] = await Promise.all([
+        api<{ ok: boolean; perfil?: Perfil }>(Endpoints.repartidorMiPerfil),
+        api<{ ok: boolean; resenas?: Resena[] }>(Endpoints.repartidorMisResenas),
+      ]);
+      if (rp.ok && rp.perfil) { setPerfil(rp.perfil); setBioDraft(rp.perfil.descripcion || ''); }
+      if (rr.ok) setResenas(rr.resenas ?? []);
+    } catch { /* offline safe */ }
+  }, []);
+
+  useEffect(() => { void cargarPerfil(); }, [cargarPerfil]);
+
+  const subirFotoPerfil = async () => {
+    const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!granted) { Alert.alert('Permiso requerido', 'Necesitamos acceso a la galería.'); return; }
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      base64: true, quality: 0.75, allowsEditing: true, aspect: [1, 1],
+    });
+    if (r.canceled || !r.assets[0].base64) return;
+    const b64 = `data:image/jpeg;base64,${r.assets[0].base64}`;
+    const res = await api<{ ok: boolean; foto_perfil?: string }>(Endpoints.repartidorActualizarPerfil, { body: { foto_perfil: b64 } });
+    if (res.ok) setPerfil(prev => prev ? { ...prev, foto_perfil: res.foto_perfil ?? prev.foto_perfil } : prev);
+  };
+
+  const guardarBio = async () => {
+    setGuardandoPerfil(true);
+    try {
+      const res = await api<{ ok: boolean }>(Endpoints.repartidorActualizarPerfil, { body: { descripcion: bioDraft } });
+      if (res.ok) { setPerfil(prev => prev ? { ...prev, descripcion: bioDraft } : prev); setEditandoBio(false); }
+    } finally { setGuardandoPerfil(false); }
+  };
 
   const switchAnim = useRef(new Animated.Value(enLinea ? 1 : 0)).current;
   const socketRef  = useRef<Socket | null>(null);
@@ -173,6 +231,7 @@ export default function DriverScreen() {
           { k: 'match', label: 'Disponibles', icon: 'flash-outline' as const },
           { k: 'mias',  label: 'Mis entregas', icon: 'list-outline' as const },
           { k: 'wallet', label: 'Wallet',     icon: 'wallet-outline' as const },
+          { k: 'perfil', label: 'Mi Perfil',  icon: 'person-outline' as const },
         ] as const).map(it => {
           const act = tab === it.k;
           return (
@@ -333,8 +392,93 @@ export default function DriverScreen() {
             ))}
           </>
         )}
+
+        {tab === 'perfil' && (
+          <>
+            <View style={{ alignItems: 'center', marginBottom: 20 }}>
+              <TouchableOpacity onPress={subirFotoPerfil} activeOpacity={0.85} style={{ position: 'relative' }}>
+                {perfil?.foto_perfil ? (
+                  <Image source={{ uri: resolveMediaUrl(perfil.foto_perfil) }} style={styles.perfilAvatar} />
+                ) : (
+                  <View style={[styles.perfilAvatar, { backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }]}>
+                    <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 26 }}>{usuario?.nombre?.[0] ?? 'R'}</Text>
+                  </View>
+                )}
+                <View style={[styles.perfilCamBadge, { backgroundColor: colors.accent, borderColor: colors.background }]}>
+                  <Ionicons name="camera" size={13} color="#FFF" />
+                </View>
+              </TouchableOpacity>
+              <Text style={{ color: colors.text, fontWeight: '900', fontSize: 17, marginTop: 10 }}>{perfil?.nombre ?? usuario?.nombre}</Text>
+              <View style={{ flexDirection: 'row', gap: 14, marginTop: 6 }}>
+                <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
+                  ★ {perfil?.repartidor_calificacion_promedio ? Number(perfil.repartidor_calificacion_promedio).toFixed(1) : '—'} ({perfil?.repartidor_total_resenas ?? 0})
+                </Text>
+                <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
+                  🚴 {perfil?.entregas_completadas ?? 0} entregas
+                </Text>
+              </View>
+            </View>
+
+            <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, alignItems: 'stretch' }]}>
+              <Text style={{ color: colors.text, fontWeight: '900', fontSize: 13, marginBottom: 8 }}>Descripción</Text>
+              {!editandoBio ? (
+                <>
+                  <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
+                    {perfil?.descripcion || 'Sin descripción todavía.'}
+                  </Text>
+                  <TouchableOpacity onPress={() => setEditandoBio(true)} style={{ marginTop: 10 }}>
+                    <Text style={{ color: colors.accent, fontWeight: '800', fontSize: 12 }}>Editar descripción</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <View style={[styles.bioInput, { borderColor: colors.border, backgroundColor: colors.background }]}>
+                    <TextInputBio value={bioDraft} onChangeText={setBioDraft} color={colors.text} />
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                    <TouchableOpacity onPress={guardarBio} disabled={guardandoPerfil} style={[styles.acceptBtn, { backgroundColor: colors.accent, flex: 1 }]}>
+                      <Text style={styles.acceptTxt}>{guardandoPerfil ? 'Guardando...' : 'Guardar'}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => { setEditandoBio(false); setBioDraft(perfil?.descripcion || ''); }} style={[styles.acceptBtn, { backgroundColor: colors.border, flex: 1 }]}>
+                      <Text style={[styles.acceptTxt, { color: colors.text }]}>Cancelar</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              )}
+            </View>
+
+            <Text style={{ color: colors.text, fontWeight: '900', fontSize: 15, marginTop: 16, marginBottom: 10 }}>Reseñas de clientes</Text>
+            {resenas.length === 0 ? (
+              <Text style={{ color: colors.muted, fontSize: 13 }}>Aún no tienes reseñas.</Text>
+            ) : resenas.map(r => (
+              <View key={r.id} style={[styles.mov, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ color: colors.text, fontWeight: '800', fontSize: 13 }}>{r.comprador_nombre}</Text>
+                    <Text style={{ color: '#F59E0B', fontWeight: '800', fontSize: 12 }}>{'★'.repeat(r.estrellas)}</Text>
+                  </View>
+                  {!!r.comentario && <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>{r.comentario}</Text>}
+                </View>
+              </View>
+            ))}
+          </>
+        )}
       </ScrollView>
     </View>
+  );
+}
+
+function TextInputBio({ value, onChangeText, color }: { value: string; onChangeText: (v: string) => void; color: string }) {
+  return (
+    <TextInput
+      value={value}
+      onChangeText={onChangeText}
+      placeholder="Cuéntale a tus clientes sobre ti..."
+      placeholderTextColor="#94A3B8"
+      multiline
+      numberOfLines={3}
+      style={{ color, fontSize: 13, minHeight: 60, textAlignVertical: 'top', padding: 12 }}
+    />
   );
 }
 
@@ -346,6 +490,12 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
   },
   avatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  perfilAvatar: { width: 84, height: 84, borderRadius: 42 },
+  perfilCamBadge: {
+    position: 'absolute', bottom: 0, right: 0, width: 26, height: 26, borderRadius: 13,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 2,
+  },
+  bioInput: { borderRadius: 12, borderWidth: 1.5, overflow: 'hidden' },
   switch: { width: 60, height: 32, borderRadius: 18, position: 'relative', justifyContent: 'center' },
   switchKnob: {
     width: 26, height: 26, borderRadius: 13, position: 'absolute',
