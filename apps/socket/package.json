@@ -1,0 +1,13 @@
+{
+  "name": "svgo-signal",
+  "version": "1.0.0",
+  "description": "WebRTC signaling server for SVGO chat calls",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "socket.io": "^4.7.5"
+  }
+}
