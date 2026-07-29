@@ -115,8 +115,8 @@ switch ($action) {
         }
 
         $st = db()->prepare(
-            "INSERT INTO productos (tienda_id, nombre, descripcion, precio, precio_oferta, stock, imagen, video, categoria, es_reel, estado_stock)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO productos (tienda_id, nombre, descripcion, precio, precio_oferta, stock, imagen, video, categoria, es_reel, estado_stock, tiempo_preparacion)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $st->execute([
             $data['tienda_id'],
@@ -130,6 +130,7 @@ switch ($action) {
             $cat,
             !empty($data['es_reel']) ? 1 : 0,
             $estado_stock,
+            $data['tiempo_preparacion'] ?? null,
         ]);
         jout(['ok' => true, 'id' => (int)db()->lastInsertId()]);
         break;
@@ -181,7 +182,8 @@ switch ($action) {
                 activo = COALESCE(?, activo),
                 estado_stock = COALESCE(?, estado_stock),
                 imagen = COALESCE(?, imagen),
-                video_url = COALESCE(?, video_url)
+                video_url = COALESCE(?, video_url),
+                tiempo_preparacion = COALESCE(?, tiempo_preparacion)
              WHERE id = ?"
         );
         $st->execute([
@@ -196,15 +198,33 @@ switch ($action) {
             $estado_stock,
             $nuevaImagen,
             $nuevoVideo,
+            $data['tiempo_preparacion'] ?? null,
             $data['producto_id'],
         ]);
         jout(['ok' => true, 'estado_stock' => $estado_stock, 'imagen' => $nuevaImagen, 'video_url' => $nuevoVideo]);
         break;
 
     case 'mis_ventas':
-        $st = db()->prepare("SELECT p.*, u.nombre as comprador_nombre FROM pedidos p JOIN usuarios u ON u.id = p.comprador_id WHERE p.vendedor_id = ? ORDER BY p.created_at DESC");
+        $st = db()->prepare(
+            "SELECT p.*, u.nombre as comprador_nombre, u.telefono as comprador_telefono,
+                    r.nombre as repartidor_nombre, r.en_linea as repartidor_en_linea
+             FROM pedidos p
+             JOIN usuarios u ON u.id = p.comprador_id
+             LEFT JOIN usuarios r ON r.id = p.repartidor_id
+             WHERE p.vendedor_id = ? ORDER BY p.created_at DESC"
+        );
         $st->execute([$user['id']]);
-        jout(['ok' => true, 'pedidos' => $st->fetchAll()]);
+        $pedidos = $st->fetchAll();
+        if ($pedidos) {
+            $itemsSt = db()->prepare(
+                "SELECT i.*, pr.nombre, pr.imagen FROM pedido_items i JOIN productos pr ON pr.id = i.producto_id WHERE i.pedido_id = ?"
+            );
+            foreach ($pedidos as &$p) {
+                $itemsSt->execute([$p['id']]);
+                $p['items'] = $itemsSt->fetchAll();
+            }
+        }
+        jout(['ok' => true, 'pedidos' => $pedidos]);
         break;
 
     case 'preparar_pedido':
@@ -269,6 +289,85 @@ switch ($action) {
         jout(['ok' => true, 'repartidor' => $r]);
         break;
 
+    // ─── Repartidores cercanos y en línea, para asignar manualmente un pedido ───
+    case 'repartidores_cercanos':
+        $pid = (int)($_GET['pedido_id'] ?? 0);
+        $chk = db()->prepare("SELECT id FROM pedidos WHERE id = ? AND vendedor_id = ?");
+        $chk->execute([$pid, $user['id']]);
+        if (!$chk->fetch()) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
+
+        // Ubicación de referencia: la tienda de origen de los productos de este pedido.
+        $tSt = db()->prepare(
+            "SELECT t.lat, t.lng FROM pedido_items i
+             JOIN productos p ON p.id = i.producto_id
+             JOIN tiendas t ON t.id = p.tienda_id
+             WHERE i.pedido_id = ? LIMIT 1"
+        );
+        $tSt->execute([$pid]);
+        $tienda = $tSt->fetch();
+
+        $st = db()->prepare(
+            "SELECT u.id, u.nombre, u.foto_perfil, u.telefono,
+                    u.repartidor_calificacion_promedio, u.repartidor_total_resenas, u.lat, u.lng,
+                    s.tipo_vehiculo
+             FROM usuarios u
+             LEFT JOIN solicitudes_rol s ON s.usuario_id = u.id AND s.estado = 'aprobado' AND s.rol_solicitado = 'repartidor'
+             WHERE u.rol = 'repartidor' AND u.en_linea = 1 AND u.activo = 1
+               AND u.lat IS NOT NULL AND u.lng IS NOT NULL"
+        );
+        $st->execute();
+        $repartidores = $st->fetchAll();
+        if ($tienda && $tienda['lat'] !== null) {
+            foreach ($repartidores as &$r) {
+                $r['distancia_km'] = round(distancia_km((float)$tienda['lat'], (float)$tienda['lng'], (float)$r['lat'], (float)$r['lng']), 2);
+            }
+            usort($repartidores, fn($a, $b) => $a['distancia_km'] <=> $b['distancia_km']);
+        }
+        jout(['ok' => true, 'repartidores' => array_slice($repartidores, 0, 20)]);
+        break;
+
+    // ─── Asignar directamente un repartidor específico a un pedido (modelo "push") ───
+    case 'asignar_repartidor':
+        require_fields($data, ['pedido_id', 'repartidor_id']);
+        $pid = (int)$data['pedido_id'];
+        $rid = (int)$data['repartidor_id'];
+
+        $sel = db()->prepare("SELECT * FROM pedidos WHERE id = ? AND vendedor_id = ?");
+        $sel->execute([$pid, $user['id']]);
+        $ped = $sel->fetch();
+        if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
+        if ($ped['estado'] !== 'preparacion') jout(['ok' => false, 'error' => 'El pedido debe estar aprobado antes de asignar repartidor'], 400);
+        if ($ped['repartidor_id'] !== null) jout(['ok' => false, 'error' => 'Este pedido ya tiene repartidor asignado'], 400);
+
+        $rSt = db()->prepare("SELECT id FROM usuarios WHERE id = ? AND rol = 'repartidor' AND en_linea = 1 AND activo = 1");
+        $rSt->execute([$rid]);
+        if (!$rSt->fetch()) jout(['ok' => false, 'error' => 'El repartidor ya no está disponible'], 400);
+
+        db()->prepare("UPDATE pedidos SET repartidor_id = ?, repartidor_asignado_at = NOW() WHERE id = ?")->execute([$rid, $pid]);
+        crear_notificacion($rid, 'pedido', 'Nueva entrega asignada', "Una tienda te asignó el pedido #SV-{$pid} directamente.", $pid);
+        jout(['ok' => true]);
+        break;
+
+    // ─── Confirmación (lado vendedor) de que el repartidor recogió el pedido en tienda ───
+    case 'confirmar_recogida':
+        require_fields($data, ['pedido_id']);
+        $pid = (int)$data['pedido_id'];
+        $sel = db()->prepare("SELECT * FROM pedidos WHERE id = ? AND vendedor_id = ?");
+        $sel->execute([$pid, $user['id']]);
+        $ped = $sel->fetch();
+        if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
+        if (!$ped['repartidor_id']) jout(['ok' => false, 'error' => 'Este pedido aún no tiene repartidor asignado'], 400);
+
+        db()->prepare("UPDATE pedidos SET confirmado_vendedor_recogida = 1 WHERE id = ?")->execute([$pid]);
+
+        $yaConfirmadoRepartidor = (int)$ped['confirmado_repartidor_recogida'] === 1;
+        if ($yaConfirmadoRepartidor) {
+            db()->prepare("UPDATE pedidos SET estado = 'en_camino' WHERE id = ?")->execute([$pid]);
+            crear_notificacion((int)$ped['comprador_id'], 'pedido', '¡Tu pedido va en camino!', "El repartidor recogió tu pedido #SV-{$pid} y va hacia ti.", $pid);
+        }
+        jout(['ok' => true, 'en_camino' => $yaConfirmadoRepartidor]);
+        break;
+
     // ─── Reseñas recibidas por el vendedor + respuesta pública ───
     case 'mis_resenas':
         $st = db()->prepare(
@@ -294,6 +393,69 @@ switch ($action) {
         );
         $st->execute([$data['respuesta'], (int)$data['calificacion_id'], $user['id']]);
         jout(['ok' => true]);
+        break;
+
+    // ─── Notificaciones del vendedor, separadas por tipo ───
+    case 'notificaciones':
+        $stP = db()->prepare(
+            "SELECT id, titulo, cuerpo, leida, referencia_id, created_at
+             FROM notificaciones WHERE usuario_id = ? AND tipo = 'pedido'
+             ORDER BY created_at DESC LIMIT 30"
+        );
+        $stP->execute([$user['id']]);
+
+        $stL = db()->prepare(
+            "SELECT vl.id, vl.created_at, vl.producto_id, p.nombre AS producto_nombre,
+                    u.id AS usuario_id, u.nombre AS usuario_nombre, u.foto_perfil
+             FROM video_likes vl
+             JOIN productos p ON p.id = vl.producto_id
+             JOIN tiendas t ON t.id = p.tienda_id
+             JOIN usuarios u ON u.id = vl.usuario_id
+             WHERE t.vendedor_id = ?
+             ORDER BY vl.created_at DESC LIMIT 30"
+        );
+        $stL->execute([$user['id']]);
+
+        $stC = db()->prepare(
+            "SELECT vc.id, vc.created_at, vc.producto_id, vc.comentario, p.nombre AS producto_nombre,
+                    u.id AS usuario_id, u.nombre AS usuario_nombre, u.foto_perfil
+             FROM video_comentarios vc
+             JOIN productos p ON p.id = vc.producto_id
+             JOIN tiendas t ON t.id = p.tienda_id
+             JOIN usuarios u ON u.id = vc.usuario_id
+             WHERE t.vendedor_id = ?
+             ORDER BY vc.created_at DESC LIMIT 30"
+        );
+        $stC->execute([$user['id']]);
+
+        jout([
+            'ok' => true,
+            'pedidos' => $stP->fetchAll(),
+            'likes' => $stL->fetchAll(),
+            'comentarios' => $stC->fetchAll(),
+        ]);
+        break;
+
+    // ─── Ganancias por día + producto más vendido (para la gráfica de "Mi cuenta") ───
+    case 'ganancias':
+        $stG = db()->prepare(
+            "SELECT DATE(p.created_at) AS fecha, SUM(p.total_vendedor) AS monto
+             FROM pedidos p WHERE p.vendedor_id = ? AND p.estado = 'entregado'
+             GROUP BY DATE(p.created_at) ORDER BY fecha ASC LIMIT 30"
+        );
+        $stG->execute([$user['id']]);
+
+        $stP = db()->prepare(
+            "SELECT pr.id, pr.nombre, SUM(pi.cantidad) AS total_vendido
+             FROM pedido_items pi
+             JOIN pedidos p ON p.id = pi.pedido_id
+             JOIN productos pr ON pr.id = pi.producto_id
+             WHERE p.vendedor_id = ? AND p.estado = 'entregado'
+             GROUP BY pr.id ORDER BY total_vendido DESC LIMIT 1"
+        );
+        $stP->execute([$user['id']]);
+
+        jout(['ok' => true, 'ganancias_por_dia' => $stG->fetchAll(), 'producto_top' => $stP->fetch() ?: null]);
         break;
 
     default:

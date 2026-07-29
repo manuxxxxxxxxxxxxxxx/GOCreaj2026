@@ -19,6 +19,8 @@ export interface Usuario {
   descripcion?: string | null;
   repartidor_calificacion_promedio?: number;
   repartidor_total_resenas?: number;
+  perfil_publico?: number;
+  idioma?: 'es' | 'en' | 'fr';
 }
 
 export interface Tienda {
@@ -42,6 +44,8 @@ export interface Tienda {
   categoria?: string | null;
   telefono?: string | null;
   metodos_pago?: string | null;
+  seguidores_count?: number;
+  yo_sigo?: number;
 }
 
 export interface Producto {
@@ -62,6 +66,9 @@ export interface Producto {
   likes_count?: number;
   comentarios_count?: number;
   compartidos_count?: number;
+  tiempo_preparacion?: string | null;
+  seguidores_count?: number;
+  yo_sigo?: number;
 }
 
 export interface CarritoItem {
@@ -76,7 +83,7 @@ export interface CarritoItem {
   vendedor_id: number;
 }
 
-export type EstadoPedido = 'preparacion' | 'en_camino' | 'entregado' | 'rechazado_repartidor' | 'cancelado';
+export type EstadoPedido = 'pendiente_confirmacion' | 'preparacion' | 'en_camino' | 'entregado' | 'rechazado_repartidor' | 'cancelado';
 export type MetodoPago = 'efectivo' | 'tarjeta' | 'paypal';
 
 export interface Pedido {
@@ -108,6 +115,13 @@ export interface Pedido {
   tienda_lng?: number;
   tienda_direccion?: string;
   progreso_repartidor?: string | null;
+  confirmado_vendedor_recogida?: number;
+  confirmado_repartidor_recogida?: number;
+  distancia_km?: number | null;
+  ganancia_repartidor?: number;
+  mi_calificacion?: number | null;
+  mi_comentario?: string | null;
+  mi_calificacion_repartidor?: number | null;
   created_at?: string;
   items?: PedidoItem[];
 }
@@ -210,7 +224,7 @@ export interface ApiResponse<T> {
 export type RootStackParamList = {
   OnboardingRole: undefined;
   Benefits: undefined;
-  Location: undefined;
+  Location: { onboarding?: boolean } | undefined;
   OnboardingPhone: undefined;
   Auth: undefined;
   UsernameSetup: undefined;
@@ -218,18 +232,21 @@ export type RootStackParamList = {
   Admin: undefined;
   Seller: undefined;
   Driver: undefined;
+  MiCuenta: undefined;
   Product: { productoId: number };
   Cart: undefined;
   Tracking: { pedidoId: number };
   Chat: { otroId: number; nombre: string; pedidoId?: number; otroFoto?: string | null };
-  BecomeSeller: undefined;
+  BecomeSeller: { rol?: 'vendedor' | 'repartidor' } | undefined;
   Support: undefined;
+  Notificaciones: undefined;
 };
 
 export type TabParamList = {
   Home: undefined;
   Explore: undefined;
   Reels: undefined;
+  Pedidos: undefined;
   Chats: undefined;
   Profile: undefined;
 };

@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useGlobal } from '../context/GlobalContext';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import Footer from '../components/Footer';
 import { api } from '../api';
 import '../../css/perfil.css';
 import '../../css/dark.css';
 
-const LANG_KEY = 'svgo_lang';
 const LANGS = [{ code: 'es', label: 'Español' }, { code: 'en', label: 'English' }, { code: 'fr', label: 'Français' }];
 
 type Tab = 'likes' | 'guardados' | 'compartidos';
@@ -15,11 +16,19 @@ const ACCENT = '#4A6D8C';
 const ACCENT_LIGHT = 'rgba(74,109,140,0.1)';
 
 export default function Perfil() {
+  const { i18n } = useTranslation();
   const { user, login, logout, theme, toggleTheme, refreshUser } = useGlobal();
   const navigate = useNavigate();
 
   // Refresca el rol desde la BD cada vez que se abre el perfil
   useEffect(() => { void refreshUser(); }, []);
+
+  // Adopta el idioma guardado en la cuenta (p. ej. el elegido desde la app) si difiere del local.
+  useEffect(() => {
+    const cuentaIdioma = (user as any)?.idioma;
+    if (cuentaIdioma && cuentaIdioma !== i18n.language) void i18n.changeLanguage(cuentaIdioma);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [(user as any)?.idioma]);
 
   // Edit modal
   const [modalEditar, setModalEditar] = useState(false);
@@ -39,9 +48,173 @@ export default function Perfil() {
   const [tab, setTab] = useState<Tab>('likes');
   const [items, setItems] = useState<any[]>([]);
 
-  // Lang
-  const [lang, setLang] = useState(() => localStorage.getItem(LANG_KEY) || 'es');
+  // Contadores reales de la barra de stats (antes eran números quemados: 24/8/47)
+  const [stats, setStats] = useState({ pedidos: 0, guardados: 0, likes: 0 });
+  useEffect(() => {
+    if (!user) return;
+    Promise.all([
+      api.get('/carrito_pagos.php?action=mis_pedidos').catch(() => null),
+      api.get('/interacciones.php?action=mis_guardados').catch(() => null),
+      api.get('/interacciones.php?action=mis_likes').catch(() => null),
+    ]).then(([rp, rg, rl]) => {
+      setStats({
+        pedidos: rp?.data?.ok ? (rp.data.pedidos?.length ?? 0) : 0,
+        guardados: rg?.data?.ok ? (rg.data.productos?.length ?? 0) : 0,
+        likes: rl?.data?.ok ? (rl.data.productos?.length ?? 0) : 0,
+      });
+    });
+  }, [user]);
+
+  // Lang: react-i18next ya persiste en localStorage (ver src/i18n.ts) y aquí además
+  // lo sincronizamos con la cuenta para que se mantenga entre la web y la app.
+  const cambiarIdioma = (code: string) => {
+    void i18n.changeLanguage(code);
+    if (user) api.post('/auth.php?action=actualizar_idioma', { idioma: code }).catch(() => {});
+  };
   const [toast, setToast] = useState('');
+
+  // Roles habilitados / cambio de rol activo
+  const [rolesDisponibles, setRolesDisponibles] = useState<string[]>([]);
+  const [rolActivo, setRolActivo] = useState('comprador');
+  const [cambiandoRol, setCambiandoRol] = useState(false);
+
+  // Privacidad y seguridad
+  const [modalPrivacidad, setModalPrivacidad] = useState(false);
+  const [privTab, setPrivTab] = useState<'sesiones' | 'bloqueados' | 'cuenta'>('sesiones');
+  const [sesiones, setSesiones] = useState<any[]>([]);
+  const [bloqueados, setBloqueados] = useState<any[]>([]);
+  const [cargandoPriv, setCargandoPriv] = useState(false);
+  const [perfilPublico, setPerfilPublico] = useState(true);
+  const [showEliminarCuenta, setShowEliminarCuenta] = useState(false);
+  const [passEliminar, setPassEliminar] = useState('');
+  const [eliminando, setEliminando] = useState(false);
+
+  useEffect(() => { setPerfilPublico(((user as any)?.perfil_publico ?? 1) != 0); }, [(user as any)?.perfil_publico]);
+
+  const abrirPrivacidad = async () => {
+    setModalPrivacidad(true);
+    setCargandoPriv(true);
+    try {
+      const [rs, rb] = await Promise.all([
+        api.get('/auth.php?action=sesiones_listar'),
+        api.get('/auth.php?action=usuarios_bloqueados'),
+      ]);
+      if (rs.data.ok) setSesiones(rs.data.sesiones ?? []);
+      if (rb.data.ok) setBloqueados(rb.data.bloqueados ?? []);
+    } catch {}
+    setCargandoPriv(false);
+  };
+
+  const cerrarSesionRemota = async (id: number) => {
+    await api.post('/auth.php?action=sesiones_cerrar', { id });
+    setSesiones(prev => prev.filter(s => s.id !== id));
+  };
+
+  const cerrarOtrasSesiones = async () => {
+    if (!window.confirm('¿Cerrar la sesión en todos tus otros dispositivos?')) return;
+    await api.post('/auth.php?action=sesiones_cerrar_otras', {});
+    setSesiones(prev => prev.filter(s => s.es_actual));
+  };
+
+  const desbloquearUsuario = async (usuario_id: number) => {
+    await api.post('/auth.php?action=desbloquear_usuario', { usuario_id });
+    setBloqueados(prev => prev.filter(b => b.bloqueado_id !== usuario_id));
+  };
+
+  const cambiarVisibilidad = async (val: boolean) => {
+    setPerfilPublico(val);
+    await api.post('/auth.php?action=actualizar_visibilidad', { perfil_publico: val });
+    await refreshUser();
+  };
+
+  // Métodos de pago guardados
+  const [showMetodosPago, setShowMetodosPago] = useState(false);
+  const [metodosPago, setMetodosPago] = useState<any[]>([]);
+  const [cargandoMetodos, setCargandoMetodos] = useState(false);
+  const [mostrarFormTarjeta, setMostrarFormTarjeta] = useState(false);
+  const [mpNumero, setMpNumero] = useState('');
+  const [mpExp, setMpExp] = useState('');
+  const [mpCvv, setMpCvv] = useState('');
+  const [guardandoTarjeta, setGuardandoTarjeta] = useState(false);
+
+  const abrirMetodosPago = async () => {
+    setShowMetodosPago(true);
+    setCargandoMetodos(true);
+    try {
+      const r = await api.get('/carrito_pagos.php?action=metodos_listar');
+      if (r.data.ok) setMetodosPago(r.data.metodos ?? []);
+    } catch {}
+    setCargandoMetodos(false);
+  };
+
+  const guardarTarjetaNueva = async () => {
+    setGuardandoTarjeta(true);
+    try {
+      const r = await api.post('/carrito_pagos.php?action=metodos_guardar', {
+        tarjeta_numero: mpNumero.replace(/\s/g, ''), tarjeta_cvv: mpCvv, tarjeta_exp: mpExp,
+      });
+      if (r.data.ok) {
+        setMpNumero(''); setMpExp(''); setMpCvv('');
+        setMostrarFormTarjeta(false);
+        await abrirMetodosPago();
+      } else {
+        alert(r.data.error ?? 'No se pudo guardar la tarjeta.');
+      }
+    } catch { alert('Sin conexión.'); }
+    setGuardandoTarjeta(false);
+  };
+
+  const eliminarTarjeta = async (id: number) => {
+    await api.post('/carrito_pagos.php?action=metodos_eliminar', { id });
+    setMetodosPago(prev => prev.filter((m: any) => m.id !== id));
+  };
+
+  const marcarPredeterminada = async (id: number) => {
+    await api.post('/carrito_pagos.php?action=metodos_predeterminado', { id });
+    setMetodosPago(prev => prev.map((m: any) => ({ ...m, predeterminado: m.id === id ? 1 : 0 })));
+  };
+
+  const confirmarEliminarCuenta = async () => {
+    if ((user as any)?.auth_provider === 'local' && !passEliminar) { alert('Ingresa tu contraseña actual para confirmar.'); return; }
+    setEliminando(true);
+    try {
+      const res = await api.post('/auth.php?action=eliminar_cuenta', { password: passEliminar });
+      if (res.data.ok) {
+        logout();
+        navigate('/login');
+      } else {
+        alert(res.data.error === 'Contraseña incorrecta' ? 'Contraseña incorrecta.' : (res.data.error ?? 'No se pudo eliminar la cuenta.'));
+      }
+    } catch { alert('Sin conexión.'); }
+    setEliminando(false);
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    api.get('/auth.php?action=mis_roles').then(res => {
+      if (res.data.ok) { setRolesDisponibles(res.data.roles ?? []); setRolActivo(res.data.rol_activo ?? 'comprador'); }
+    }).catch(() => {});
+  }, [user]);
+
+  const ROL_LABEL: Record<string, string> = { comprador: 'Usuario', vendedor: 'Vendedor', repartidor: 'Repartidor' };
+
+  const cambiarRolActivo = async (rol: string) => {
+    if (rol === rolActivo) return;
+    setCambiandoRol(true);
+    try {
+      const res = await api.post('/auth.php?action=cambiar_rol', { rol });
+      if (res.data.ok) {
+        setRolActivo(rol);
+        await refreshUser();
+        showToast(`Ahora estás como ${ROL_LABEL[rol] ?? rol}`);
+      } else if (res.data.error === 'no_habilitado') {
+        navigate(`/become-seller?rol=${rol}`);
+      } else {
+        showToast(res.data.error ?? 'No se pudo cambiar de rol');
+      }
+    } catch { showToast('Error de conexión'); }
+    setCambiandoRol(false);
+  };
 
   const u = user as any;
   const displayName = user?.name || 'Usuario';
@@ -56,11 +229,11 @@ export default function Perfil() {
     : isRepartidor  ? 'REPARTIDOR'
     : 'COMPRADOR';
 
-  // Cooldown 10 días para username
+  // Cooldown 14 días para username
   const diasRestantes = (() => {
     if (!u?.username_changed_at) return 0;
     const daysPassed = Math.floor((Date.now() - new Date(u.username_changed_at).getTime()) / 86400000);
-    return Math.max(0, 10 - daysPassed);
+    return Math.max(0, 14 - daysPassed);
   })();
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2800); };
@@ -236,7 +409,20 @@ export default function Perfil() {
       <div className="perfil-page" style={{ maxWidth: '680px', margin: '0 auto', paddingBottom: '40px' }}>
 
         {/* ── HEADER GRADIENT ── */}
-        <div style={{ background: ACCENT, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 24px 28px', marginBottom: '16px' }}>
+        <div style={{ background: ACCENT, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 24px 28px', marginBottom: '16px', position: 'relative' }}>
+          <button
+            onClick={() => { logout(); navigate('/login'); }}
+            title="Cerrar sesión"
+            style={{
+              position: 'absolute', top: '16px', right: '16px',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              background: 'rgba(255,255,255,0.16)', border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: '20px', padding: '7px 12px', cursor: 'pointer',
+              color: '#fff', fontWeight: '700', fontSize: '0.78rem',
+            }}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Salir
+          </button>
           <div style={{ width: '106px', height: '106px', borderRadius: '53px', border: '3px solid rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '12px' }}>
             <div style={{ width: '88px', height: '88px', borderRadius: '44px', background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
               {u?.foto_perfil
@@ -269,7 +455,7 @@ export default function Perfil() {
 
           {/* Stats bar */}
           <div style={{ display: 'flex', width: '100%', background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '14px 0', marginTop: '16px' }}>
-            {[['24', 'Pedidos'], ['8', 'Guardados'], ['47', 'Me gusta']].map(([n, l], i, arr) => (
+            {[[String(stats.pedidos), 'Pedidos'], [String(stats.guardados), 'Guardados'], [String(stats.likes), 'Me gusta']].map(([n, l], i, arr) => (
               <div key={l} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', borderRight: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.25)' : 'none' }}>
                 <span style={{ color: '#fff', fontSize: '1.2rem', fontWeight: '900' }}>{n}</span>
                 <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.72rem', fontWeight: '600', marginTop: '2px' }}>{l}</span>
@@ -363,7 +549,12 @@ export default function Perfil() {
               <MenuItem icon="briefcase" bg={ACCENT_LIGHT} color={ACCENT} title="Convertirse en Socio" sub="Vendedor o Repartidor" onClick={() => navigate('/become-seller')} />
             )}
             <MenuItem icon="receipt" bg={ACCENT_LIGHT} color={ACCENT} title="Mis Pedidos" sub="Historial de compras" onClick={() => navigate('/historial')} />
-            <MenuItem icon="help-circle" bg={ACCENT_LIGHT} color={ACCENT} title="Soporte y Ayuda" sub="Tickets y reportes" onClick={() => navigate('/chat')} last />
+            <MenuItem icon="help-circle" bg={ACCENT_LIGHT} color={ACCENT} title="Soporte y Ayuda" sub="Tickets y reportes" onClick={() => navigate('/chat')} />
+            <MenuItem
+              icon="info" bg={ACCENT_LIGHT} color={ACCENT} title="Más información de nosotros" sub="Quiénes somos y cómo funciona [SV]Go"
+              onClick={() => alert('[SV]Go conecta a comercios locales de El Salvador con compradores y repartidores de su misma zona. Nuestra misión es que cualquier negocio pequeño pueda vender en línea y que cada pedido llegue rápido, de mano de repartidores de la comunidad.')}
+              last
+            />
           </MenuCard>
 
           {/* ── Configuración ── */}
@@ -394,12 +585,12 @@ export default function Perfil() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: '700', fontSize: '0.92rem' }}>Idioma</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #6B7280)', marginTop: '1px' }}>{LANGS.find(l => l.code === lang)?.label || 'Español'}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #6B7280)', marginTop: '1px' }}>{LANGS.find(l => l.code === i18n.language)?.label || 'Español'}</div>
               </div>
               <div style={{ display: 'flex', gap: '5px' }}>
                 {LANGS.map(l => (
-                  <button key={l.code} onClick={() => { setLang(l.code); localStorage.setItem(LANG_KEY, l.code); }}
-                    style={{ padding: '4px 10px', borderRadius: '20px', border: '1.5px solid', borderColor: lang === l.code ? ACCENT : 'var(--border, #E2DCEF)', background: lang === l.code ? ACCENT : 'transparent', color: lang === l.code ? '#fff' : 'inherit', fontWeight: '700', fontSize: '0.75rem', cursor: 'pointer' }}>
+                  <button key={l.code} onClick={() => cambiarIdioma(l.code)}
+                    style={{ padding: '4px 10px', borderRadius: '20px', border: '1.5px solid', borderColor: i18n.language === l.code ? ACCENT : 'var(--border, #E2DCEF)', background: i18n.language === l.code ? ACCENT : 'transparent', color: i18n.language === l.code ? '#fff' : 'inherit', fontWeight: '700', fontSize: '0.75rem', cursor: 'pointer' }}>
                     {l.code.toUpperCase()}
                   </button>
                 ))}
@@ -407,20 +598,37 @@ export default function Perfil() {
             </div>
 
             <MenuItem icon="bell" bg={ACCENT_LIGHT} color={ACCENT} title="Notificaciones" sub="Pedidos, promos y mensajes" onClick={() => {}} />
-            <MenuItem icon="shield" bg={ACCENT_LIGHT} color={ACCENT} title="Privacidad y Seguridad" sub="Datos y permisos" onClick={() => {}} last />
+            {isComprador && (
+              <MenuItem icon="card" bg={ACCENT_LIGHT} color={ACCENT} title="Métodos de pago" sub="Tarjetas guardadas" onClick={abrirMetodosPago} />
+            )}
+            <MenuItem icon="shield" bg={ACCENT_LIGHT} color={ACCENT} title="Privacidad y Seguridad" sub="Sesiones, bloqueados y tu cuenta" onClick={abrirPrivacidad} />
+
+            {/* Cambiar de rol activo */}
+            <div style={{ padding: '14px 16px' }}>
+              <div style={{ fontWeight: 700, fontSize: '0.92rem', marginBottom: 10 }}>Cambiar de rol activo</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {['comprador', 'vendedor', 'repartidor'].map(r => {
+                  const activo = r === rolActivo;
+                  const habilitado = rolesDisponibles.includes(r);
+                  return (
+                    <button
+                      key={r}
+                      disabled={cambiandoRol}
+                      onClick={() => cambiarRolActivo(r)}
+                      style={{
+                        padding: '8px 14px', borderRadius: 20, fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer',
+                        border: `1.5px solid ${activo ? ACCENT : 'var(--border, #E2DCEF)'}`,
+                        background: activo ? ACCENT : 'transparent',
+                        color: activo ? '#fff' : 'inherit',
+                      }}
+                    >
+                      {ROL_LABEL[r]}{!habilitado ? ' (solicitar)' : ''}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </MenuCard>
-
-          {/* Version */}
-          <p style={{ textAlign: 'center', color: 'var(--text-muted, #6B7280)', fontSize: '0.78rem', fontWeight: '500', marginBottom: '16px' }}>
-            Versión 1.0.0 · [SV]Go © 2026
-          </p>
-
-          {/* Cerrar sesión */}
-          <button onClick={() => { logout(); navigate('/login'); }}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', padding: '14px', background: 'rgba(239,68,68,0.08)', border: '1.5px solid rgba(239,68,68,0.25)', borderRadius: '12px', color: '#ef4444', fontWeight: '700', fontSize: '0.92rem', cursor: 'pointer', marginBottom: '24px' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Cerrar Sesión
-          </button>
 
           {/* ── Mi actividad (tabs) ── */}
           <SectionLabel>Mi actividad</SectionLabel>
@@ -468,6 +676,224 @@ export default function Perfil() {
         </div>
       </div>
 
+      {/* ── Modal: Métodos de pago guardados ── */}
+      {showMetodosPago && (
+        <div onClick={() => setShowMetodosPago(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 3000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg, #fff)', width: '100%', maxWidth: '560px',
+            borderTopLeftRadius: '28px', borderTopRightRadius: '28px',
+            maxHeight: '90vh', overflowY: 'auto', padding: '0 24px 40px',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
+              <div style={{ width: '40px', height: '4px', borderRadius: '2px', background: 'var(--border, #E2DCEF)' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '800', letterSpacing: '-0.3px' }}>Métodos de pago</h3>
+              <button onClick={() => setShowMetodosPago(false)} style={{ background: 'var(--bg-secondary, #F9FAFB)', border: 'none', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {cargandoMetodos ? (
+              <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted, #6B7280)' }}>Cargando...</div>
+            ) : (
+              <>
+                <MenuCard>
+                  {metodosPago.length === 0 ? (
+                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted, #6B7280)' }}>No tienes tarjetas guardadas.</div>
+                  ) : metodosPago.map((m: any, i: number) => (
+                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: i === metodosPago.length - 1 ? 'none' : '1px solid var(--border, #E2DCEF)' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>
+                          {String(m.marca).charAt(0).toUpperCase() + String(m.marca).slice(1)} •••• {m.ultimos4}
+                        </div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted, #6B7280)' }}>
+                          Vence {String(m.exp_mes).padStart(2, '0')}/{String(m.exp_anio).slice(-2)}{m.predeterminado ? ' · Predeterminada' : ''}
+                        </div>
+                      </div>
+                      {!m.predeterminado && (
+                        <button onClick={() => marcarPredeterminada(m.id)} style={{ background: 'none', border: 'none', color: ACCENT, fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', marginRight: 12 }}>Usar</button>
+                      )}
+                      <button onClick={() => eliminarTarjeta(m.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                      </button>
+                    </div>
+                  ))}
+                </MenuCard>
+
+                {!mostrarFormTarjeta ? (
+                  <button onClick={() => setMostrarFormTarjeta(true)} style={{ width: '100%', padding: 13, background: ACCENT, border: 'none', borderRadius: 12, color: '#fff', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer' }}>
+                    + Agregar tarjeta
+                  </button>
+                ) : (
+                  <div style={{ background: 'var(--card, #fff)', borderRadius: 14, border: '1.5px solid var(--border, #E2DCEF)', padding: 16 }}>
+                    <div style={{ marginBottom: 12 }}>
+                      <label style={labelStyle}>Número de tarjeta</label>
+                      <input style={inputStyle} value={mpNumero} onChange={e => setMpNumero(e.target.value)} placeholder="4111 1111 1111 1111" />
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={labelStyle}>MM/AA</label>
+                        <input style={inputStyle} value={mpExp} onChange={e => setMpExp(e.target.value)} placeholder="12/28" />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={labelStyle}>CVV</label>
+                        <input type="password" style={inputStyle} value={mpCvv} onChange={e => setMpCvv(e.target.value)} placeholder="123" />
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted, #6B7280)', marginBottom: 12 }}>
+                      No almacenamos tu número completo: solo guardamos un token seguro y los últimos 4 dígitos.
+                    </p>
+                    <button onClick={guardarTarjetaNueva} disabled={guardandoTarjeta}
+                      style={{ width: '100%', padding: 13, background: ACCENT, border: 'none', borderRadius: 12, color: '#fff', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer', marginBottom: 8 }}>
+                      {guardandoTarjeta ? 'Guardando...' : 'Guardar tarjeta'}
+                    </button>
+                    <button onClick={() => setMostrarFormTarjeta(false)} style={{ width: '100%', padding: 10, background: 'transparent', border: 'none', color: 'var(--text-muted, #6B7280)', fontWeight: 700, cursor: 'pointer' }}>
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Privacidad y Seguridad ── */}
+      {modalPrivacidad && (
+        <div onClick={() => setModalPrivacidad(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 3000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg, #fff)', width: '100%', maxWidth: '560px',
+            borderTopLeftRadius: '28px', borderTopRightRadius: '28px',
+            maxHeight: '90vh', overflowY: 'auto', padding: '0 24px 40px',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
+              <div style={{ width: '40px', height: '4px', borderRadius: '2px', background: 'var(--border, #E2DCEF)' }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: '800', letterSpacing: '-0.3px' }}>Privacidad y seguridad</h3>
+              <button onClick={() => setModalPrivacidad(false)} style={{ background: 'var(--bg-secondary, #F9FAFB)', border: 'none', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+              {([
+                { key: 'sesiones', label: 'Sesiones' },
+                { key: 'bloqueados', label: 'Bloqueados' },
+                { key: 'cuenta', label: 'Cuenta' },
+              ] as const).map(o => (
+                <button key={o.key} onClick={() => setPrivTab(o.key)} style={{
+                  flex: 1, padding: '8px 10px', borderRadius: 20, fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer',
+                  border: `1.5px solid ${privTab === o.key ? ACCENT : 'var(--border, #E2DCEF)'}`,
+                  background: privTab === o.key ? ACCENT : 'transparent',
+                  color: privTab === o.key ? '#fff' : 'inherit',
+                }}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+
+            {cargandoPriv ? (
+              <div style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted, #6B7280)' }}>Cargando...</div>
+            ) : privTab === 'sesiones' ? (
+              <>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted, #6B7280)', marginBottom: 12 }}>
+                  Dispositivos donde tu cuenta tiene sesión iniciada actualmente.
+                </p>
+                <MenuCard>
+                  {sesiones.length === 0 ? (
+                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted, #6B7280)' }}>Sin sesiones activas.</div>
+                  ) : sesiones.map((s: any, i: number) => (
+                    <div key={s.id} style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: i === sesiones.length - 1 ? 'none' : '1px solid var(--border, #E2DCEF)' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{s.es_actual ? 'Este dispositivo' : (s.user_agent ? String(s.user_agent).slice(0, 40) : 'Dispositivo')}</div>
+                        <div style={{ fontSize: '0.76rem', color: 'var(--text-muted, #6B7280)' }}>Activo: {new Date(s.last_seen_at).toLocaleString()}</div>
+                      </div>
+                      {s.es_actual ? (
+                        <span style={{ color: '#22c55e', fontWeight: 700, fontSize: '0.76rem' }}>Activa</span>
+                      ) : (
+                        <button onClick={() => cerrarSesionRemota(s.id)} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>Cerrar</button>
+                      )}
+                    </div>
+                  ))}
+                </MenuCard>
+                {sesiones.some((s: any) => !s.es_actual) && (
+                  <button onClick={cerrarOtrasSesiones} style={{ width: '100%', padding: 12, background: 'rgba(239,68,68,0.08)', border: '1.5px solid rgba(239,68,68,0.25)', borderRadius: 12, color: '#ef4444', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
+                    Cerrar sesión en otros dispositivos
+                  </button>
+                )}
+              </>
+            ) : privTab === 'bloqueados' ? (
+              <MenuCard>
+                {bloqueados.length === 0 ? (
+                  <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted, #6B7280)' }}>No has bloqueado a nadie. Puedes bloquear a alguien desde el chat.</div>
+                ) : bloqueados.map((b: any, i: number) => (
+                  <div key={b.id} style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: i === bloqueados.length - 1 ? 'none' : '1px solid var(--border, #E2DCEF)' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.88rem' }}>{b.nombre}</div>
+                      {b.username && <div style={{ fontSize: '0.76rem', color: 'var(--text-muted, #6B7280)' }}>@{b.username}</div>}
+                    </div>
+                    <button onClick={() => desbloquearUsuario(b.bloqueado_id)} style={{ background: 'none', border: 'none', color: ACCENT, fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer' }}>Desbloquear</button>
+                  </div>
+                ))}
+              </MenuCard>
+            ) : (
+              <>
+                <MenuCard>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem' }}>Perfil público</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #6B7280)' }}>Otros usuarios pueden ver tu perfil y tienda</div>
+                    </div>
+                    <button onClick={() => cambiarVisibilidad(!perfilPublico)}
+                      style={{ width: '48px', height: '26px', borderRadius: '13px', border: 'none', cursor: 'pointer', background: perfilPublico ? ACCENT : '#E2DCEF', position: 'relative', flexShrink: 0 }}>
+                      <span style={{ position: 'absolute', top: '3px', left: perfilPublico ? '24px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                    </button>
+                  </div>
+                </MenuCard>
+
+                <SectionLabel>Zona de peligro</SectionLabel>
+                <div style={{ background: 'var(--card, #fff)', borderRadius: '14px', border: '1.5px solid #ef4444', overflow: 'hidden' }}>
+                  <button onClick={() => setShowEliminarCuenta(true)} style={{ width: '100%', display: 'flex', alignItems: 'center', padding: '14px 16px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
+                    <div style={{ width: '38px', height: '38px', borderRadius: '19px', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '14px', color: '#ef4444', flexShrink: 0 }}>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#ef4444' }}>Eliminar mi cuenta</div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted, #6B7280)' }}>Desactiva tu cuenta de forma permanente</div>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal: Confirmar eliminación de cuenta ── */}
+      {showEliminarCuenta && (
+        <div onClick={() => setShowEliminarCuenta(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 3100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg, #fff)', width: '100%', maxWidth: 420, borderRadius: 20, padding: 24 }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 900, marginBottom: 8 }}>Eliminar cuenta</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted, #6B7280)', lineHeight: 1.5, marginBottom: 14 }}>
+              Tu cuenta será desactivada de inmediato y cerrarás sesión en todos tus dispositivos. Contacta a soporte si quieres reactivarla más adelante.
+            </p>
+            {(user as any)?.auth_provider === 'local' && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Confirma tu contraseña</label>
+                <input type="password" style={inputStyle} value={passEliminar} onChange={e => setPassEliminar(e.target.value)} />
+              </div>
+            )}
+            <button onClick={confirmarEliminarCuenta} disabled={eliminando}
+              style={{ width: '100%', padding: 13, background: '#ef4444', border: 'none', borderRadius: 12, color: '#fff', fontWeight: 800, fontSize: '0.9rem', cursor: 'pointer', marginBottom: 10 }}>
+              {eliminando ? 'Eliminando...' : 'Eliminar mi cuenta'}
+            </button>
+            <button onClick={() => { setShowEliminarCuenta(false); setPassEliminar(''); }} style={{ width: '100%', padding: 10, background: 'transparent', border: 'none', color: 'var(--text-muted, #6B7280)', fontWeight: 700, cursor: 'pointer' }}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+
+      <Footer />
+
       {toast && (
         <div className="lm-toast show">
           <svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
@@ -502,6 +928,8 @@ const ICONS: Record<string, JSX.Element> = {
   shield:       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
   store:        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M3 9l1-6h16l1 6"/><path d="M3 9h18v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9z"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>,
   truck:        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>,
+  info:         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>,
+  card:         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
 };
 
 function MenuItem({ icon, bg, color, title, sub, onClick, last }: { icon: string; bg: string; color: string; title: string; sub?: string; onClick: () => void; last?: boolean }) {

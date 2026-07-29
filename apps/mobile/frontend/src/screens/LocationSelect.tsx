@@ -6,7 +6,7 @@ import * as Location from 'expo-location';
 import MapView, { Marker, MapPressEvent, Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Radius, Fonts } from '@/theme/colors';
-import { useNavigation, NavigationProp } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp, NavigationProp } from '@react-navigation/native';
 import { RootStackParamList } from '@/types';
 
 const MUNICIPIOS: string[] = [
@@ -32,6 +32,8 @@ function matchMunicipio(address: Location.LocationGeocodedAddress): string | nul
 
 export default function LocationSelect() {
   const nav = useNavigation<NavigationProp<RootStackParamList>>();
+  const route = useRoute<RouteProp<RootStackParamList, 'Location'>>();
+  const isOnboarding = !!route.params?.onboarding;
   const insets = useSafeAreaInsets();
   const [seleccion, setSeleccion] = useState<string | null>(null);
   const [cargando, setCargando] = useState<boolean>(false);
@@ -71,11 +73,13 @@ export default function LocationSelect() {
     if (!seleccion) return;
     setCargando(true);
     await AsyncStorage.setItem('svgo_municipio', seleccion);
-    await AsyncStorage.setItem('svgo_first_launch', '1');
     if (coords) await AsyncStorage.setItem('svgo_coords', JSON.stringify(coords));
-    setTimeout(() => {
-      nav.navigate('OnboardingPhone');
-    }, 600);
+    if (isOnboarding) {
+      await AsyncStorage.setItem('svgo_first_launch', '1');
+      setTimeout(() => nav.navigate('OnboardingPhone'), 600);
+    } else {
+      setTimeout(() => { if (nav.canGoBack()) nav.goBack(); }, 400);
+    }
   };
 
   return (

@@ -79,6 +79,24 @@ export default function ProfileScreen() {
   const [items, setItems] = useState<Producto[]>([]);
   const [cargando, setCargando] = useState(false);
 
+  // Contadores reales de la barra de stats (antes eran números quemados: 24/8/47)
+  const [stats, setStats] = useState({ pedidos: 0, guardados: 0, likes: 0 });
+  useEffect(() => {
+    if (!usuario) return;
+    (async () => {
+      const [rp, rg, rl] = await Promise.all([
+        api<{ ok: boolean; pedidos?: unknown[] }>(Endpoints.misPedidos).catch(() => null),
+        api<{ ok: boolean; productos?: unknown[] }>(Endpoints.misGuardados).catch(() => null),
+        api<{ ok: boolean; productos?: unknown[] }>(Endpoints.misLikes).catch(() => null),
+      ]);
+      setStats({
+        pedidos: rp?.ok ? (rp.pedidos?.length ?? 0) : 0,
+        guardados: rg?.ok ? (rg.productos?.length ?? 0) : 0,
+        likes: rl?.ok ? (rl.productos?.length ?? 0) : 0,
+      });
+    })();
+  }, [usuario?.id]);
+
   // Edit profile modal state
   const [modalEditar, setModalEditar] = useState(false);
   const [editNombre, setEditNombre]     = useState('');
@@ -153,12 +171,12 @@ export default function ProfileScreen() {
   };
   // ────────────────────────────────────────────────────────
 
-  // Cooldown de 10 días para cambiar username
+  // Cooldown de 14 días para cambiar username
   const diasRestantesUsername = (() => {
     if (!usuario?.username_changed_at) return 0;
     const changed = new Date(usuario.username_changed_at).getTime();
     const daysPassed = Math.floor((Date.now() - changed) / (1000 * 60 * 60 * 24));
-    return Math.max(0, 10 - daysPassed);
+    return Math.max(0, 14 - daysPassed);
   })();
   const usernameBloqueado = diasRestantesUsername > 0;
 
@@ -520,7 +538,7 @@ export default function ProfileScreen() {
 
         {/* Stats */}
         <View style={hdr.stats}>
-          {[['24', 'Pedidos'], ['8', 'Guardados'], ['47', 'Me gusta']].map(([n, l]) => (
+          {[[String(stats.pedidos), 'Pedidos'], [String(stats.guardados), 'Guardados'], [String(stats.likes), 'Me gusta']].map(([n, l]) => (
             <React.Fragment key={l}>
               <View style={hdr.statItem}>
                 <Text style={hdr.statNum}>{n}</Text>
@@ -602,13 +620,13 @@ export default function ProfileScreen() {
             icon="receipt-outline" iconBg="rgba(74,109,140,0.12)" iconColor={c.accent}
             title="Mis Pedidos" sub="Historial de compras"
             color={c.text} subColor={c.muted} border={c.border}
-            onPress={() => Alert.alert('Pedidos', 'Próximamente')}
+            onPress={() => nav.navigate('Main', { screen: 'Pedidos' } as never)}
           />
           <MenuItem
-            icon="help-circle" iconBg="rgba(74,109,140,0.12)" iconColor={c.accent}
-            title="Soporte y Ayuda" sub="Tickets y reportes"
+            icon="settings-outline" iconBg="rgba(74,109,140,0.12)" iconColor={c.accent}
+            title="Configuración avanzada" sub="Mi cuenta, seguridad, soporte"
             color={c.text} subColor={c.muted} border={c.border}
-            onPress={() => nav.navigate('Support')}
+            onPress={() => nav.navigate('MiCuenta')}
             last
           />
         </Card>
@@ -651,13 +669,13 @@ export default function ProfileScreen() {
             icon="notifications-outline" iconBg={c.accentLight} iconColor={c.accent}
             title="Notificaciones" sub="Pedidos, promos y mensajes"
             color={c.text} subColor={c.muted} border={c.border}
-            onPress={() => Alert.alert('Notificaciones', 'Próximamente')}
+            onPress={() => nav.navigate('Notificaciones' as never)}
           />
           <MenuItem
             icon="shield-checkmark-outline" iconBg={c.accentLight} iconColor={c.accent}
-            title="Privacidad y Seguridad" sub="Datos y permisos"
+            title="Privacidad y Seguridad" sub="Sesiones, bloqueados y tu cuenta"
             color={c.text} subColor={c.muted} border={c.border}
-            onPress={() => Alert.alert('Privacidad', 'Próximamente')}
+            onPress={() => nav.navigate('MiCuenta')}
             last
           />
         </Card>

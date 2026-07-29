@@ -1,0 +1,49 @@
+{
+  "header": {
+    "enviarA": "Enviar a",
+    "buscarMunicipio": "Buscar municipio...",
+    "buscarPlaceholder": "Buscar productos, tiendas...",
+    "buscando": "Buscando...",
+    "sinResultados": "Sin resultados para \"{{q}}\"",
+    "verTodos": "Ver todos los resultados para \"{{q}}\"",
+    "modoClaro": "Modo claro",
+    "modoOscuro": "Modo oscuro",
+    "ingresar": "Ingresar",
+    "usuario": "Usuario",
+    "miPerfil": "Mi Perfil",
+    "configuracion": "Configuración",
+    "idioma": "Idioma",
+    "miTienda": "Mi Tienda",
+    "misEntregas": "🚚 Mis Entregas",
+    "panelAdmin": "⚙️ Panel Admin",
+    "cerrarSesion": "Cerrar Sesión",
+    "nav": {
+      "inicio": "Inicio",
+      "explorar": "Explorar",
+      "reels": "Reels",
+      "pedidos": "Pedidos",
+      "chats": "Chats"
+    }
+  },
+  "footer": {
+    "tagline": "Comercio local salvadoreño, delivery de barrio. Apoya a los negocios de tu zona.",
+    "explora": "Explora",
+    "inicio": "Inicio",
+    "explorar": "Explorar",
+    "reels": "Reels",
+    "pedidos": "Pedidos",
+    "socios": "Socios",
+    "convertirseSocio": "Convertirse en socio",
+    "panelVendedor": "Panel de vendedor",
+    "panelRepartidor": "Panel de repartidor",
+    "ayuda": "Ayuda",
+    "soporte": "Soporte y ayuda",
+    "miCuenta": "Mi cuenta",
+    "copyright": "© {{year}} [SV]Go — Hecho en El Salvador 🇸🇻"
+  },
+  "idiomas": {
+    "es": "Español",
+    "en": "English",
+    "fr": "Français"
+  }
+}

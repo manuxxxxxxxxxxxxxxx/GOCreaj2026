@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useGlobal } from '../context/GlobalContext';
 import Header from '../components/Header';
 import TiendaWizard from '../components/TiendaWizard';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { api, API_URL } from '../api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -17,11 +18,25 @@ interface Producto {
   precio: number; stock: number; imagen?: string | null; video?: string | null;
   imagen_url?: string | null; categoria?: string; es_reel: number; activo: number;
   precio_oferta?: number | null; oferta_hasta?: string | null;
+  tiempo_preparacion?: string | null;
+}
+interface VentaItem {
+  id: number; producto_id: number; cantidad: number; precio_unitario: number;
+  nombre: string; imagen?: string | null;
 }
 interface Venta {
-  id: number; comprador_id: number; comprador_nombre: string;
+  id: number; comprador_id: number; comprador_nombre: string; comprador_telefono?: string | null;
   total: number; estado: string; metodo_pago: string;
-  direccion_entrega: string; created_at: string;
+  direccion_entrega: string; municipio_entrega?: string | null; created_at: string;
+  repartidor_id: number | null; repartidor_nombre?: string | null; repartidor_en_linea?: number;
+  confirmado_vendedor_recogida?: number; confirmado_repartidor_recogida?: number;
+  total_repartidor?: number;
+  items?: VentaItem[];
+}
+interface RepartidorCercano {
+  id: number; nombre: string; foto_perfil?: string | null;
+  repartidor_calificacion_promedio?: number; repartidor_total_resenas?: number;
+  tipo_vehiculo?: string | null; distancia_km?: number | null;
 }
 type DashTab = 'productos' | 'ventas';
 
@@ -39,8 +54,9 @@ const CATEGORIAS = [
 const MUNICIPIOS = ['San Salvador','Mejicanos','Soyapango','Apopa','Ilopango','Delgado','Santa Tecla','Antiguo Cuscatlán','San Miguel','Santa Ana','Ahuachapán','Sonsonate','Usulután'];
 
 const ESTADO_MAP: Record<string, { label: string; bg: string; text: string }> = {
-  preparacion: { label: 'Preparando', bg: '#FEF3C7', text: '#92400E' },
-  en_camino:   { label: 'En camino',  bg: '#DBEAFE', text: '#1E40AF' },
+  pendiente_confirmacion: { label: 'Pendiente de aprobación', bg: '#FEF3C7', text: '#92400E' },
+  preparacion: { label: 'Preparando', bg: '#DBEAFE', text: '#1E40AF' },
+  en_camino:   { label: 'En camino',  bg: '#EDE9FE', text: '#5B21B6' },
   entregado:   { label: 'Entregado',  bg: '#D1FAE5', text: '#065F46' },
   cancelado:   { label: 'Cancelado',  bg: '#FEE2E2', text: '#991B1B' },
   rechazado_repartidor: { label: 'Rechazado', bg: '#FEE2E2', text: '#991B1B' },
@@ -83,6 +99,9 @@ const IC = {
   video:   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>,
   img:     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>,
   x:       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+  bell:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>,
+  heart:   <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>,
+  chat:    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>,
   check:   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>,
   alert:   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>,
   truck:   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>,
@@ -108,6 +127,39 @@ export default function VendedorDashboard() {
   const [ventas, setVentas]       = useState<Venta[]>([]);
   const [loading, setLoading]     = useState(true);
   const [tab, setTab]             = useState<DashTab>('productos');
+  const [gananciasPorDia, setGananciasPorDia] = useState<{ fecha: string; monto: number }[]>([]);
+  const [productoTop, setProductoTop] = useState<{ nombre: string; total_vendido: number } | null>(null);
+
+  const fmtDia = (fecha: string) => {
+    const d = new Date(fecha + 'T00:00:00');
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+    api.get('/vendedor_dashboard.php?action=ganancias').then(res => {
+      if (res.data.ok) {
+        setGananciasPorDia((res.data.ganancias_por_dia || []).map((g: any) => ({ fecha: fmtDia(g.fecha), monto: Number(g.monto) })));
+        setProductoTop(res.data.producto_top ?? null);
+      }
+    }).catch(() => {});
+  }, []);
+
+  const [showNotif, setShowNotif] = useState(false);
+  const [notifTab, setNotifTab]   = useState<'pedidos' | 'likes' | 'comentarios'>('pedidos');
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifData, setNotifData] = useState<{ pedidos: any[]; likes: any[]; comentarios: any[] }>({ pedidos: [], likes: [], comentarios: [] });
+
+  const abrirNotificaciones = async () => {
+    setShowNotif(true);
+    setNotifLoading(true);
+    try {
+      const res = await api.get('/vendedor_dashboard.php?action=notificaciones');
+      if (res.data.ok) {
+        setNotifData({ pedidos: res.data.pedidos ?? [], likes: res.data.likes ?? [], comentarios: res.data.comentarios ?? [] });
+      }
+    } catch {}
+    setNotifLoading(false);
+  };
   const [toast, setToast]         = useState<{ msg: string; ok: boolean } | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -120,6 +172,7 @@ export default function VendedorDashboard() {
   const [cpStock, setCpStock]       = useState('10');
   const [cpImagen, setCpImagen]     = useState<string | null>(null);
   const [cpEsReel, setCpEsReel]     = useState(false);
+  const [cpTiempoPrep, setCpTiempoPrep] = useState('');
   const [saving, setSaving]         = useState(false);
 
   // Edit product modal
@@ -133,6 +186,7 @@ export default function VendedorDashboard() {
   const [epImagen, setEpImagen]     = useState<string | null>(null);
   const [epVideo, setEpVideo]       = useState<string | null>(null);
   const [epImagenActual, setEpImagenActual] = useState<string | null>(null);
+  const [epTiempoPrep, setEpTiempoPrep] = useState('');
   const [epOferta, setEpOferta]     = useState('');
   const [epOfertaHasta, setEpOfertaHasta] = useState('');
   const [epQuitarOferta, setEpQuitarOferta] = useState(false);
@@ -230,12 +284,12 @@ export default function VendedorDashboard() {
       const res = await api.post('/vendedor_dashboard.php?action=crear_producto', {
         tienda_id: tienda.id, nombre: cpNombre.trim(), descripcion: cpDesc,
         precio, stock: parseInt(cpStock) || 0, categoria: cpCat,
-        imagen: cpImagen, es_reel: cpEsReel,
+        imagen: cpImagen, es_reel: cpEsReel, tiempo_preparacion: cpTiempoPrep || null,
       });
       if (res.data.ok) {
         showToast('Producto agregado');
         setShowCreate(false);
-        setCpNombre(''); setCpPrecio(''); setCpDesc(''); setCpStock('10'); setCpImagen(null); setCpEsReel(false);
+        setCpNombre(''); setCpPrecio(''); setCpDesc(''); setCpStock('10'); setCpImagen(null); setCpEsReel(false); setCpTiempoPrep('');
         void fetchAll();
       } else showToast(res.data.error ?? 'Error', false);
     } catch { showToast('Error de conexión', false); }
@@ -282,6 +336,7 @@ export default function VendedorDashboard() {
     setEpOferta(p.precio_oferta ? String(p.precio_oferta) : '');
     setEpOfertaHasta(p.oferta_hasta ? p.oferta_hasta.slice(0, 16) : '');
     setEpQuitarOferta(false);
+    setEpTiempoPrep(p.tiempo_preparacion ?? '');
     setShowEditProd(true);
   };
 
@@ -299,6 +354,7 @@ export default function VendedorDashboard() {
         precio,
         stock: parseInt(epStock) || 0,
         categoria: epCat,
+        tiempo_preparacion: epTiempoPrep || null,
       };
       if (epImagen) body.imagen = epImagen;
       if (epVideo) body.video = epVideo;
@@ -326,15 +382,69 @@ export default function VendedorDashboard() {
     } catch { showToast('Error', false); }
   };
 
-  const marcarListo = async (v: Venta) => {
+  const aprobarPedido = async (v: Venta) => {
     try {
-      const res = await api.post('/vendedor_dashboard.php?action=preparar_pedido', { pedido_id: v.id, estado: 'en_camino' });
-      if (res.data.ok) { showToast('Pedido listo para envío'); void fetchAll(); }
-    } catch { showToast('Error', false); }
+      const res = await api.post('/vendedor_dashboard.php?action=preparar_pedido', { pedido_id: v.id, estado: 'preparacion' });
+      if (res.data.ok) { showToast('Pedido aprobado'); void fetchAll(); }
+      else showToast(res.data.error ?? 'Error', false);
+    } catch { showToast('Error de conexión', false); }
+  };
+
+  const rechazarPedido = async (v: Venta) => {
+    if (!window.confirm('¿Rechazar este pedido? Se reembolsará el total al comprador.')) return;
+    try {
+      const res = await api.post('/vendedor_dashboard.php?action=rechazar_pedido', { pedido_id: v.id });
+      if (res.data.ok) { showToast('Pedido rechazado y reembolsado'); void fetchAll(); }
+      else showToast(res.data.error ?? 'Error', false);
+    } catch { showToast('Error de conexión', false); }
+  };
+
+  const confirmarRecogidaVendedor = async (v: Venta) => {
+    try {
+      const res = await api.post('/vendedor_dashboard.php?action=confirmar_recogida', { pedido_id: v.id });
+      if (res.data.ok) {
+        showToast(res.data.en_camino ? 'Recogida confirmada — pedido en camino' : 'Recogida confirmada, esperando al repartidor');
+        void fetchAll();
+      } else showToast(res.data.error ?? 'Error', false);
+    } catch { showToast('Error de conexión', false); }
+  };
+
+  // ── Detalle de pedido + asignación manual de repartidor ─────────────────
+  const [pedidoDetalle, setPedidoDetalle] = useState<Venta | null>(null);
+  const [repartidoresCercanos, setRepartidoresCercanos] = useState<RepartidorCercano[]>([]);
+  const [cargandoRepartidores, setCargandoRepartidores] = useState(false);
+  const [asignandoId, setAsignandoId] = useState<number | null>(null);
+
+  const abrirDetallePedido = async (v: Venta) => {
+    setPedidoDetalle(v);
+    if (v.estado === 'preparacion' && !v.repartidor_id) {
+      setCargandoRepartidores(true);
+      try {
+        const res = await api.get(`/vendedor_dashboard.php?action=repartidores_cercanos&pedido_id=${v.id}`);
+        setRepartidoresCercanos(res.data.ok ? (res.data.repartidores ?? []) : []);
+      } catch { setRepartidoresCercanos([]); }
+      setCargandoRepartidores(false);
+    } else {
+      setRepartidoresCercanos([]);
+    }
+  };
+
+  const asignarRepartidor = async (repartidorId: number) => {
+    if (!pedidoDetalle) return;
+    setAsignandoId(repartidorId);
+    try {
+      const res = await api.post('/vendedor_dashboard.php?action=asignar_repartidor', { pedido_id: pedidoDetalle.id, repartidor_id: repartidorId });
+      if (res.data.ok) {
+        showToast('Repartidor asignado y notificado');
+        setPedidoDetalle(null);
+        void fetchAll();
+      } else showToast(res.data.error ?? 'Error', false);
+    } catch { showToast('Error de conexión', false); }
+    setAsignandoId(null);
   };
 
   const productosActivos  = productos.filter(p => p.activo).length;
-  const pedidosPendientes = ventas.filter(v => v.estado === 'preparacion').length;
+  const pedidosPendientes = ventas.filter(v => v.estado === 'pendiente_confirmacion').length;
   const totalVentas = ventas.filter(v => v.estado === 'entregado').reduce((s, v) => s + Number(v.total), 0);
 
   // ── Shared input style ───────────────────────────────────────────────────────
@@ -533,6 +643,9 @@ export default function VendedorDashboard() {
                   <Btn onClick={openEdit} variant="ghost" small>
                     {IC.edit} Editar tienda
                   </Btn>
+                  <Btn onClick={abrirNotificaciones} variant="ghost" small>
+                    {IC.bell} Notificaciones
+                  </Btn>
                 </div>
               </div>
             </div>
@@ -541,7 +654,7 @@ export default function VendedorDashboard() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
               {[
                 { icon: IC.pkg,   label: 'Productos activos',    value: productosActivos,        sub: `de ${productos.length} total`,   color: accent },
-                { icon: IC.alert, label: 'Pedidos pendientes',   value: pedidosPendientes,       sub: 'por preparar',                   color: pedidosPendientes > 0 ? '#EF4444' : accent },
+                { icon: IC.alert, label: 'Pedidos pendientes',   value: pedidosPendientes,       sub: 'por aprobar',                    color: pedidosPendientes > 0 ? '#EF4444' : accent },
                 { icon: IC.truck, label: 'Ventas completadas',   value: tienda.ventas_completadas ?? ventas.filter(v => v.estado === 'entregado').length, sub: 'total histórico', color: '#10B981' },
                 { icon: IC.star,  label: 'Calificación',         value: tienda.calificacion_promedio ? Number(tienda.calificacion_promedio).toFixed(1) : '—', sub: tienda.total_resenas ? `${tienda.total_resenas} reseñas` : 'sin reseñas', color: '#F59E0B' },
                 { icon: IC.cart,  label: 'Ingresos entregados',  value: `$${totalVentas.toFixed(2)}`, sub: 'pedidos completados',     color: '#8B5CF6' },
@@ -561,6 +674,33 @@ export default function VendedorDashboard() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* ── Ganancias ────────────────────────────────────────── */}
+            <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 20, padding: '20px 22px', marginBottom: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.05)' }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: text, marginBottom: 4 }}>Dinero ganado por día</div>
+              {gananciasPorDia.length === 0 ? (
+                <div style={{ color: muted, fontSize: 13, padding: '12px 0' }}>Aún no tienes ventas entregadas para graficar.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={gananciasPorDia}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={border} />
+                    <XAxis dataKey="fecha" fontSize={12} stroke={muted} />
+                    <YAxis fontSize={12} stroke={muted} tickFormatter={(v: number) => `$${v}`} />
+                    <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`, 'Ganado']} contentStyle={{ background: card, border: `1px solid ${border}`, borderRadius: 10 }} />
+                    <Line type="monotone" dataKey="monto" stroke={accent} strokeWidth={2.5} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+              {productoTop && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${border}` }}>
+                  <span style={{ fontSize: 20 }}>🏆</span>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: text }}>Producto más vendido</div>
+                    <div style={{ fontSize: 12, color: muted }}>{productoTop.nombre} · {productoTop.total_vendido} vendidos</div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ── Tabs ─────────────────────────────────────────────── */}
@@ -671,7 +811,7 @@ export default function VendedorDashboard() {
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: elevated }}>
-                          {['ID', 'Cliente', 'Total', 'Estado', 'Fecha', 'Acción'].map(h => (
+                          {['ID', 'Cliente', 'Pago', 'Total', 'Estado', 'Fecha', 'Acción'].map(h => (
                             <th key={h} style={{ padding: '11px 16px', textAlign: 'left', fontSize: 11, fontWeight: 800, color: muted, textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: `1px solid ${border}` }}>{h}</th>
                           ))}
                         </tr>
@@ -683,15 +823,14 @@ export default function VendedorDashboard() {
                             <tr key={v.id} style={{ borderBottom: `1px solid ${border}` }}>
                               <td style={{ padding: '12px 16px', fontWeight: 800, color: accent, fontSize: 13 }}>#{v.id}</td>
                               <td style={{ padding: '12px 16px', fontWeight: 600, fontSize: 14, color: text }}>{v.comprador_nombre}</td>
+                              <td style={{ padding: '12px 16px', fontSize: 13, color: muted, textTransform: 'capitalize' }}>{v.metodo_pago}</td>
                               <td style={{ padding: '12px 16px', fontWeight: 800, color: text }}>${Number(v.total).toFixed(2)}</td>
                               <td style={{ padding: '12px 16px' }}>
                                 <span style={{ padding: '4px 10px', borderRadius: 20, background: ec.bg, color: ec.text, fontSize: 12, fontWeight: 700 }}>{ec.label}</span>
                               </td>
                               <td style={{ padding: '12px 16px', fontSize: 12, color: muted }}>{new Date(v.created_at).toLocaleDateString('es-SV')}</td>
                               <td style={{ padding: '12px 16px' }}>
-                                {v.estado === 'preparacion' && (
-                                  <Btn onClick={() => marcarListo(v)} small>Listo para envío</Btn>
-                                )}
+                                <Btn onClick={() => abrirDetallePedido(v)} small variant="ghost">Ver detalle</Btn>
                               </td>
                             </tr>
                           );
@@ -733,11 +872,17 @@ export default function VendedorDashboard() {
           <textarea style={{ ...inpStyle, minHeight: 72, resize: 'vertical' }} value={cpDesc} onChange={e => setCpDesc(e.target.value)} placeholder="Describe el producto..."
             onFocus={e => (e.target.style.borderColor = accent)} onBlur={e => (e.target.style.borderColor = border)} />
         </Field>
-        <Field label="Categoría">
-          <select style={inpStyle} value={cpCat} onChange={e => setCpCat(e.target.value)}>
-            {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
-        </Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field label="Categoría">
+            <select style={inpStyle} value={cpCat} onChange={e => setCpCat(e.target.value)}>
+              {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Tiempo de demora">
+            <input style={inpStyle} value={cpTiempoPrep} onChange={e => setCpTiempoPrep(e.target.value)} placeholder="Ej: 15-20 min"
+              onFocus={e => (e.target.style.borderColor = accent)} onBlur={e => (e.target.style.borderColor = border)} />
+          </Field>
+        </div>
         <Field label="Imagen del producto">
           <UploadZone
             src={cpImagen} accept="image/*" height={130}
@@ -785,11 +930,17 @@ export default function VendedorDashboard() {
           <textarea style={{ ...inpStyle, minHeight: 72, resize: 'vertical' }} value={epDesc} onChange={e => setEpDesc(e.target.value)}
             onFocus={e => (e.target.style.borderColor = accent)} onBlur={e => (e.target.style.borderColor = border)} />
         </Field>
-        <Field label="Categoría">
-          <select style={inpStyle} value={epCat} onChange={e => setEpCat(e.target.value)}>
-            {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
-        </Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <Field label="Categoría">
+            <select style={inpStyle} value={epCat} onChange={e => setEpCat(e.target.value)}>
+              {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Tiempo de demora">
+            <input style={inpStyle} value={epTiempoPrep} onChange={e => setEpTiempoPrep(e.target.value)} placeholder="Ej: 15-20 min"
+              onFocus={e => (e.target.style.borderColor = accent)} onBlur={e => (e.target.style.borderColor = border)} />
+          </Field>
+        </div>
         <Field label="Imagen del producto">
           <UploadZone
             src={epImagen ?? epImagenActual} accept="image/*" height={130}
@@ -944,6 +1095,169 @@ export default function VendedorDashboard() {
               onFile={async f => setEtPortada(await fileToBase64(f))}
             />
           </Field>
+        </div>
+      </Modal>
+
+      {/* ── MODAL: Detalle de pedido ─────────────────────────────────────────────── */}
+      <Modal
+        show={!!pedidoDetalle} onClose={() => setPedidoDetalle(null)}
+        title={<span style={{ display: 'flex', alignItems: 'center', gap: 8, color: text }}>{IC.cart} Pedido #{pedidoDetalle?.id}</span>}
+        footer={
+          pedidoDetalle?.estado === 'pendiente_confirmacion' ? (
+            <>
+              <Btn onClick={() => rechazarPedido(pedidoDetalle)} variant="danger">Rechazar</Btn>
+              <Btn onClick={() => aprobarPedido(pedidoDetalle)}>Aprobar pedido</Btn>
+            </>
+          ) : pedidoDetalle?.estado === 'preparacion' && pedidoDetalle.repartidor_id && !pedidoDetalle.confirmado_vendedor_recogida ? (
+            <Btn onClick={() => confirmarRecogidaVendedor(pedidoDetalle)}>Confirmar que el repartidor recogió el pedido</Btn>
+          ) : (
+            <Btn onClick={() => setPedidoDetalle(null)} variant="ghost">Cerrar</Btn>
+          )
+        }
+      >
+        {pedidoDetalle && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div>
+                <div style={{ fontSize: 12, color: muted, fontWeight: 700 }}>Cliente</div>
+                <div style={{ fontWeight: 700, color: text }}>{pedidoDetalle.comprador_nombre}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 12, color: muted, fontWeight: 700 }}>Tipo de pago</div>
+                <div style={{ fontWeight: 700, color: text, textTransform: 'capitalize' }}>{pedidoDetalle.metodo_pago}</div>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, color: muted, fontWeight: 700, marginBottom: 4 }}>Ubicación de entrega</div>
+              <div style={{ color: text, fontSize: 14 }}>{pedidoDetalle.direccion_entrega}{pedidoDetalle.municipio_entrega ? `, ${pedidoDetalle.municipio_entrega}` : ''}</div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, color: muted, fontWeight: 700, marginBottom: 6 }}>Productos</div>
+              {(pedidoDetalle.items ?? []).map(it => (
+                <div key={it.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: text, padding: '4px 0' }}>
+                  <span>{it.nombre} × {it.cantidad}</span>
+                  <span style={{ fontWeight: 700 }}>${(Number(it.precio_unitario) * it.cantidad).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: `1px solid ${border}`, paddingTop: 10 }}>
+              <div>
+                <div style={{ fontSize: 12, color: muted }}>Precio del producto</div>
+                <div style={{ fontWeight: 800, color: text }}>${Number(pedidoDetalle.total).toFixed(2)}</div>
+              </div>
+              {!!pedidoDetalle.total_repartidor && (
+                <div>
+                  <div style={{ fontSize: 12, color: muted }}>Recibe el repartidor</div>
+                  <div style={{ fontWeight: 800, color: accent }}>${Number(pedidoDetalle.total_repartidor).toFixed(2)}</div>
+                </div>
+              )}
+            </div>
+
+            {pedidoDetalle.repartidor_id ? (
+              <div style={{ borderTop: `1px solid ${border}`, paddingTop: 10 }}>
+                <div style={{ fontSize: 12, color: muted, fontWeight: 700, marginBottom: 4 }}>Repartidor asignado</div>
+                <div style={{ color: text, fontWeight: 700 }}>
+                  {pedidoDetalle.repartidor_nombre} {pedidoDetalle.repartidor_en_linea ? '🟢 en línea' : '⚪ desconectado'}
+                </div>
+                {pedidoDetalle.estado === 'preparacion' && (
+                  <div style={{ fontSize: 12, color: muted, marginTop: 4, fontStyle: 'italic' }}>
+                    {pedidoDetalle.confirmado_vendedor_recogida ? 'Ya confirmaste la recogida — esperando confirmación del repartidor.' : 'Confirma cuando el repartidor recoja el pedido en tu tienda.'}
+                  </div>
+                )}
+              </div>
+            ) : pedidoDetalle.estado === 'preparacion' ? (
+              <div style={{ borderTop: `1px solid ${border}`, paddingTop: 10 }}>
+                <div style={{ fontSize: 12, color: muted, fontWeight: 700, marginBottom: 8 }}>Repartidores cercanos y en línea</div>
+                {cargandoRepartidores ? (
+                  <div style={{ color: muted, fontSize: 13 }}>Buscando repartidores…</div>
+                ) : repartidoresCercanos.length === 0 ? (
+                  <div style={{ color: muted, fontSize: 13 }}>No hay repartidores en línea cerca ahora mismo. Espera a que alguno tome el pedido, o vuelve a intentar más tarde.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {repartidoresCercanos.map(r => (
+                      <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: `1px solid ${border}`, borderRadius: 12, padding: '8px 12px' }}>
+                        <div>
+                          <div style={{ fontWeight: 700, color: text, fontSize: 13 }}>{r.nombre}</div>
+                          <div style={{ fontSize: 12, color: muted }}>
+                            ★ {r.repartidor_calificacion_promedio ? Number(r.repartidor_calificacion_promedio).toFixed(1) : '—'}
+                            {' · '}{r.repartidor_total_resenas ?? 0} reseñas
+                            {r.distancia_km != null ? ` · ${r.distancia_km} km` : ''}
+                            {r.tipo_vehiculo ? ` · ${r.tipo_vehiculo}` : ''}
+                          </div>
+                        </div>
+                        <Btn small onClick={() => asignarRepartidor(r.id)} disabled={asignandoId !== null}>
+                          {asignandoId === r.id ? '...' : 'Asignar'}
+                        </Btn>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Modal: Notificaciones separadas por tipo ────────────────────────────── */}
+      <Modal show={showNotif} onClose={() => setShowNotif(false)} title="Notificaciones" footer={null}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {([
+            { key: 'pedidos', label: `Pedidos (${notifData.pedidos.length})`, icon: IC.cart },
+            { key: 'likes', label: `Likes (${notifData.likes.length})`, icon: IC.heart },
+            { key: 'comentarios', label: `Comentarios (${notifData.comentarios.length})`, icon: IC.chat },
+          ] as const).map(o => (
+            <button key={o.key} onClick={() => setNotifTab(o.key)} style={{
+              flex: 1, padding: '8px 10px', borderRadius: 10,
+              border: `1.5px solid ${notifTab === o.key ? accent : border}`,
+              background: notifTab === o.key ? accent : 'transparent',
+              color: notifTab === o.key ? '#fff' : text,
+              fontWeight: 700, cursor: 'pointer', fontSize: 12,
+              fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            }}>
+              {o.icon} {o.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ maxHeight: 360, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {notifLoading ? (
+            <div style={{ textAlign: 'center', padding: 30, color: muted }}>Cargando...</div>
+          ) : notifTab === 'pedidos' ? (
+            notifData.pedidos.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 30, color: muted }}>Sin pedidos recientes</div>
+            ) : notifData.pedidos.map((n: any) => (
+              <div key={n.id} style={{ padding: 12, borderRadius: 12, background: elevated, border: `1px solid ${border}` }}>
+                <div style={{ fontWeight: 800, fontSize: 13, color: text }}>{n.titulo}</div>
+                {n.cuerpo && <div style={{ fontSize: 12, color: muted, marginTop: 2 }}>{n.cuerpo}</div>}
+                <div style={{ fontSize: 11, color: muted, marginTop: 4 }}>{new Date(n.created_at).toLocaleString()}</div>
+              </div>
+            ))
+          ) : notifTab === 'likes' ? (
+            notifData.likes.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 30, color: muted }}>Sin likes recientes</div>
+            ) : notifData.likes.map((n: any) => (
+              <div key={n.id} style={{ padding: 12, borderRadius: 12, background: elevated, border: `1px solid ${border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ color: '#EF4444' }}>{IC.heart}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, color: text }}><strong>{n.usuario_nombre}</strong> le dio like a "{n.producto_nombre}"</div>
+                  <div style={{ fontSize: 11, color: muted, marginTop: 2 }}>{new Date(n.created_at).toLocaleString()}</div>
+                </div>
+              </div>
+            ))
+          ) : (
+            notifData.comentarios.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 30, color: muted }}>Sin comentarios recientes</div>
+            ) : notifData.comentarios.map((n: any) => (
+              <div key={n.id} style={{ padding: 12, borderRadius: 12, background: elevated, border: `1px solid ${border}` }}>
+                <div style={{ fontSize: 13, color: text }}><strong>{n.usuario_nombre}</strong> comentó en "{n.producto_nombre}"</div>
+                <div style={{ fontSize: 12, color: muted, marginTop: 4, fontStyle: 'italic' }}>"{n.comentario}"</div>
+                <div style={{ fontSize: 11, color: muted, marginTop: 4 }}>{new Date(n.created_at).toLocaleString()}</div>
+              </div>
+            ))
+          )}
         </div>
       </Modal>
 

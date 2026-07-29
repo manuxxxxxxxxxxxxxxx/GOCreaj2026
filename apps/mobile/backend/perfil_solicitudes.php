@@ -38,13 +38,14 @@ switch ($action) {
         }
 
         $st = db()->prepare("INSERT INTO solicitudes_rol
-            (usuario_id, rol_solicitado, nombre_completo, dui_numero, dui_frente, dui_reverso,
+            (usuario_id, rol_solicitado, nombre_completo, municipio, dui_numero, dui_frente, dui_reverso,
              nombre_negocio, foto_negocio, licencia_frente, licencia_reverso, tipo_vehiculo, credenciales)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $st->execute([
             $user['id'],
             $data['rol_solicitado'],
             $data['nombre_completo'],
+            $data['municipio']       ?? null,
             $data['dui_numero'],
             $frente,
             $reverso,

@@ -354,6 +354,50 @@ function db_migrate(): void {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "ALTER TABLE pedidos ADD COLUMN cupon_codigo VARCHAR(40) NULL",
         "ALTER TABLE pedidos ADD COLUMN descuento_cupon DECIMAL(10,2) NOT NULL DEFAULT 0",
+
+        // ─── Privacidad y seguridad ───
+        "CREATE TABLE IF NOT EXISTS sesiones (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            nonce VARCHAR(32) NOT NULL,
+            user_agent VARCHAR(255) NULL,
+            ip VARCHAR(45) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expira_at DATETIME NULL,
+            revocado TINYINT(1) NOT NULL DEFAULT 0,
+            UNIQUE KEY uk_nonce (nonce),
+            INDEX idx_usuario (usuario_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS usuarios_bloqueados (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            bloqueado_id INT NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_bloqueo (usuario_id, bloqueado_id),
+            INDEX idx_bloqueado (bloqueado_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "ALTER TABLE usuarios ADD COLUMN perfil_publico TINYINT(1) NOT NULL DEFAULT 1",
+
+        // pedidos — marca de tiempo de asignación del repartidor (para medir tiempo invertido por viaje)
+        "ALTER TABLE pedidos ADD COLUMN repartidor_asignado_at DATETIME NULL",
+
+        // usuarios — preferencia de idioma, para que se mantenga sincronizada entre app y web
+        "ALTER TABLE usuarios ADD COLUMN idioma VARCHAR(5) NOT NULL DEFAULT 'es'",
+
+        // ─── Métodos de pago guardados (tokenizados) ───
+        "CREATE TABLE IF NOT EXISTS metodos_pago (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            token VARCHAR(255) NOT NULL,
+            marca VARCHAR(20) NOT NULL,
+            ultimos4 CHAR(4) NOT NULL,
+            exp_mes TINYINT NOT NULL,
+            exp_anio SMALLINT NOT NULL,
+            predeterminado TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_usuario (usuario_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     ];
     foreach ($stmts as $sql) {
         try { db()->exec($sql); } catch (PDOException $e) {}
@@ -513,9 +557,17 @@ function save_base64_audio(string $b64, string $subdir, string $prefix): ?string
  * Impide falsificar un token sin conocer AUTH_SECRET, y expira a los AUTH_TTL_SECONDS.
  */
 function gen_token(int $uid): string {
-    $payload = $uid . '|' . time() . '|' . (time() + AUTH_TTL_SECONDS) . '|' . bin2hex(random_bytes(16));
+    $nonce = bin2hex(random_bytes(16));
+    $expira = time() + AUTH_TTL_SECONDS;
+    $payload = $uid . '|' . time() . '|' . $expira . '|' . $nonce;
     $b64 = base64_encode($payload);
     $sig = hash_hmac('sha256', $b64, AUTH_SECRET);
+    try {
+        $ua = substr($_SERVER['HTTP_USER_AGENT'] ?? '', 0, 255);
+        $ip = $_SERVER['REMOTE_ADDR'] ?? null;
+        db()->prepare("INSERT INTO sesiones (usuario_id, nonce, user_agent, ip, expira_at) VALUES (?, ?, ?, ?, FROM_UNIXTIME(?))")
+            ->execute([$uid, $nonce, $ua, $ip, $expira]);
+    } catch (Throwable $e) { /* tabla de sesiones es best-effort; el token sigue siendo válido sin ella */ }
     return $b64 . '.' . $sig;
 }
 
@@ -530,11 +582,23 @@ function uid_from_token(?string $token): ?int {
     if (count($parts) < 3) return null;
     $expira = (int)$parts[2];
     if ($expira > 0 && time() > $expira) return null;
+    $nonce = $parts[3] ?? null;
+    if ($nonce) {
+        try {
+            $st = db()->prepare("SELECT revocado FROM sesiones WHERE nonce = ? LIMIT 1");
+            $st->execute([$nonce]);
+            $row = $st->fetch();
+            if ($row) {
+                if ((int)$row['revocado'] === 1) return null;
+                db()->prepare("UPDATE sesiones SET last_seen_at = NOW() WHERE nonce = ?")->execute([$nonce]);
+            }
+        } catch (Throwable $e) { /* si la tabla no existe aún, el token sigue funcionando igual */ }
+    }
     return isset($parts[0]) ? (int)$parts[0] : null;
 }
 
-function current_user(): ?array {
-    // Apache puede no pasar HTTP_AUTHORIZATION — intentamos las 3 formas posibles
+/** Header Authorization crudo de la petición actual (sin "Bearer "), o cadena vacía. */
+function current_bearer_token(): string {
     $hdr = $_SERVER['HTTP_AUTHORIZATION']
         ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
         ?? '';
@@ -542,7 +606,22 @@ function current_user(): ?array {
         $all = getallheaders();
         $hdr = $all['Authorization'] ?? $all['authorization'] ?? '';
     }
-    $token = trim(str_replace('Bearer', '', $hdr));
+    return trim(str_replace('Bearer', '', $hdr));
+}
+
+/** Nonce (id de sesión) del token de la petición actual, o null. */
+function current_session_nonce(): ?string {
+    $token = current_bearer_token();
+    if (!$token || strpos($token, '.') === false) return null;
+    [$b64] = explode('.', $token, 2);
+    $dec = base64_decode($b64, true);
+    if (!$dec) return null;
+    $parts = explode('|', $dec);
+    return $parts[3] ?? null;
+}
+
+function current_user(): ?array {
+    $token = current_bearer_token();
     $uid = uid_from_token($token);
     if (!$uid) return null;
     $st = db()->prepare("SELECT * FROM usuarios WHERE id = ? AND activo = 1");

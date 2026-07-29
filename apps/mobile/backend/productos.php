@@ -19,6 +19,7 @@ switch ($action) {
         $municipio = $_GET['municipio'] ?? null;
         $cat       = $_GET['categoria']  ?? null;
         $tiendaId  = isset($_GET['tienda_id']) ? (int)$_GET['tienda_id'] : null;
+        $con_coords = !empty($_GET['con_coordenadas']);
         $page      = max(1, (int)($_GET['page'] ?? 1));
         $limit     = min(60, max(1, (int)($_GET['limit'] ?? 20)));
         $offset    = ($page - 1) * $limit;
@@ -33,6 +34,7 @@ switch ($action) {
         if ($municipio) { $q .= " AND t.municipio = ?"; $params[] = $municipio; }
         if ($cat)       { $q .= " AND p.categoria = ?"; $params[] = $cat; }
         if ($tiendaId)  { $q .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
+        if ($con_coords) { $q .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL"; }
         $q .= " ORDER BY (p.stock > 0 AND (p.estado_stock IS NULL OR p.estado_stock <> 'agotado')) DESC, p.created_at DESC LIMIT $limit OFFSET $offset";
         $st = db()->prepare($q);
         $st->execute($params);
@@ -45,6 +47,7 @@ switch ($action) {
         if ($municipio) { $qc .= " AND t.municipio = ?"; $cparams[] = $municipio; }
         if ($cat)       { $qc .= " AND p.categoria = ?"; $cparams[] = $cat; }
         if ($tiendaId)  { $qc .= " AND p.tienda_id = ?"; $cparams[] = $tiendaId; }
+        if ($con_coords) { $qc .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL"; }
         $stc = db()->prepare($qc);
         $stc->execute($cparams);
         $total = (int)$stc->fetchColumn();
@@ -137,8 +140,8 @@ switch ($action) {
                                  MATCH(p.nombre,p.descripcion) AGAINST(? IN BOOLEAN MODE) AS relevancia
                           FROM productos p JOIN tiendas t ON t.id = p.tienda_id
                           WHERE p.activo = 1 AND t.activo = 1
-                            AND MATCH(p.nombre,p.descripcion) AGAINST(? IN BOOLEAN MODE)";
-                $params = [$q_str . '*', $q_str . '*'];
+                            AND (MATCH(p.nombre,p.descripcion) AGAINST(? IN BOOLEAN MODE) OR t.nombre LIKE ?)";
+                $params = [$q_str . '*', $q_str . '*', '%' . $q_str . '%'];
                 if ($municipio) { $base .= " AND t.municipio = ?"; $params[] = $municipio; }
                 if ($cat)       { $base .= " AND p.categoria = ?"; $params[] = $cat; }
                 if ($tiendaId)  { $base .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
@@ -153,8 +156,8 @@ switch ($action) {
                                  t.lat as tienda_lat, t.lng as tienda_lng, t.vendedor_id
                           FROM productos p JOIN tiendas t ON t.id = p.tienda_id
                           WHERE p.activo = 1 AND t.activo = 1
-                            AND (p.nombre LIKE ? OR p.descripcion LIKE ?)";
-                $params = [$like, $like];
+                            AND (p.nombre LIKE ? OR p.descripcion LIKE ? OR t.nombre LIKE ?)";
+                $params = [$like, $like, $like];
                 if ($municipio) { $base .= " AND t.municipio = ?"; $params[] = $municipio; }
                 if ($cat)       { $base .= " AND p.categoria = ?"; $params[] = $cat; }
                 if ($tiendaId)  { $base .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
@@ -207,13 +210,36 @@ switch ($action) {
 
     case 'detalle':
         $id = (int)($_GET['id'] ?? 0);
-        $st = db()->prepare("SELECT p.*, t.nombre as tienda_nombre, t.municipio, t.vendedor_id FROM productos p JOIN tiendas t ON t.id = p.tienda_id WHERE p.id = ?");
-        $st->execute([$id]);
+        $meDet = current_user();
+        $meDetId = $meDet ? (int)$meDet['id'] : 0;
+        $st = db()->prepare("SELECT p.*, t.nombre as tienda_nombre, t.municipio, t.vendedor_id,
+              (SELECT COUNT(*) FROM seguidores_tienda WHERE tienda_id = t.id) as seguidores_count,
+              (SELECT COUNT(*) FROM seguidores_tienda WHERE tienda_id = t.id AND usuario_id = ?) as yo_sigo
+              FROM productos p JOIN tiendas t ON t.id = p.tienda_id WHERE p.id = ?");
+        $st->execute([$meDetId, $id]);
         $p = $st->fetch();
         if (!$p) jout(['ok' => false, 'error' => 'No existe'], 404);
         $rowsTmp = [$p];
         aplicar_oferta($rowsTmp);
         jout(['ok' => true, 'producto' => $rowsTmp[0]]);
+        break;
+
+    // ─── Ficha pública de una tienda: datos + estado de seguimiento del usuario actual ───
+    case 'tienda_detalle':
+        $tiendaId = (int)($_GET['tienda_id'] ?? 0);
+        if (!$tiendaId) jout(['ok' => false, 'error' => 'tienda_id requerido'], 400);
+        $meTd = current_user();
+        $meTdId = $meTd ? (int)$meTd['id'] : 0;
+        $st = db()->prepare(
+            "SELECT t.*,
+                    (SELECT COUNT(*) FROM seguidores_tienda WHERE tienda_id = t.id) as seguidores_count,
+                    (SELECT COUNT(*) FROM seguidores_tienda WHERE tienda_id = t.id AND usuario_id = ?) as yo_sigo
+             FROM tiendas t WHERE t.id = ? AND t.activo = 1"
+        );
+        $st->execute([$meTdId, $tiendaId]);
+        $t = $st->fetch();
+        if (!$t) jout(['ok' => false, 'error' => 'Tienda no encontrada'], 404);
+        jout(['ok' => true, 'tienda' => $t]);
         break;
 
     // ─── Reseñas públicas de una tienda (con respuesta del vendedor si existe) ───

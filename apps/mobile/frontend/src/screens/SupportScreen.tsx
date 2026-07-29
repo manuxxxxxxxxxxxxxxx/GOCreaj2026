@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView,
+  View, Text, StyleSheet,
   Alert, RefreshControl, TouchableOpacity, Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, Endpoints } from '@/services/api';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
@@ -13,6 +11,8 @@ import { useLang } from '@/context/LangContext';
 import { ReporteSoporte } from '@/types';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
+import ScreenHeader from '@/components/ScreenHeader';
+import ScreenScroll from '@/components/ScreenScroll';
 
 interface RespCrear { ok: boolean; error?: string }
 interface RespList { ok: boolean; reportes?: ReporteSoporte[] }
@@ -30,10 +30,8 @@ const ESTADO_CONFIG = {
 };
 
 export default function SupportScreen() {
-  const nav = useNavigation();
   const { colors } = useTheme();
   const { t } = useLang();
-  const insets = useSafeAreaInsets();
 
   const [asunto, setAsunto]         = useState('');
   const [desc, setDesc]             = useState('');
@@ -72,19 +70,10 @@ export default function SupportScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: c.accent }]}>
-        <TouchableOpacity onPress={() => nav.goBack()} style={styles.backBtn} activeOpacity={0.8}>
-          <Ionicons name="arrow-back" size={22} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t.support.titulo}</Text>
-        <View style={{ width: 36 }} />
-      </View>
+      <ScreenHeader title={t.support.titulo} tone="accent" />
 
-      <ScrollView
+      <ScreenScroll
         refreshControl={<RefreshControl refreshing={cargando} onRefresh={cargar} tintColor={c.accent} />}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: Spacing.md, paddingBottom: 40 }}
       >
         {/* Opciones rápidas */}
         <View style={styles.quickRow}>
@@ -194,22 +183,12 @@ export default function SupportScreen() {
             </View>
           );
         })}
-      </ScrollView>
+      </ScreenScroll>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md, paddingBottom: Spacing.md,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  headerTitle: { color: '#FFF', fontSize: Fonts.regular + 1, fontWeight: '800' },
   quickRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
   quickBtn: {
     flex: 1, alignItems: 'center', padding: Spacing.md,

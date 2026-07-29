@@ -14,6 +14,7 @@ import { useAuth } from '@/context/AuthContext';
 import { api, Endpoints, API_URL } from '@/services/api';
 import { Producto, Comentario, RootStackParamList } from '@/types';
 import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
+import TiendaBottomSheet from '@/components/TiendaBottomSheet';
 
 const { height, width } = Dimensions.get('window');
 
@@ -65,11 +66,7 @@ export default function ReelsScreen(): React.JSX.Element {
   const [respondiendo, setRespondiendo] = useState<{ id: number; nombre: string } | null>(null);
   const [productoActivo, setProductoActivo] = useState<Producto | null>(null);
   const [cargandoCom, setCargandoCom] = useState(false);
-
-  // Compartir por chat
-  const [shareVisible, setShareVisible] = useState(false);
-  const [conversaciones, setConversaciones] = useState<Array<{ id: number; nombre: string; foto_perfil?: string | null }>>([]);
-  const [productoCompartir, setProductoCompartir] = useState<Producto | null>(null);
+  const [tiendaSheetId, setTiendaSheetId] = useState<number | null>(null);
 
   // ─── Carga inicial ───
   const cargar = useCallback(async () => {
@@ -100,6 +97,16 @@ export default function ReelsScreen(): React.JSX.Element {
     }
   };
 
+  const toggleSeguir = async (p: Producto) => {
+    const r = await api<CtxResp & { total_seguidores?: number }>(Endpoints.interSeguirTienda, { body: { tienda_id: p.tienda_id } });
+    if (r.ok) {
+      const yoSigo = r.accion === 'follow' ? 1 : 0;
+      setReels(prev => prev.map(x => x.tienda_id === p.tienda_id
+        ? { ...x, yo_sigo: yoSigo, seguidores_count: r.total_seguidores ?? x.seguidores_count }
+        : x));
+    }
+  };
+
   const toggleGuardar = async (p: Producto) => {
     const r = await api<CtxResp>(Endpoints.interToggleGuardar, { body: { producto_id: p.id } });
     if (r.ok) {
@@ -111,29 +118,15 @@ export default function ReelsScreen(): React.JSX.Element {
     }
   };
 
-  const abrirCompartir = async (p: Producto) => {
-    setProductoCompartir(p);
+  // Reenviar el producto únicamente al chat de la tienda (para preguntar sobre él) — nunca a otros usuarios.
+  const preguntarATienda = async (p: Producto) => {
+    if (!p.vendedor_id) return;
     try {
-      const r = await api<ConvResp>(Endpoints.chatConversaciones);
-      setConversaciones(r.ok && r.conversaciones ? r.conversaciones : []);
-    } catch { setConversaciones([]); }
-    setShareVisible(true);
-  };
-
-  const compartirAUsuario = async (otroId: number) => {
-    if (!productoCompartir) return;
-    try {
-      // Usar el endpoint dedicado de "compartir desde producto" que adjunta snapshot
       await api(Endpoints.chatDesdeProducto, {
-        body: { producto_id: productoCompartir.id, mensaje: `Mira este reel: ${productoCompartir.nombre}` },
+        body: { producto_id: p.id, mensaje: `Hola, tengo una pregunta sobre: ${p.nombre}` },
       });
-      // Registrar también como "compartido" en métricas
-      await api(Endpoints.interCompartir, { body: { producto_id: productoCompartir.id, canal: 'chat' } });
-      setShareVisible(false);
-      Alert.alert('✓ Compartido', 'El reel se envió por chat.');
-    } catch {
-      Alert.alert('Error', 'No se pudo compartir');
-    }
+    } catch { /* si falla el envío del snapshot, igual abrimos el chat */ }
+    nav.navigate('Chat' as any, { otroId: p.vendedor_id, nombre: p.tienda_nombre ?? 'Vendedor' });
   };
 
   // ─── Comentarios ───
@@ -283,14 +276,10 @@ export default function ReelsScreen(): React.JSX.Element {
                   <Ionicons name="bookmark" size={28} color="#FFF" />
                   <Text style={styles.actionCount}>Guardar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => abrirCompartir(item)}>
-                  <Ionicons name="paper-plane" size={26} color="#FFF" />
-                  <Text style={styles.actionCount}>{item.compartidos_count ?? 0}</Text>
-                </TouchableOpacity>
                 {item.vendedor_id ? (
-                  <TouchableOpacity style={styles.actionBtn} onPress={() => nav.navigate('Chat' as any, { otroId: item.vendedor_id!, nombre: item.tienda_nombre ?? 'Vendedor' })}>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => preguntarATienda(item)}>
                     <Ionicons name="send" size={26} color="#FFF" />
-                    <Text style={styles.actionCount}>DM</Text>
+                    <Text style={styles.actionCount}>Preguntar</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -301,7 +290,17 @@ export default function ReelsScreen(): React.JSX.Element {
                   <View style={styles.tiendaAvatar}>
                     <Ionicons name="storefront" size={14} color="#FFF" />
                   </View>
-                  <Text style={styles.infoTienda}>@{item.tienda_nombre ?? 'tienda'}</Text>
+                  <TouchableOpacity onPress={() => setTiendaSheetId(item.tienda_id)}>
+                    <Text style={styles.infoTienda}>@{item.tienda_nombre ?? 'tienda'}</Text>
+                  </TouchableOpacity>
+                  {item.vendedor_id && item.vendedor_id !== usuario?.id ? (
+                    <TouchableOpacity
+                      style={[styles.seguirBtn, item.yo_sigo ? styles.seguirBtnActivo : null]}
+                      onPress={() => toggleSeguir(item)}
+                    >
+                      <Text style={styles.seguirTxt}>{item.yo_sigo ? 'Siguiendo' : 'Seguir'}</Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
                 <Text style={styles.infoTitulo} numberOfLines={2}>{item.nombre}</Text>
                 {item.descripcion ? <Text style={styles.infoDesc} numberOfLines={2}>{item.descripcion}</Text> : null}
@@ -393,41 +392,7 @@ export default function ReelsScreen(): React.JSX.Element {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* ── Modal Compartir por chat ── */}
-      <Modal visible={shareVisible} animationType="slide" transparent onRequestClose={() => setShareVisible(false)}>
-        <View style={[styles.modalRoot, { backgroundColor: 'rgba(0,0,0,0.65)' }]}>
-          <View style={[styles.modalBox, { backgroundColor: colors.background, height: '60%' }]}>
-            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
-            <View style={[styles.modalHeader, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Compartir por chat</Text>
-              <TouchableOpacity onPress={() => setShareVisible(false)}>
-                <Ionicons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={conversaciones}
-              keyExtractor={u => String(u.id)}
-              contentContainerStyle={{ padding: Spacing.md }}
-              renderItem={({ item: u }) => (
-                <TouchableOpacity
-                  onPress={() => compartirAUsuario(u.id)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, backgroundColor: colors.card, borderRadius: 14, marginBottom: 8 }}
-                >
-                  <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.accent, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
-                    {u.foto_perfil
-                      ? <Image source={{ uri: imgUri(u.foto_perfil) }} style={{ width: '100%', height: '100%' }} />
-                      : <Text style={{ color: '#FFF', fontWeight: '900' }}>{u.nombre.charAt(0).toUpperCase()}</Text>
-                    }
-                  </View>
-                  <Text style={{ flex: 1, color: colors.text, fontWeight: '700', fontSize: 14 }}>{u.nombre}</Text>
-                  <Ionicons name="paper-plane" size={18} color={colors.accent} />
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={<Text style={{ textAlign: 'center', color: colors.muted, padding: 30 }}>No tienes conversaciones aún. Empieza una desde un producto.</Text>}
-            />
-          </View>
-        </View>
-      </Modal>
+      <TiendaBottomSheet tiendaId={tiendaSheetId} onClose={() => setTiendaSheetId(null)} />
     </View>
   );
 }
@@ -488,6 +453,9 @@ const styles = StyleSheet.create({
   tiendaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   tiendaAvatar: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.25)', justifyContent: 'center', alignItems: 'center', marginRight: 6 },
   infoTienda: { color: '#FFF', fontWeight: '900', fontSize: Fonts.regular, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  seguirBtn: { marginLeft: 10, paddingHorizontal: 12, paddingVertical: 4, borderRadius: Radius.pill, borderWidth: 1.5, borderColor: '#FFF' },
+  seguirBtnActivo: { backgroundColor: 'rgba(255,255,255,0.25)' },
+  seguirTxt: { color: '#FFF', fontWeight: '800', fontSize: Fonts.small - 1 },
   infoTitulo: { color: '#FFF', fontWeight: '800', fontSize: Fonts.title - 3, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
   infoDesc:   { color: 'rgba(255,255,255,0.9)', fontSize: Fonts.small + 1, marginTop: 4, lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
   infoBottom: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.sm, gap: Spacing.sm },

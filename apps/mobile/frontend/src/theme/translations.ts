@@ -476,7 +476,7 @@ const es: Translations = {
   },
   usernameSetup: {
     titulo: 'Elige tu @usuario',
-    subtitulo: 'Tu identidad en [SV]Go. Podrás cambiarlo cada 10 días.',
+    subtitulo: 'Tu identidad en [SV]Go. Podrás cambiarlo cada 14 días.',
     placeholder: 'tu_usuario',
     confirmar: 'Confirmar y entrar',
     minCaracteres: 'Mínimo 3 caracteres',
@@ -779,7 +779,7 @@ const en: Translations = {
   },
   usernameSetup: {
     titulo: 'Choose your @username',
-    subtitulo: 'Your identity in [SV]Go. You can change it every 10 days.',
+    subtitulo: 'Your identity in [SV]Go. You can change it every 14 days.',
     placeholder: 'your_username',
     confirmar: 'Confirm and enter',
     minCaracteres: 'At least 3 characters',
@@ -1082,7 +1082,7 @@ const fr: Translations = {
   },
   usernameSetup: {
     titulo: 'Choisissez votre @utilisateur',
-    subtitulo: 'Votre identité sur [SV]Go. Vous pouvez le changer tous les 10 jours.',
+    subtitulo: 'Votre identité sur [SV]Go. Vous pouvez le changer tous les 14 jours.',
     placeholder: 'votre_nom',
     confirmar: 'Confirmer et entrer',
     minCaracteres: 'Au moins 3 caractères',

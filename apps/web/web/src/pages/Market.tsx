@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import Footer from '../components/Footer';
+import TiendaSidePanel from '../components/TiendaSidePanel';
 import { api, API_URL } from '../api';
 import '../../css/market.css';
 import '../../css/dark.css';
@@ -19,6 +21,7 @@ interface Product {
   id: number;
   name: string;
   seller: string;
+  tiendaId: number;
   cat: string;
   rating: number;
   reviews: number;
@@ -69,14 +72,15 @@ const CAROUSEL_SLIDES = [
 ];
 
 export default function Market() {
-  const { addToCart, user } = useGlobal();
+  const { addToCart, user, municipio: municipioGlobal } = useGlobal();
   const navigate = useNavigate();
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeSort, setActiveSort] = useState('default');
-  const [filtroMunicipio, setFiltroMunicipio] = useState('');
+  const [filtroMunicipio, setFiltroMunicipio] = useState(municipioGlobal);
   const [municipios, setMunicipios] = useState<string[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedTiendaId, setSelectedTiendaId] = useState<number | null>(null);
   const [qty, setQty] = useState(1);
   const [toast, setToast] = useState('');
   const [toastCartAction, setToastCartAction] = useState(false);
@@ -97,6 +101,7 @@ export default function Market() {
       id: p.id,
       name: p.nombre,
       seller: p.tienda_nombre || 'Tienda',
+      tiendaId: p.tienda_id,
       cat: p.categoria || 'general',
       rating: Number(p.tienda_calificacion) || 0,
       reviews: Number(p.total_resenas) || 0,
@@ -130,6 +135,11 @@ export default function Market() {
       if (res.data.ok) setMunicipios(res.data.municipios || []);
     }).catch(() => {});
   }, []);
+
+  // Al cambiar "Enviar a" en el header, prioriza resultados de esa zona (sección 3.2).
+  useEffect(() => {
+    setFiltroMunicipio(municipioGlobal);
+  }, [municipioGlobal]);
 
   useEffect(() => {
     if (!user) return;
@@ -242,8 +252,16 @@ export default function Market() {
     setTimeout(() => setToast(''), 2800);
   };
 
+  // Comprar/agregar al carrito requiere sesión — invitado se manda a Login (sección 2 del spec).
+  const guardedAddToCart = (p: Product, cantidad: number) => {
+    if (!user) { navigate('/login'); return false; }
+    addToCart(p, cantidad);
+    return true;
+  };
+
   const handleBuyNow = () => {
     if (!selectedProduct) return;
+    if (!user) { navigate('/login', { state: { from: '/carritoypago' } }); return; }
     addToCart(selectedProduct, qty);
     navigate('/carritoypago');
   };
@@ -448,7 +466,14 @@ export default function Market() {
                 <div className="pc-body">
                   <span className="pc-shipping-tag">Envío Rápido 🛵</span>
                   <div className="pc-name">{p.name}</div>
-                  <div className="pc-seller">por {p.seller}</div>
+                  <div
+                    className="pc-seller"
+                    onClick={e => { e.stopPropagation(); setSelectedTiendaId(p.tiendaId); }}
+                    style={{ cursor: 'pointer', width: 'fit-content' }}
+                    title="Ver tienda"
+                  >
+                    por {p.seller}
+                  </div>
 
                   <div className="pc-meta">
                     <span className="star">★</span>
@@ -465,7 +490,7 @@ export default function Market() {
                       <span className="price-new">${p.price.toFixed(2)}</span>
                       {p.oldPrice && <span className="price-old">${p.oldPrice.toFixed(2)}</span>}
                     </div>
-                    <button className="pc-add" onClick={(e) => { e.stopPropagation(); addToCart(p, 1); showToast(`¡${p.name} añadido al carrito!`, true); }}>
+                    <button className="pc-add" onClick={(e) => { e.stopPropagation(); if (guardedAddToCart(p, 1)) showToast(`¡${p.name} añadido al carrito!`, true); }}>
                       <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
                     </button>
                   </div>
@@ -609,7 +634,7 @@ export default function Market() {
                     Comprar Ahora
                   </button>
 
-                  <button className="pd-cart-btn-secondary" onClick={() => { addToCart(selectedProduct, qty); showToast(`¡${qty} añadido(s) al carrito!`, true); }}>
+                  <button className="pd-cart-btn-secondary" onClick={() => { if (guardedAddToCart(selectedProduct, qty)) showToast(`¡${qty} añadido(s) al carrito!`, true); }}>
                     Agregar al Carrito
                   </button>
 
@@ -629,6 +654,14 @@ export default function Market() {
           </div>
         </div>
       )}
+
+      <TiendaSidePanel
+        tiendaId={selectedTiendaId}
+        onClose={() => setSelectedTiendaId(null)}
+        onSelectProduct={raw => { setSelectedProduct(mapProduct(raw)); setActiveThumbIndex(0); setQty(1); window.scrollTo(0, 0); }}
+      />
+
+      <Footer />
 
       {toast && (
         <div

@@ -137,7 +137,7 @@ switch ($action) {
                 jout(['ok' => false, 'error' => 'Contraseña actual incorrecta'], 401);
         }
 
-        // Username cooldown (10 días), permitido si username_changed_at IS NULL (primer cambio)
+        // Username cooldown (14 días), permitido si username_changed_at IS NULL (primer cambio)
         $cambiarUsername = false;
         $newUsername     = null;
         if (!empty($data['username'])) {
@@ -148,8 +148,8 @@ switch ($action) {
                     $stDias = db()->prepare("SELECT TIMESTAMPDIFF(DAY, ?, NOW())");
                     $stDias->execute([$rowU['username_changed_at']]);
                     $diasPasados = (int)$stDias->fetchColumn();
-                    if ($diasPasados < 10)
-                        jout(['ok' => false, 'error' => 'cooldown_username', 'dias_restantes' => 10 - $diasPasados], 429);
+                    if ($diasPasados < 14)
+                        jout(['ok' => false, 'error' => 'cooldown_username', 'dias_restantes' => 14 - $diasPasados], 429);
                 }
                 $cambiarUsername = true;
                 $newUsername     = $usernameClean;
@@ -181,6 +181,40 @@ switch ($action) {
             throw $e;
         }
         $updated = db()->query("SELECT id,nombre,username,username_changed_at,email,telefono,rol,foto_perfil,municipio,lat,lng,auth_provider FROM usuarios WHERE id = " . (int)$u['id'])->fetch();
+        jout(['ok' => true, 'usuario' => $updated]);
+        break;
+
+    // ─── Roles habilitados en la cuenta: 'comprador' siempre + cualquier solicitud aprobada ───
+    case 'mis_roles':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        $st = db()->prepare("SELECT DISTINCT rol_solicitado FROM solicitudes_rol WHERE usuario_id = ? AND estado = 'aprobado'");
+        $st->execute([$u['id']]);
+        $roles = array_column($st->fetchAll(), 'rol_solicitado');
+        $roles[] = 'comprador';
+        $roles[] = $u['rol'];
+        $roles = array_values(array_unique($roles));
+        jout(['ok' => true, 'roles' => $roles, 'rol_activo' => $u['rol']]);
+        break;
+
+    // ─── Cambiar el rol activo entre los que la cuenta ya tiene habilitados ───
+    case 'cambiar_rol':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        require_fields($data, ['rol']);
+        $rolNuevo = $data['rol'];
+        if (!in_array($rolNuevo, ['comprador', 'vendedor', 'repartidor'], true)) {
+            jout(['ok' => false, 'error' => 'Rol inválido'], 400);
+        }
+        if ($rolNuevo !== 'comprador') {
+            $chk = db()->prepare("SELECT 1 FROM solicitudes_rol WHERE usuario_id = ? AND rol_solicitado = ? AND estado = 'aprobado' LIMIT 1");
+            $chk->execute([$u['id'], $rolNuevo]);
+            if (!$chk->fetch()) {
+                jout(['ok' => false, 'error' => 'no_habilitado', 'mensaje' => 'Tu cuenta aún no tiene ese rol aprobado. Solicítalo en "Convertirse en socio".'], 403);
+            }
+        }
+        db()->prepare("UPDATE usuarios SET rol = ? WHERE id = ?")->execute([$rolNuevo, $u['id']]);
+        $updated = db()->query("SELECT id,nombre,username,email,telefono,rol,foto_perfil,municipio,lat,lng,auth_provider FROM usuarios WHERE id = " . (int)$u['id'])->fetch();
         jout(['ok' => true, 'usuario' => $updated]);
         break;
 
@@ -237,11 +271,117 @@ switch ($action) {
         jout(['ok' => true]);
         break;
 
+    // Sincroniza el idioma elegido entre app y web a través de la cuenta del usuario.
+    case 'actualizar_idioma':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        require_fields($data, ['idioma']);
+        if (!in_array($data['idioma'], ['es', 'en', 'fr'], true)) jout(['ok' => false, 'error' => 'Idioma inválido'], 400);
+        db()->prepare("UPDATE usuarios SET idioma = ? WHERE id = ?")->execute([$data['idioma'], $u['id']]);
+        jout(['ok' => true]);
+        break;
+
     case 'guardar_push_token':
         $u = current_user();
         if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
         require_fields($data, ['expo_push_token']);
         db()->prepare("UPDATE usuarios SET expo_push_token = ? WHERE id = ?")->execute([$data['expo_push_token'], $u['id']]);
+        jout(['ok' => true]);
+        break;
+
+    // ═══ Privacidad y seguridad ═══════════════════════════════════════════
+
+    case 'sesiones_listar':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        $miNonce = current_session_nonce();
+        $st = db()->prepare(
+            "SELECT id, nonce, user_agent, ip, created_at, last_seen_at
+             FROM sesiones WHERE usuario_id = ? AND revocado = 0
+             AND (expira_at IS NULL OR expira_at > NOW())
+             ORDER BY last_seen_at DESC"
+        );
+        $st->execute([$u['id']]);
+        $sesiones = array_map(function ($s) use ($miNonce) {
+            $s['es_actual'] = ($s['nonce'] === $miNonce);
+            unset($s['nonce']); // no exponer el identificador crudo de sesión
+            return $s;
+        }, $st->fetchAll());
+        jout(['ok' => true, 'sesiones' => $sesiones]);
+        break;
+
+    case 'sesiones_cerrar':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        require_fields($data, ['id']);
+        db()->prepare("UPDATE sesiones SET revocado = 1 WHERE id = ? AND usuario_id = ?")
+            ->execute([(int)$data['id'], $u['id']]);
+        jout(['ok' => true]);
+        break;
+
+    case 'sesiones_cerrar_otras':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        $miNonce = current_session_nonce();
+        $st = db()->prepare("UPDATE sesiones SET revocado = 1 WHERE usuario_id = ? AND nonce != ?");
+        $st->execute([$u['id'], $miNonce ?? '']);
+        jout(['ok' => true]);
+        break;
+
+    case 'usuarios_bloqueados':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        $st = db()->prepare(
+            "SELECT b.id, b.bloqueado_id, b.created_at, u.nombre, u.username, u.foto_perfil
+             FROM usuarios_bloqueados b JOIN usuarios u ON u.id = b.bloqueado_id
+             WHERE b.usuario_id = ? ORDER BY b.created_at DESC"
+        );
+        $st->execute([$u['id']]);
+        jout(['ok' => true, 'bloqueados' => $st->fetchAll()]);
+        break;
+
+    case 'bloquear_usuario':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        require_fields($data, ['usuario_id']);
+        $otroId = (int)$data['usuario_id'];
+        if ($otroId === (int)$u['id']) jout(['ok' => false, 'error' => 'No puedes bloquearte a ti mismo'], 400);
+        db()->prepare("INSERT IGNORE INTO usuarios_bloqueados (usuario_id, bloqueado_id) VALUES (?, ?)")
+            ->execute([$u['id'], $otroId]);
+        jout(['ok' => true]);
+        break;
+
+    case 'desbloquear_usuario':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        require_fields($data, ['usuario_id']);
+        db()->prepare("DELETE FROM usuarios_bloqueados WHERE usuario_id = ? AND bloqueado_id = ?")
+            ->execute([$u['id'], (int)$data['usuario_id']]);
+        jout(['ok' => true]);
+        break;
+
+    case 'actualizar_visibilidad':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        require_fields($data, ['perfil_publico']);
+        db()->prepare("UPDATE usuarios SET perfil_publico = ? WHERE id = ?")
+            ->execute([(int)(bool)$data['perfil_publico'], $u['id']]);
+        jout(['ok' => true]);
+        break;
+
+    // Eliminación de cuenta: soft-delete (activo = 0) + revoca todas las sesiones.
+    // Sigue el mismo patrón de "activo" usado por moderación de admin, así se puede reactivar sin perder datos.
+    case 'eliminar_cuenta':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        if ($u['auth_provider'] === 'local') {
+            require_fields($data, ['password']);
+            if (!password_verify($data['password'], $u['password_hash'])) {
+                jout(['ok' => false, 'error' => 'Contraseña incorrecta'], 401);
+            }
+        }
+        db()->prepare("UPDATE usuarios SET activo = 0 WHERE id = ?")->execute([$u['id']]);
+        db()->prepare("UPDATE sesiones SET revocado = 1 WHERE usuario_id = ?")->execute([$u['id']]);
         jout(['ok' => true]);
         break;
 

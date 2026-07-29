@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
+import { useAuth } from '@/context/AuthContext';
 import { api, Endpoints, API_URL, traducirError } from '@/services/api';
 import { Producto, RootStackParamList } from '@/types';
 import { SkeletonCard } from '@/components/Skeleton';
@@ -133,11 +134,13 @@ function StoreCard({ s, destacada, onPress }: { s: TiendaNueva; destacada?: bool
 
 export default function HomeScreen() {
   const nav = useNavigation<NavigationProp<RootStackParamList>>();
+  const { usuario } = useAuth();
   const { colors } = useTheme();
   const { t, lang } = useLang();
   const insets = useSafeAreaInsets();
 
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [notifCount, setNotifCount] = useState(0);
   const [nuevas, setNuevas]       = useState<TiendaNueva[]>([]);
   const [destacadas, setDestacadas] = useState<TiendaNueva[]>([]);
   const [cargando, setCargando]   = useState(true);
@@ -200,6 +203,21 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => { void cargar(); }, [cargar]));
 
+  const cargarNotifCount = useCallback(async () => {
+    if (!usuario) return;
+    try {
+      const r = await api<{ ok: boolean; no_leidas?: number }>(Endpoints.notificacionesContador);
+      if (r.ok) setNotifCount(r.no_leidas ?? 0);
+    } catch {}
+  }, [usuario]);
+
+  useFocusEffect(useCallback(() => { void cargarNotifCount(); }, [cargarNotifCount]));
+  useEffect(() => {
+    if (!usuario) return;
+    const iv = setInterval(cargarNotifCount, 30000);
+    return () => clearInterval(iv);
+  }, [usuario, cargarNotifCount]);
+
   const cargarMas = async () => {
     if (loadingMore || !hasMore) return;
     const next = page + 1;
@@ -208,6 +226,7 @@ export default function HomeScreen() {
   };
 
   const agregarCarrito = async (p: Producto) => {
+    if (!usuario) { nav.navigate('Auth' as never); return; }
     try {
       const r = await api<{ ok: boolean; error?: string }>(Endpoints.carritoAgregar, { body: { producto_id: p.id } });
       if (r.ok) {
@@ -227,7 +246,7 @@ export default function HomeScreen() {
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <TouchableOpacity style={styles.locRow} onPress={() => nav.navigate('Location' as never)} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.locRow} onPress={() => nav.navigate('Location')} activeOpacity={0.7}>
           <View style={[styles.locIconBg, { backgroundColor: colors.accentLight }]}>
             <Ionicons name="location" size={16} color={colors.accent} />
           </View>
@@ -239,6 +258,20 @@ export default function HomeScreen() {
             </View>
           </View>
         </TouchableOpacity>
+        {usuario && (
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: colors.background, borderColor: colors.border, marginRight: 8 }]}
+            onPress={() => nav.navigate('Notificaciones' as never)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="notifications-outline" size={20} color={colors.text} />
+            {notifCount > 0 && (
+              <View style={[styles.notifBadge, { backgroundColor: colors.danger, borderColor: colors.card }]}>
+                <Text style={styles.notifBadgeTxt}>{notifCount > 9 ? '9+' : notifCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={[styles.iconBtn, { backgroundColor: colors.background, borderColor: colors.border }]}
           onPress={() => nav.navigate('Cart')}
@@ -417,6 +450,8 @@ const styles = StyleSheet.create({
   muniTxt: { fontSize: Fonts.regular, fontWeight: '800', letterSpacing: -0.2 },
   iconBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, position: 'relative' },
   cartDot: { width: 8, height: 8, borderRadius: 4, position: 'absolute', top: 8, right: 8, borderWidth: 1.5, borderColor: '#FFF' },
+  notifBadge: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, borderWidth: 2, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
+  notifBadgeTxt: { color: '#FFF', fontSize: 9, fontWeight: '900' },
   searchBar: {
     flexDirection: 'row', alignItems: 'center',
     marginHorizontal: Spacing.md, marginTop: Spacing.md, marginBottom: Spacing.sm,

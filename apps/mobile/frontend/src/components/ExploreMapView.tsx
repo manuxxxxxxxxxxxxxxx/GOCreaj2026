@@ -9,7 +9,21 @@ export interface MapPin {
   precio: number;
   nombre: string;
   tiendaNombre?: string;
+  categoria?: string;
 }
+
+// Color de marcador por categoría (sección 9.2 del spec) — usa la taxonomía real
+// del backend (vendedor_dashboard.php CATS_VALIDAS), no categorías inventadas.
+export const CATEGORY_COLORS: Record<string, string> = {
+  comida: '#F97316',
+  bebidas: '#3B82F6',
+  panaderia: '#92400E',
+  postres: '#EC4899',
+  frutas: '#22C55E',
+  verduras: '#14B8A6',
+  general: '#6B7280',
+};
+const DEFAULT_PIN_COLOR = CATEGORY_COLORS.general;
 
 export interface ExploreMapHandle {
   flyTo: (lat: number, lng: number, zoom?: number) => void;
@@ -34,7 +48,7 @@ const SV_LNG = -89.2182;
 // nativos de mapas. preferCanvas + keepBuffer + updateWhenZooming:false hacen
 // que el pan/zoom se sienta fluido. Los pines se actualizan vía
 // injectJavaScript (sin recargar el WebView) para que no haya parpadeo.
-function buildBaseHtml(isDark: boolean, accent: string, lat: number, lng: number, zoom: number): string {
+function buildBaseHtml(isDark: boolean, lat: number, lng: number, zoom: number): string {
   const tileUrl = isDark
     ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
     : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
@@ -45,11 +59,11 @@ function buildBaseHtml(isDark: boolean, accent: string, lat: number, lng: number
 <style>
   html,body,#map{height:100%;margin:0;padding:0;background:${isDark ? '#0B0F19' : '#EFF6FF'};}
   .pin{border-radius:18px;padding:5px 12px;font-size:12px;font-weight:800;white-space:nowrap;
-    background:${isDark ? '#111827' : '#fff'};color:${accent};border:2px solid ${accent};
+    background:${isDark ? '#111827' : '#fff'};
     box-shadow:0 3px 12px rgba(0,0,0,0.3);position:relative;transition:transform .15s;}
-  .pin.sel{background:${accent};color:#fff;transform:scale(1.15);z-index:9999 !important;}
+  .pin.sel{transform:scale(1.15);z-index:9999 !important;}
   .pin i{position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);width:0;height:0;
-    border-left:6px solid transparent;border-right:6px solid transparent;border-top:7px solid ${accent};}
+    border-left:6px solid transparent;border-right:6px solid transparent;}
   .tip{background:${isDark ? '#111827' : '#fff'} !important;color:${isDark ? '#F1F5F9' : '#0F172A'} !important;
     border:1px solid ${isDark ? '#1E293B' : '#E2E8F0'} !important;border-radius:10px !important;
     font-family:system-ui !important;box-shadow:0 4px 16px rgba(0,0,0,0.2) !important;padding:6px 10px !important;}
@@ -69,9 +83,15 @@ function buildBaseHtml(isDark: boolean, accent: string, lat: number, lng: number
   }).addTo(map);
 
   var markersById = {};
+  var categoryColors = ${JSON.stringify(CATEGORY_COLORS)};
+  var defaultPinColor = '${DEFAULT_PIN_COLOR}';
   function esc(s) { var d = document.createElement('div'); d.innerText = s || ''; return d.innerHTML; }
-  function pinIcon(precio, sel) {
-    var html = '<div class="pin ' + (sel ? 'sel' : '') + '"><span>$' + Number(precio).toFixed(2) + '</span><i></i></div>';
+  function pinIcon(precio, sel, categoria) {
+    var color = categoryColors[categoria] || defaultPinColor;
+    var bg = sel ? color : '${isDark ? '#111827' : '#fff'}';
+    var fg = sel ? '#fff' : color;
+    var html = '<div class="pin ' + (sel ? 'sel' : '') + '" style="border:2px solid ' + color + ';background:' + bg + ';color:' + fg + ';">'
+      + '<span>$' + Number(precio).toFixed(2) + '</span><i style="border-top:7px solid ' + color + ';"></i></div>';
     return L.divIcon({ className: '', html: html, iconSize: [70, 32], iconAnchor: [35, 38] });
   }
   window.setPins = function (pinsJson) {
@@ -80,10 +100,10 @@ function buildBaseHtml(isDark: boolean, accent: string, lat: number, lng: number
     pins.forEach(function (p) {
       seen[p.id] = true;
       if (markersById[p.id]) {
-        markersById[p.id].setIcon(pinIcon(p.precio, p.sel));
+        markersById[p.id].setIcon(pinIcon(p.precio, p.sel, p.categoria));
         markersById[p.id].setLatLng([p.lat, p.lng]);
       } else {
-        var m = L.marker([p.lat, p.lng], { icon: pinIcon(p.precio, p.sel) }).addTo(map);
+        var m = L.marker([p.lat, p.lng], { icon: pinIcon(p.precio, p.sel, p.categoria) }).addTo(map);
         m.bindTooltip('<strong>' + esc(p.nombre) + '</strong><br/><span class="sub">' + esc(p.tiendaNombre) + '</span>', { direction: 'top', offset: [0, -14], className: 'tip' });
         m.on('click', function () { window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'select', id: p.id })); });
         markersById[p.id] = m;
@@ -101,11 +121,11 @@ function buildBaseHtml(isDark: boolean, accent: string, lat: number, lng: number
 }
 
 const ExploreMapView = forwardRef<ExploreMapHandle, Props>(function ExploreMapView(
-  { pins, selectedId, isDark, accent, initialLat = SV_LAT, initialLng = SV_LNG, initialZoom = 12, onSelectMarker }, ref
+  { pins, selectedId, isDark, initialLat = SV_LAT, initialLng = SV_LNG, initialZoom = 12, onSelectMarker }, ref
 ) {
   const webRef  = useRef<WebView>(null);
   const ready   = useRef(false);
-  const htmlRef = useRef(buildBaseHtml(isDark, accent, initialLat, initialLng, initialZoom));
+  const htmlRef = useRef(buildBaseHtml(isDark, initialLat, initialLng, initialZoom));
 
   useImperativeHandle(ref, () => ({
     flyTo: (lat, lng, zoom = 16) => webRef.current?.injectJavaScript(`window.flyTo(${lat}, ${lng}, ${zoom}); true;`),

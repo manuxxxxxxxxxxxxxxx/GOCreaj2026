@@ -9,11 +9,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
+import { useAuth } from '@/context/AuthContext';
 import { api, Endpoints, API_URL } from '@/services/api';
 import { CarritoItem, RootStackParamList } from '@/types';
 import LoadingScreen from '@/components/LoadingScreen';
 import Input from '@/components/Input';
-import PaymentModal from '@/components/PaymentModal';
+import PaymentModal, { PaymentExtra } from '@/components/PaymentModal';
+import GuestGate from '@/components/GuestGate';
 
 const CARD_BG = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FECA57'];
 
@@ -32,6 +34,7 @@ export default function CartScreen() {
   const nav = useNavigation<NavigationProp<RootStackParamList>>();
   const { colors } = useTheme();
   const { t } = useLang();
+  const { usuario } = useAuth();
   const insets = useSafeAreaInsets();
 
   const [items, setItems]       = useState<CarritoItem[]>([]);
@@ -58,7 +61,10 @@ export default function CartScreen() {
     setCargando(false);
   }, []);
 
-  useFocusEffect(useCallback(() => { setCargando(true); void cargar(); }, [cargar]));
+  useFocusEffect(useCallback(() => {
+    if (!usuario) { setCargando(false); return; }
+    setCargando(true); void cargar();
+  }, [cargar, usuario]));
 
   const actualizar = async (id: number, cantidad: number) => {
     if (cantidad < 1) { await eliminar(id); return; }
@@ -76,10 +82,10 @@ export default function CartScreen() {
     setPagoVisible(true);
   };
 
-  const onPaySuccess = async (metodo: 'tarjeta' | 'paypal' | 'efectivo') => {
+  const onPaySuccess = async (metodo: 'tarjeta' | 'paypal' | 'efectivo', extra?: PaymentExtra) => {
     try {
       const r = await api<CheckoutResp>(Endpoints.carritoCheckout, {
-        body: { metodo_pago: metodo, direccion_entrega: direccion },
+        body: { metodo_pago: metodo, direccion_entrega: direccion, ...extra },
       });
       if (r.ok && r.pedidos && r.pedidos.length > 0) {
         const pid = r.pedidos[0];
@@ -91,6 +97,16 @@ export default function CartScreen() {
       nav.navigate('Main');
     }
   };
+
+  if (!usuario) {
+    return (
+      <GuestGate
+        icon="cart-outline"
+        title="Inicia sesión para ver tu carrito"
+        subtitle="Necesitas una cuenta para agregar productos al carrito y completar tu compra."
+      />
+    );
+  }
 
   if (cargando) return <LoadingScreen mensaje={t.cart.miCarrito} />;
 

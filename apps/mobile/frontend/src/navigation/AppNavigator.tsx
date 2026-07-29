@@ -9,6 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { RootStackParamList, TabParamList } from '@/types';
 import { useTheme } from '@/context/ThemeContext';
 import LoadingScreen from '@/components/LoadingScreen';
+import GuestGate from '@/components/GuestGate';
 
 import BenefitsSlider from '@/screens/BenefitsSlider';
 import AuthScreen from '@/screens/AuthScreen';
@@ -17,7 +18,10 @@ import IncomingCallBanner from '@/components/IncomingCallBanner';
 import OnboardingPhoneScreen from '@/screens/OnboardingPhoneScreen';
 import UsernameSetupScreen from '@/screens/UsernameSetupScreen';
 import HomeScreen from '@/screens/HomeScreen';
+import LocationSelect from '@/screens/LocationSelect';
 import ExploreScreen from '@/screens/ExploreScreen';
+import PedidosScreen from '@/screens/PedidosScreen';
+import MiCuentaScreen from '@/screens/MiCuentaScreen';
 import ReelsScreen from '@/screens/ReelsScreen';
 import CartScreen from '@/screens/CartScreen';
 import ProfileScreen from '@/screens/ProfileScreen';
@@ -29,6 +33,7 @@ import DriverScreen from '@/screens/DriverScreen';
 import MapTrackingScreen from '@/screens/MapTrackingScreen';
 import ChatScreen, { ChatListScreen } from '@/screens/ChatScreen';
 import SupportScreen from '@/screens/SupportScreen';
+import NotificacionesScreen from '@/screens/NotificacionesScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab   = createBottomTabNavigator<TabParamList>();
@@ -36,6 +41,15 @@ const Tab   = createBottomTabNavigator<TabParamList>();
 // ── 4° tab — dinámico según rol ────────────────────────────────────────
 function LastTabScreen() {
   const { usuario } = useAuth();
+  if (!usuario) {
+    return (
+      <GuestGate
+        icon="person-circle-outline"
+        title="Inicia sesión para ver tu perfil"
+        subtitle="Crea una cuenta o inicia sesión para guardar productos, hacer pedidos y acceder a tu perfil."
+      />
+    );
+  }
   switch (usuario?.rol) {
     case 'admin':      return <AdminScreen />;
     case 'vendedor':   return <SellerScreen />;
@@ -90,6 +104,7 @@ function MainTabs() {
             Home:    ['home',          'home-outline'],
             Explore: ['compass',       'compass-outline'],
             Reels:   ['play-circle',   'play-circle-outline'],
+            Pedidos: ['receipt',       'receipt-outline'],
             Chats:   ['chatbubbles',   'chatbubbles-outline'],
             Profile: [fMeta.active,    fMeta.inactive],
           };
@@ -116,6 +131,7 @@ function MainTabs() {
       <Tab.Screen name="Home"    component={HomeScreen}    options={{ title: 'Inicio' }} />
       <Tab.Screen name="Explore" component={ExploreScreen} options={{ title: 'Explorar' }} />
       <Tab.Screen name="Reels"   component={ReelsScreen}   options={{ title: 'Reels' }} />
+      <Tab.Screen name="Pedidos" component={PedidosScreen} options={{ title: 'Pedidos' }} />
       <Tab.Screen name="Chats"   component={ChatListScreen} options={{ title: 'Chats' }} />
       <Tab.Screen
         name="Profile"
@@ -155,25 +171,29 @@ export default function AppNavigator() {
       <Stack.Navigator
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
       >
-        {!usuario ? (
-          <>
-            {firstLaunch && <Stack.Screen name="Benefits" component={BenefitsSlider} />}
-            <Stack.Screen name="Auth" component={AuthScreen} />
-          </>
-        ) : !tieneUsername ? (
+        {usuario && !tieneUsername ? (
+          // Registro recién creado: forzar onboarding antes de soltarlo a la app.
           <>
             {!telefonoVerificado && <Stack.Screen name="OnboardingPhone" component={OnboardingPhoneScreen} />}
             <Stack.Screen name="UsernameSetup" component={UsernameSetupScreen} />
           </>
         ) : (
+          // Invitado O usuario autenticado completo: mismo set de pantallas.
+          // Home/Explore/Reels son de navegación pública; Chats/Perfil/Carrito/Pedidos
+          // se auto-protegen por dentro (GuestGate) y redirigen a "Auth" si hace falta.
           <>
+            {firstLaunch && !usuario && <Stack.Screen name="Benefits" component={BenefitsSlider} />}
             <Stack.Screen name="Main"         component={MainTabs} />
+            <Stack.Screen name="Auth"         component={AuthScreen} />
+            <Stack.Screen name="Location"     component={LocationSelect} />
+            <Stack.Screen name="MiCuenta"     component={MiCuentaScreen} />
             <Stack.Screen name="Product"      component={ProductScreen} />
             <Stack.Screen name="Cart"         component={CartScreen} />
             <Stack.Screen name="Tracking"     component={MapTrackingScreen} />
             <Stack.Screen name="Chat"         component={ChatScreen} />
             <Stack.Screen name="BecomeSeller" component={BecomeSellerScreen} />
             <Stack.Screen name="Support"      component={SupportScreen} />
+            <Stack.Screen name="Notificaciones" component={NotificacionesScreen} />
           </>
         )}
       </Stack.Navigator>

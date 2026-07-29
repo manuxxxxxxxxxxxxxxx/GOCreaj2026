@@ -1,0 +1,49 @@
+{
+  "header": {
+    "enviarA": "Deliver to",
+    "buscarMunicipio": "Search town...",
+    "buscarPlaceholder": "Search products, stores...",
+    "buscando": "Searching...",
+    "sinResultados": "No results for \"{{q}}\"",
+    "verTodos": "See all results for \"{{q}}\"",
+    "modoClaro": "Light mode",
+    "modoOscuro": "Dark mode",
+    "ingresar": "Sign in",
+    "usuario": "User",
+    "miPerfil": "My Profile",
+    "configuracion": "Settings",
+    "idioma": "Language",
+    "miTienda": "My Store",
+    "misEntregas": "🚚 My Deliveries",
+    "panelAdmin": "⚙️ Admin Panel",
+    "cerrarSesion": "Sign Out",
+    "nav": {
+      "inicio": "Home",
+      "explorar": "Explore",
+      "reels": "Reels",
+      "pedidos": "Orders",
+      "chats": "Chats"
+    }
+  },
+  "footer": {
+    "tagline": "Local Salvadoran commerce, neighborhood delivery. Support businesses in your area.",
+    "explora": "Explore",
+    "inicio": "Home",
+    "explorar": "Explore",
+    "reels": "Reels",
+    "pedidos": "Orders",
+    "socios": "Partners",
+    "convertirseSocio": "Become a partner",
+    "panelVendedor": "Seller dashboard",
+    "panelRepartidor": "Driver dashboard",
+    "ayuda": "Help",
+    "soporte": "Support & help",
+    "miCuenta": "My account",
+    "copyright": "© {{year}} [SV]Go — Made in El Salvador 🇸🇻"
+  },
+  "idiomas": {
+    "es": "Español",
+    "en": "English",
+    "fr": "Français"
+  }
+}

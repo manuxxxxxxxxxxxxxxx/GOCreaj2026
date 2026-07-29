@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
+  View, Text, StyleSheet, TouchableOpacity, Alert,
   Animated, RefreshControl, Image, TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { io, Socket } from 'socket.io-client';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, Endpoints, traducirError } from '@/services/api';
 import { useTheme } from '@/context/ThemeContext';
@@ -13,6 +15,7 @@ import { useLang } from '@/context/LangContext';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing } from '@/theme/colors';
 import { resolveMediaUrl } from '@/utils/media';
+import ScreenScroll from '@/components/ScreenScroll';
 
 const SOCKET_URL: string = process.env.EXPO_PUBLIC_SOCKET_URL ?? 'http://192.168.0.12:3001';
 
@@ -26,10 +29,13 @@ interface PedidoMatch {
   tienda_direccion?: string;
   direccion_entrega?: string;
   ganancia_repartidor: number;
+  distancia_km?: number | null;
 }
 interface PedidoEntrega extends PedidoMatch {
   created_at: string;
   total_repartidor?: number;
+  repartidor_id?: number | null;
+  confirmado_repartidor_recogida?: number;
 }
 interface WalletResp {
   ok: boolean;
@@ -151,6 +157,25 @@ export default function DriverScreen() {
     return () => clearInterval(iv);
   }, [enLinea, cargar]);
 
+  // Mientras está en línea, reporta su posición para las búsquedas de "cercanos"
+  // (repartidores_cercanos del vendedor y ordenamiento por distancia en "disponibles").
+  useEffect(() => {
+    if (!enLinea) return;
+    let cancelado = false;
+    const enviarUbicacion = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted' || cancelado) return;
+        const loc = await Location.getCurrentPositionAsync({});
+        const municipio = (await AsyncStorage.getItem('svgo_municipio')) || 'San Salvador';
+        await api(Endpoints.authUbicacion, { body: { municipio, lat: loc.coords.latitude, lng: loc.coords.longitude } });
+      } catch { /* silencioso: no crítico si falla una actualización */ }
+    };
+    void enviarUbicacion();
+    const iv = setInterval(enviarUbicacion, 45000);
+    return () => { cancelado = true; clearInterval(iv); };
+  }, [enLinea]);
+
   const toggleEnLinea = async () => {
     const nuevo = !enLinea;
     setEnLinea(nuevo);
@@ -172,11 +197,23 @@ export default function DriverScreen() {
   const aceptar = async (p: PedidoMatch) => {
     const r = await api<{ ok: boolean; error?: string }>(Endpoints.repartidorAceptar, { body: { pedido_id: p.id } });
     if (r.ok) {
-      Alert.alert('Pedido tomado', `Vas a recoger en ${p.tienda_nombre ?? p.vendedor_nombre}`);
-      socketRef.current?.emit('pedido-estado-cambio', { pedidoId: p.id, estado: 'en_camino' });
+      Alert.alert('Pedido tomado', `Vas a recoger en ${p.tienda_nombre ?? p.vendedor_nombre}. Confirma la recogida cuando llegues.`);
+      socketRef.current?.emit('pedido-estado-cambio', { pedidoId: p.id, estado: 'preparacion' });
       void cargar();
     }
     else Alert.alert(t.common.error, traducirError(r.error, lang) || 'Error');
+  };
+
+  const confirmarRecogida = async (p: PedidoEntrega) => {
+    const r = await api<{ ok: boolean; en_camino?: boolean; error?: string }>(Endpoints.repartidorConfirmarRecogida, { body: { pedido_id: p.id } });
+    if (r.ok) {
+      Alert.alert(
+        r.en_camino ? '¡En camino!' : 'Recogida confirmada',
+        r.en_camino ? 'La tienda ya había confirmado — el pedido ya va hacia el cliente.' : 'Falta que la tienda confirme también la entrega.',
+      );
+      socketRef.current?.emit('pedido-estado-cambio', { pedidoId: p.id, estado: r.en_camino ? 'en_camino' : 'preparacion' });
+      void cargar();
+    } else Alert.alert(t.common.error, r.error ?? 'Error');
   };
 
   const completar = async (p: PedidoEntrega) => {
@@ -248,8 +285,8 @@ export default function DriverScreen() {
         })}
       </View>
 
-      <ScrollView
-        contentContainerStyle={{ padding: 14, paddingBottom: 80 }}
+      <ScreenScroll
+        bottomExtra={80}
         refreshControl={<RefreshControl refreshing={refresh} onRefresh={() => { setRefresh(true); void cargar(); }} tintColor={colors.accent} />}
       >
         {tab === 'match' && (
@@ -295,7 +332,9 @@ export default function DriverScreen() {
                 </View>
 
                 <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
-                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '700' }}>Total pedido</Text>
+                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '700' }}>
+                    Total pedido{p.distancia_km != null ? ` · ${p.distancia_km} km` : ''}
+                  </Text>
                   <Text style={{ color: colors.text, fontWeight: '900' }}>US$ {Number(p.total).toFixed(2)}</Text>
                 </View>
 
@@ -338,6 +377,21 @@ export default function DriverScreen() {
                   </Text>
                 </View>
 
+                {p.estado === 'preparacion' && !p.confirmado_repartidor_recogida && (
+                  <TouchableOpacity
+                    onPress={() => confirmarRecogida(p)}
+                    activeOpacity={0.88}
+                    style={[styles.acceptBtn, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
+                  >
+                    <Ionicons name="checkmark-done-circle" size={18} color="#FFF" />
+                    <Text style={styles.acceptTxt}>Confirmar recogida en tienda</Text>
+                  </TouchableOpacity>
+                )}
+                {p.estado === 'preparacion' && !!p.confirmado_repartidor_recogida && (
+                  <Text style={{ color: colors.muted, fontSize: 12, fontStyle: 'italic', marginTop: 8 }}>
+                    Esperando que la tienda confirme la entrega…
+                  </Text>
+                )}
                 {p.estado === 'en_camino' && (
                   <TouchableOpacity
                     onPress={() => completar(p)}
@@ -463,7 +517,7 @@ export default function DriverScreen() {
             ))}
           </>
         )}
-      </ScrollView>
+      </ScreenScroll>
     </View>
   );
 }

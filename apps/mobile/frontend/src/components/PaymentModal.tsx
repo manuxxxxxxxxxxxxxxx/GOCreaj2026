@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, Modal, ScrollView,
   TouchableOpacity, Animated, Easing, ActivityIndicator,
@@ -9,6 +9,19 @@ import { useLang } from '@/context/LangContext';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
 import Input from '@/components/Input';
 import { CarritoItem } from '@/types';
+import { api, Endpoints } from '@/services/api';
+
+interface MetodoGuardado {
+  id: number; marca: string; ultimos4: string; exp_mes: number; exp_anio: number; predeterminado: number;
+}
+
+export interface PaymentExtra {
+  metodo_pago_id?: number;
+  tarjeta_numero?: string;
+  tarjeta_cvv?: string;
+  tarjeta_exp?: string;
+  guardar_tarjeta?: boolean;
+}
 
 type PayStep = 'select' | 'card' | 'paypal_auth' | 'paypal_2fa' | 'review' | 'processing' | 'success';
 type MetodoPago = 'tarjeta' | 'paypal' | 'efectivo';
@@ -37,7 +50,7 @@ interface Props {
   items?: CarritoItem[];
   direccion?: string;
   onClose: () => void;
-  onSuccess: (metodo: MetodoPago) => void;
+  onSuccess: (metodo: MetodoPago, extra?: PaymentExtra) => void;
 }
 
 export default function PaymentModal({ visible, total, items = [], direccion, onClose, onSuccess }: Props) {
@@ -55,6 +68,20 @@ export default function PaymentModal({ visible, total, items = [], direccion, on
   const [ppCode, setPpCode] = useState('');
   const [ref] = useState(generateRef());
 
+  const [tarjetasGuardadas, setTarjetasGuardadas] = useState<MetodoGuardado[]>([]);
+  const [tarjetaSeleccionada, setTarjetaSeleccionada] = useState<MetodoGuardado | null>(null);
+  const [guardarTarjeta, setGuardarTarjeta] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    (async () => {
+      try {
+        const r = await api<{ ok: boolean; metodos?: MetodoGuardado[] }>(Endpoints.metodosPagoListar);
+        if (r.ok) setTarjetasGuardadas(r.metodos ?? []);
+      } catch {}
+    })();
+  }, [visible]);
+
   const progressAnim = useRef(new Animated.Value(0)).current;
   const successAnim = useRef(new Animated.Value(0)).current;
   const checkAnim = useRef(new Animated.Value(0)).current;
@@ -64,6 +91,8 @@ export default function PaymentModal({ visible, total, items = [], direccion, on
     setMetodoElegido('tarjeta');
     setCardNum(''); setCardName(''); setCardExp(''); setCardCvv('');
     setPpEmail(''); setPpPass(''); setPpCode('');
+    setTarjetaSeleccionada(null);
+    setGuardarTarjeta(false);
     progressAnim.setValue(0);
     successAnim.setValue(0);
     checkAnim.setValue(0);
@@ -92,7 +121,7 @@ export default function PaymentModal({ visible, total, items = [], direccion, on
   const cardNameValid = cardName.trim().length > 3;
   const expiryValid = /^\d{2}\/\d{2}$/.test(cardExp);
   const cvvValid = /^\d{3}$/.test(cardCvv);
-  const canPayCard = cardValid && cardNameValid && expiryValid && cvvValid;
+  const canPayCard = !!tarjetaSeleccionada || (cardValid && cardNameValid && expiryValid && cvvValid);
 
   const canPayPpAuth = ppEmail.includes('@') && ppPass.length >= 4;
   const canVerify2fa = ppCode.length === 6;
@@ -189,6 +218,42 @@ export default function PaymentModal({ visible, total, items = [], direccion, on
               <View>
                 <Text style={[styles.stepTitle, { color: c.text }]}>{t.cart.tarjeta}</Text>
 
+                {tarjetasGuardadas.length > 0 && (
+                  <View style={{ marginBottom: Spacing.lg }}>
+                    <Text style={[styles.sectionLbl, { color: c.muted }]}>Tarjetas guardadas</Text>
+                    <View style={{ gap: Spacing.sm }}>
+                      {tarjetasGuardadas.map(m => {
+                        const sel = tarjetaSeleccionada?.id === m.id;
+                        return (
+                          <TouchableOpacity
+                            key={m.id}
+                            style={[styles.methodCard, { backgroundColor: c.background, borderColor: sel ? c.accent : c.border, borderWidth: sel ? 2 : 1.5 }]}
+                            onPress={() => setTarjetaSeleccionada(sel ? null : m)}
+                            activeOpacity={0.8}
+                          >
+                            <View style={[styles.methodIcon, { backgroundColor: `${c.accent}18` }]}>
+                              <Ionicons name="card-outline" size={22} color={c.accent} />
+                            </View>
+                            <Text style={[styles.methodTxt, { color: c.text }]}>
+                              {m.marca.charAt(0).toUpperCase() + m.marca.slice(1)} •••• {m.ultimos4}
+                            </Text>
+                            <Ionicons name={sel ? 'checkmark-circle' : 'ellipse-outline'} size={20} color={sel ? c.accent : c.muted} />
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                    <TouchableOpacity
+                      style={[styles.payBtn, { backgroundColor: tarjetaSeleccionada ? c.accent : c.border, marginTop: Spacing.md }]}
+                      onPress={() => tarjetaSeleccionada && setStep('review')}
+                      disabled={!tarjetaSeleccionada}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.payBtnTxt, { color: tarjetaSeleccionada ? '#FFF' : c.muted }]}>Usar esta tarjeta</Text>
+                    </TouchableOpacity>
+                    <Text style={[styles.sectionLbl, { color: c.muted, marginTop: Spacing.lg }]}>O usa una tarjeta nueva</Text>
+                  </View>
+                )}
+
                 <View style={[styles.cardPreview, { backgroundColor: c.accent }]}>
                   <Ionicons name="card" size={28} color="rgba(255,255,255,0.6)" />
                   <Text style={styles.cardPreviewNum}>
@@ -242,14 +307,28 @@ export default function PaymentModal({ visible, total, items = [], direccion, on
                   </View>
                 </View>
                 <Text style={[styles.cvvHint, { color: c.muted }]}>{t.payment.cvvHint}</Text>
+
                 <TouchableOpacity
-                  style={[styles.payBtn, { backgroundColor: canPayCard ? c.accent : c.border }]}
-                  onPress={() => canPayCard && setStep('review')}
-                  disabled={!canPayCard}
+                  style={styles.saveCardRow}
+                  onPress={() => setGuardarTarjeta(v => !v)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name={guardarTarjeta ? 'checkbox' : 'square-outline'} size={20} color={guardarTarjeta ? c.accent : c.muted} />
+                  <Text style={[styles.saveCardTxt, { color: c.text }]}>Guardar esta tarjeta para la próxima vez</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.payBtn, { backgroundColor: (cardValid && cardNameValid && expiryValid && cvvValid) ? c.accent : c.border }]}
+                  onPress={() => {
+                    if (!(cardValid && cardNameValid && expiryValid && cvvValid)) return;
+                    setTarjetaSeleccionada(null);
+                    setStep('review');
+                  }}
+                  disabled={!(cardValid && cardNameValid && expiryValid && cvvValid)}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="lock-closed-outline" size={18} color={canPayCard ? '#FFF' : c.muted} style={{ marginRight: 8 }} />
-                  <Text style={[styles.payBtnTxt, { color: canPayCard ? '#FFF' : c.muted }]}>
+                  <Ionicons name="lock-closed-outline" size={18} color={(cardValid && cardNameValid && expiryValid && cvvValid) ? '#FFF' : c.muted} style={{ marginRight: 8 }} />
+                  <Text style={[styles.payBtnTxt, { color: (cardValid && cardNameValid && expiryValid && cvvValid) ? '#FFF' : c.muted }]}>
                     {t.payment.pagoSeguro} · ${total.toFixed(2)}
                   </Text>
                 </TouchableOpacity>
@@ -345,7 +424,9 @@ export default function PaymentModal({ visible, total, items = [], direccion, on
                       size={15} color={c.accent} style={{ marginRight: 6 }}
                     />
                     <Text style={[styles.reviewItemTxt, { color: c.text }]}>
-                      {metodoElegido === 'tarjeta' ? `${t.cart.tarjeta} •••• ${cardNum.replace(/\s/g, '').slice(-4)}` : metodoElegido === 'paypal' ? 'PayPal' : t.cart.efectivo}
+                      {metodoElegido === 'tarjeta'
+                        ? `${t.cart.tarjeta} •••• ${tarjetaSeleccionada ? tarjetaSeleccionada.ultimos4 : cardNum.replace(/\s/g, '').slice(-4)}`
+                        : metodoElegido === 'paypal' ? 'PayPal' : t.cart.efectivo}
                     </Text>
                   </View>
                 </View>
@@ -430,7 +511,16 @@ export default function PaymentModal({ visible, total, items = [], direccion, on
 
                 <TouchableOpacity
                   style={[styles.payBtn, { backgroundColor: c.accent, marginTop: Spacing.lg }]}
-                  onPress={() => { const metodo = metodoElegido; resetState(); onSuccess(metodo); }}
+                  onPress={() => {
+                    const metodo = metodoElegido;
+                    const extra: PaymentExtra = metodo === 'tarjeta'
+                      ? (tarjetaSeleccionada
+                        ? { metodo_pago_id: tarjetaSeleccionada.id }
+                        : { tarjeta_numero: cardNum.replace(/\s/g, ''), tarjeta_cvv: cardCvv, tarjeta_exp: cardExp, guardar_tarjeta: guardarTarjeta })
+                      : {};
+                    resetState();
+                    onSuccess(metodo, extra);
+                  }}
                   activeOpacity={0.85}
                 >
                   <Ionicons name="bicycle-outline" size={18} color="#FFF" style={{ marginRight: 8 }} />
@@ -496,6 +586,8 @@ const styles = StyleSheet.create({
   cardPreviewExp: { color: 'rgba(255,255,255,0.9)', fontSize: Fonts.small, fontWeight: '700' },
   row2: { flexDirection: 'row' },
   cvvHint: { fontSize: Fonts.small, fontWeight: '500', marginTop: -Spacing.sm, marginBottom: Spacing.md },
+  saveCardRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: Spacing.md },
+  saveCardTxt: { fontSize: Fonts.small + 1, fontWeight: '600' },
   payBtn: {
     height: 56, borderRadius: Radius.pill,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

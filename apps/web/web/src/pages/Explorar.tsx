@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useGlobal } from '../context/GlobalContext';
 import Header from '../components/Header';
+import TiendaSidePanel from '../components/TiendaSidePanel';
 import { api } from '../api';
 
 declare global { interface Window { L: any } }
@@ -33,9 +34,24 @@ interface Producto {
   imagen?: string | null;
   categoria?: string;
   tienda_nombre: string;
+  tienda_id?: number;
   municipio?: string;
   tienda_lat?: number | null;
   tienda_lng?: number | null;
+}
+
+// Color de marcador por categoría (sección 9.2) — taxonomía real del backend.
+const CATEGORY_COLORS: Record<string, string> = {
+  comida: '#F97316',
+  bebidas: '#3B82F6',
+  panaderia: '#92400E',
+  postres: '#EC4899',
+  frutas: '#22C55E',
+  verduras: '#14B8A6',
+  general: '#6B7280',
+};
+function colorPorCategoria(cat?: string): string {
+  return CATEGORY_COLORS[cat ?? 'general'] ?? CATEGORY_COLORS.general;
 }
 
 // ── Load Leaflet once from CDN (con preconnect para que cargue más rápido) ──
@@ -76,10 +92,11 @@ const imgUri = (img?: string | null) => {
 
 // ── Main Component ─────────────────────────────────────────────────────────
 export default function Explorar() {
-  const { theme } = useGlobal();
+  const { theme, municipio } = useGlobal();
   const isDark = theme === 'dark';
   const leafletReady = useLeaflet();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const verDetalle = (id: number) => {
     sessionStorage.setItem('localmarket_open_product', String(id));
@@ -92,12 +109,15 @@ export default function Explorar() {
   const markers = useRef<any[]>([]);
   const cardRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
-  const [q, setQ]           = useState('');
+  const [q, setQ]           = useState(() => searchParams.get('q') ?? '');
   const [cat, setCat]       = useState('Todo');
+  const [zona, setZona]     = useState(municipio);
+  const [municipios, setMunicipios] = useState<string[]>([]);
   const [view, setView]     = useState<'map' | 'list'>('map');
   const [products, setProducts] = useState<Producto[]>([]);
   const [loading, setLoading]   = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
+  const [selectedTiendaId, setSelectedTiendaId] = useState<number | null>(null);
   const [page, setPage]         = useState(1);
   const [hasMore, setHasMore]   = useState(true);
   const [inputFocus, setInputFocus] = useState(false);
@@ -122,22 +142,45 @@ export default function Explorar() {
       };
       if (q.trim()) params.q = q.trim();
       if (cat !== 'Todo') params.categoria = cat;
+      if (zona) params.municipio = zona;
       if (view === 'map') params.con_coordenadas = 0; // get ALL for map, not just with coords
 
       const res = await api.get('/productos.php', { params });
-      const list: Producto[] = res.data.productos || [];
+      const raw: any[] = res.data.productos || [];
+      const list: Producto[] = raw.map(p => ({
+        ...p,
+        precio: Number(p.precio),
+        precio_oferta: p.precio_oferta != null ? Number(p.precio_oferta) : null,
+      }));
       if (reset) setProducts(list); else setProducts(p => [...p, ...list]);
       setPage(pageNum + 1);
       setHasMore(list.length >= 24);
     } catch { /* silent */ }
     setLoading(false);
-  }, [q, cat, view]);
+  }, [q, cat, view, zona]);
 
   useEffect(() => {
     setPage(1);
     setSelected(null);
     fetch_(true, 1);
-  }, [q, cat]);
+  }, [q, cat, zona]);
+
+  // Sincroniza con "Enviar a" del header, pero permite explorar otra zona sin cambiarlo.
+  useEffect(() => { setZona(municipio); }, [municipio]);
+
+  // Si el usuario busca de nuevo desde el Header estando ya en /explorar, el componente
+  // no se remonta (misma ruta) — hay que releer el ?q= cada vez que cambie.
+  useEffect(() => {
+    const urlQ = searchParams.get('q') ?? '';
+    if (urlQ !== q) setQ(urlQ);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  useEffect(() => {
+    api.get('/productos.php?action=municipios').then(res => {
+      if (res.data.ok) setMunicipios(res.data.municipios || []);
+    }).catch(() => {});
+  }, []);
 
   // ── Init / teardown map ──────────────────────────────────────────────────
   useEffect(() => {
@@ -196,15 +239,16 @@ export default function Explorar() {
     withCoords.forEach(prod => {
       const price = (prod.precio_oferta ?? prod.precio).toFixed(2);
       const sel   = selected === prod.id;
+      const pinColor = colorPorCategoria(prod.categoria);
       const html  = `
         <div class="svgo-price-pin ${sel ? 'sel' : ''}" style="
-          --ac:${accent};
-          background:${sel ? accent : (isDark ? '#111827' : '#fff')};
-          color:${sel ? '#fff' : accent};
-          border:2px solid ${accent};
+          --ac:${pinColor};
+          background:${sel ? pinColor : (isDark ? '#111827' : '#fff')};
+          color:${sel ? '#fff' : pinColor};
+          border:2px solid ${pinColor};
         ">
           $${price}
-          <span class="svgo-pin-arrow" style="border-top-color:${accent}"></span>
+          <span class="svgo-pin-arrow" style="border-top-color:${pinColor}"></span>
         </div>`;
 
       const icon = L.divIcon({ className: '', html, iconSize: [70, 32], iconAnchor: [35, 38] });
@@ -394,6 +438,22 @@ export default function Explorar() {
               </button>
             );
           })}
+        </div>
+
+        {/* Filtro de zona */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={muted} strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <select
+            value={zona}
+            onChange={e => setZona(e.target.value)}
+            style={{
+              background: elevated, color: text, border: `1.5px solid ${border}`,
+              borderRadius: 10, padding: '5px 10px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            <option value="">Todas las zonas</option>
+            {municipios.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
         </div>
       </div>
 
@@ -656,7 +716,11 @@ export default function Explorar() {
                     }}>
                       {prod.nombre}
                     </div>
-                    <div style={{ fontSize: 12, color: muted, marginBottom: 14 }}>
+                    <div
+                      onClick={e => { e.stopPropagation(); if (prod.tienda_id) setSelectedTiendaId(prod.tienda_id); }}
+                      style={{ fontSize: 12, color: muted, marginBottom: 14, cursor: prod.tienda_id ? 'pointer' : 'default', width: 'fit-content' }}
+                      title="Ver tienda"
+                    >
                       {prod.tienda_nombre}{prod.municipio ? ` · ${prod.municipio}` : ''}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -731,6 +795,12 @@ export default function Explorar() {
           )}
         </div>
       )}
+
+      <TiendaSidePanel
+        tiendaId={selectedTiendaId}
+        onClose={() => setSelectedTiendaId(null)}
+        onSelectProduct={raw => verDetalle(raw.id)}
+      />
     </div>
   );
 }

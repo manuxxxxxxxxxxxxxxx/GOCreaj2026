@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { GlobalProvider } from './context/GlobalContext';
+import ErrorBoundary from './components/ErrorBoundary';
+import RequireAuth from './components/RequireAuth';
 import AdminLayout from './components/AdminLayout';
 import Users from './pages/Users';
 import AdminOrders from './pages/AdminOrders';
@@ -26,21 +28,22 @@ function App() {
   return (
     <GlobalProvider>
       <BrowserRouter>
+        <ErrorBoundary>
         <Routes>
           <Route path="/" element={<Market />} />
           <Route path="/login" element={<Login />} />
           <Route path="/market" element={<Navigate to="/" replace />} />
-          <Route path="/carritoypago" element={<CarritoYpago />} />
-          <Route path="/perfil" element={<Perfil />} />
-          <Route path="/historial" element={<Historial />} />
-          <Route path="/chat" element={<Chat />} />
+          <Route path="/carritoypago" element={<RequireAuth><CarritoYpago /></RequireAuth>} />
+          <Route path="/perfil" element={<RequireAuth><Perfil /></RequireAuth>} />
+          <Route path="/historial" element={<RequireAuth><Historial /></RequireAuth>} />
+          <Route path="/chat" element={<RequireAuth><Chat /></RequireAuth>} />
           <Route path="/call-embed" element={<CallEmbed />} />
-          <Route path="/entregas/:pedidoId" element={<Entregas />} />
-          <Route path="/entregas" element={<Entregas />} />
+          <Route path="/entregas/:pedidoId" element={<RequireAuth><Entregas /></RequireAuth>} />
+          <Route path="/entregas" element={<RequireAuth><Entregas /></RequireAuth>} />
           <Route path="/reels" element={<Reels />} />
-          <Route path="/dashboard-vendedor" element={<VendedorDashboard />} />
-          <Route path="/dashboard-repartidor" element={<RepartidorDashboard />} />
-          <Route path="/become-seller" element={<BecomeSeller />} />
+          <Route path="/dashboard-vendedor" element={<RequireAuth><VendedorDashboard /></RequireAuth>} />
+          <Route path="/dashboard-repartidor" element={<RequireAuth><RepartidorDashboard /></RequireAuth>} />
+          <Route path="/become-seller" element={<RequireAuth><BecomeSeller /></RequireAuth>} />
           <Route path="/explorar" element={<Explorar />} />
 
           {/* Admin — sin /dashboard ni /settings (eliminados según directiva). */}
@@ -58,6 +61,7 @@ function App() {
 
           <Route path="*" element={<NotFound />} />
         </Routes>
+        </ErrorBoundary>
       </BrowserRouter>
     </GlobalProvider>
   );

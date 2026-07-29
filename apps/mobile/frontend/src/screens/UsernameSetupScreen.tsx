@@ -177,7 +177,7 @@ export default function UsernameSetupScreen() {
           </View>
           <View style={styles.ruleRow}>
             <Ionicons name="time-outline" size={14} color={c.muted} style={{ marginRight: 6 }} />
-            <Text style={[styles.ruleTxt, { color: c.muted }]}>Cambio disponible cada 10 días</Text>
+            <Text style={[styles.ruleTxt, { color: c.muted }]}>Cambio disponible cada 14 días</Text>
           </View>
         </View>
 

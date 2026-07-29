@@ -20,33 +20,34 @@
   --border: #e2e8f0;
 }
 
-body {
+/* NOTA: estas reglas usaban el selector global `body`, lo que las filtraba a
+   TODAS las páginas de la app (Vite empaqueta todo el CSS junto, sin scoping
+   por ruta) — por eso el círculo decorativo de esta página aparecía encima
+   del navbar en Checkout, Seguimiento de entrega, etc. Ahora quedan scoped a
+   .auth-page-wrapper, el contenedor propio de esta página (Login.tsx). */
+.auth-page-wrapper {
   font-family: 'Plus Jakarta Sans', sans-serif;
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: linear-gradient(135deg, #4A6D8C 0%, #355068 100%);
-  padding: 24px 16px;
   color: var(--text);
   line-height: 1.5;
+  overflow: hidden;
 }
 
 /* ── BACKGROUND SHAPES ── */
-body::before,
-body::after {
+.auth-page-wrapper::before,
+.auth-page-wrapper::after {
   content: '';
-  position: fixed;
+  position: absolute;
   border-radius: 50%;
   pointer-events: none;
   z-index: 0;
 }
-body::before {
+.auth-page-wrapper::before {
   width: 500px; height: 500px;
   top: -180px; left: -120px;
   background: rgba(255,255,255,0.06);
 }
-body::after {
+.auth-page-wrapper::after {
   width: 380px; height: 380px;
   bottom: -130px; right: -100px;
   background: rgba(255,255,255,0.05);
@@ -427,7 +428,7 @@ body::after {
 }
 
 /* ── DARK MODE ── */
-html.dark body {
+html.dark .auth-page-wrapper {
   background: linear-gradient(135deg, #1e2130 0%, #2a1a4a 100%);
 }
 html.dark .auth-card {

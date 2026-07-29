@@ -14,13 +14,16 @@ interface Reel {
   precio: number;
   descripcion: string;
   tienda_nombre: string;
+  tienda_id?: number;
   vendedor_id?: number;
   municipio?: string;
   likes_count: number;
   comentarios_count: number;
   compartidos_count: number;
+  seguidores_count?: number;
   isLiked?: boolean;
   isSaved?: boolean;
+  isFollowing?: boolean;
 }
 
 interface Comentario {
@@ -87,10 +90,6 @@ export default function Reels() {
   const [activeReel, setActiveReel] = useState<Reel | null>(null);
   const [comLoading, setComLoading] = useState(false);
 
-  const [shareOpen, setShareOpen] = useState(false);
-  const [conversaciones, setConversaciones] = useState<Array<{ id: number; nombre: string; foto_perfil?: string | null }>>([]);
-  const [shareReel, setShareReel] = useState<Reel | null>(null);
-
   const [toast, setToast] = useState('');
 
   // ─── Carga inicial ───
@@ -107,11 +106,14 @@ export default function Reels() {
             precio: Number(r.precio) || 0,
             descripcion: r.descripcion || '',
             tienda_nombre: r.tienda_nombre || 'tienda',
+            tienda_id: r.tienda_id,
             vendedor_id: r.vendedor_id,
             municipio: r.municipio,
             likes_count: Number(r.likes_count) || 0,
             comentarios_count: Number(r.comentarios_count) || 0,
             compartidos_count: Number(r.compartidos_count) || 0,
+            seguidores_count: Number(r.seguidores_count) || 0,
+            isFollowing: !!Number(r.yo_sigo),
           })));
         }
       })
@@ -177,38 +179,29 @@ export default function Reels() {
     } catch {}
   };
 
-  const openShare = async (r: Reel) => {
+  const toggleFollow = async (r: Reel) => {
     if (!user) { navigate('/login'); return; }
-    setShareReel(r);
+    if (!r.tienda_id) return;
     try {
-      const res = await api.get('/chat_multi.php?action=conversaciones');
-      setConversaciones(res.data.ok ? res.data.conversaciones ?? [] : []);
-    } catch { setConversaciones([]); }
-    setShareOpen(true);
+      const res = await api.post('/interacciones.php?action=seguir_tienda', { tienda_id: r.tienda_id });
+      if (res.data.ok) {
+        setReels(prev => prev.map(x => x.tienda_id === r.tienda_id
+          ? { ...x, isFollowing: res.data.accion === 'follow', seguidores_count: res.data.total_seguidores ?? x.seguidores_count }
+          : x));
+      }
+    } catch {}
   };
 
-  const shareToUser = async (otroId: number) => {
-    if (!shareReel) return;
+  // Reenviar el producto únicamente al chat de la tienda (para preguntar sobre él) — nunca a otros usuarios.
+  const preguntarATienda = async (r: Reel) => {
+    if (!user) { navigate('/login'); return; }
     try {
       await api.post('/chat_multi.php?action=desde_producto', {
-        producto_id: shareReel.id,
-        mensaje: `Mira este reel: ${shareReel.nombre}`,
+        producto_id: r.id,
+        mensaje: `Hola, tengo una pregunta sobre: ${r.nombre}`,
       });
-      await api.post('/interacciones.php?action=compartir', { producto_id: shareReel.id, canal: 'chat' });
-      setShareOpen(false);
-      showToast('✓ Compartido por chat');
-    } catch {
-      showToast('Error al compartir');
-    }
-  };
-
-  const shareExterno = async (r: Reel) => {
-    const shareData = { title: r.nombre, text: r.descripcion, url: window.location.href };
-    try {
-      if (navigator.share) await navigator.share(shareData);
-      else { await navigator.clipboard.writeText(window.location.href); showToast('Enlace copiado'); }
-      if (user) await api.post('/interacciones.php?action=compartir', { producto_id: r.id, canal: 'web' });
-    } catch {}
+    } catch { /* si falla el snapshot, igual abrimos el chat */ }
+    navigate('/chat');
   };
 
   // ─── Comentarios ───
@@ -372,6 +365,19 @@ export default function Reels() {
                   <div style={{ color: '#FFF', fontWeight: 900, fontSize: 15, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
                     @{r.tienda_nombre}
                   </div>
+                  {r.vendedor_id && r.vendedor_id !== Number(user?.id) && (
+                    <button
+                      onClick={() => toggleFollow(r)}
+                      style={{
+                        pointerEvents: 'auto', marginLeft: 4,
+                        background: r.isFollowing ? 'rgba(255,255,255,0.25)' : 'transparent',
+                        border: '1.5px solid #FFF', color: '#FFF',
+                        padding: '4px 14px', borderRadius: 99, cursor: 'pointer', fontWeight: 800, fontSize: 12,
+                      }}
+                    >
+                      {r.isFollowing ? 'Siguiendo' : 'Seguir'}
+                    </button>
+                  )}
                 </div>
                 <div style={{ color: '#FFF', fontWeight: 800, fontSize: 18, marginBottom: 4, textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
                   {r.nombre}
@@ -405,8 +411,7 @@ export default function Reels() {
                 <ActionBtn icon="❤️" label={fmtCount(r.likes_count)} active={!!r.isLiked} onClick={() => toggleLike(r)} />
                 <ActionBtn icon="💬" label={fmtCount(r.comentarios_count)} onClick={() => openComments(r)} />
                 <ActionBtn icon="🔖" label={r.isSaved ? 'Guardado' : 'Guardar'} active={!!r.isSaved} onClick={() => toggleSave(r)} />
-                <ActionBtn icon="✈️" label={fmtCount(r.compartidos_count)} onClick={() => openShare(r)} />
-                <ActionBtn icon="🔗" label="Link" onClick={() => shareExterno(r)} />
+                {r.vendedor_id && <ActionBtn icon="✉️" label="Preguntar" onClick={() => preguntarATienda(r)} />}
               </div>
 
               {/* Contador arriba derecha */}
@@ -468,43 +473,6 @@ export default function Reels() {
         </div>
       )}
 
-      {/* ── Modal Compartir ── */}
-      {shareOpen && (
-        <div onClick={() => setShareOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: 'var(--bg, #fff)', width: '100%', maxWidth: 480, height: '60vh',
-            borderTopLeftRadius: 24, borderTopRightRadius: 24, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1.5px solid var(--border, #e2e8f0)' }}>
-              <strong>Compartir por chat</strong>
-              <button onClick={() => setShareOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer' }}>×</button>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-              {conversaciones.length === 0 ? (
-                <div style={{ textAlign: 'center', color: 'var(--text-muted, #6b7280)', padding: 30 }}>
-                  No tienes conversaciones aún. Empieza una desde un producto.
-                </div>
-              ) : conversaciones.map(u => (
-                <button
-                  key={u.id}
-                  onClick={() => shareToUser(u.id)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 12, padding: 12, width: '100%',
-                    background: 'var(--card, #fff)', border: '1.5px solid var(--border, #e2e8f0)',
-                    borderRadius: 14, marginBottom: 8, cursor: 'pointer', textAlign: 'left',
-                  }}
-                >
-                  <div style={{ width: 44, height: 44, borderRadius: 22, background: '#2563EB', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, overflow: 'hidden' }}>
-                    {u.foto_perfil ? <img src={imgUri(u.foto_perfil)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : u.nombre.charAt(0).toUpperCase()}
-                  </div>
-                  <span style={{ flex: 1, fontWeight: 700 }}>{u.nombre}</span>
-                  <span style={{ color: '#2563EB' }}>➤</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Toast */}
       {toast && (

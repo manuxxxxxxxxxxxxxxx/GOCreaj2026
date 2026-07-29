@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useGlobal } from '../context/GlobalContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../api';
@@ -12,8 +13,6 @@ const MUNICIPIOS_SV = [
   'Acajutla','Chalchuapa','Ciudad Arce','Colón','Sonsonate',
 ];
 
-const LOC_KEY = 'svgo_municipio';
-
 interface SearchResult {
   id: number;
   nombre: string;
@@ -25,12 +24,12 @@ interface SearchResult {
 }
 
 export default function Header() {
-  const { theme, toggleTheme, cartCount, user } = useGlobal();
+  const { t } = useTranslation();
+  const { theme, toggleTheme, cartCount, user, logout, municipio, setMunicipio } = useGlobal();
   const navigate  = useNavigate();
   const location  = useLocation();
   const isDark    = theme === 'dark';
 
-  const [municipio, setMunicipio]       = useState(() => localStorage.getItem(LOC_KEY) || 'San Salvador');
   const [showLocPicker, setShowLocPicker] = useState(false);
   const [locSearch, setLocSearch]       = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -46,6 +45,58 @@ export default function Header() {
 
   const locRef  = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // ── Notificaciones ──────────────────────────────────────────────────────────
+  const [showNotif, setShowNotif] = useState(false);
+  const [notifs, setNotifs] = useState<Array<{ id: number; titulo: string; cuerpo: string | null; tipo: string; leida: number; created_at: string }>>([]);
+  const [notifCount, setNotifCount] = useState(0);
+
+  const cargarContador = useCallback(async () => {
+    if (!user) return;
+    try {
+      const res = await api.get('/notificaciones.php?action=contador');
+      if (res.data.ok) setNotifCount(res.data.no_leidas ?? 0);
+    } catch { /* silencioso */ }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) { setNotifCount(0); return; }
+    void cargarContador();
+    const iv = setInterval(cargarContador, 30000);
+    return () => clearInterval(iv);
+  }, [user, cargarContador]);
+
+  const abrirNotificaciones = async () => {
+    setShowNotif(v => !v);
+    if (showNotif) return;
+    try {
+      const res = await api.get('/notificaciones.php?action=listar');
+      if (res.data.ok) setNotifs(res.data.notificaciones ?? []);
+    } catch { setNotifs([]); }
+  };
+
+  const marcarLeida = async (id: number) => {
+    setNotifs(prev => prev.map(n => n.id === id ? { ...n, leida: 1 } : n));
+    setNotifCount(c => Math.max(0, c - 1));
+    api.post('/notificaciones.php?action=marcar_leida', { id }).catch(() => {});
+  };
+
+  const marcarTodasLeidas = async () => {
+    setNotifs(prev => prev.map(n => ({ ...n, leida: 1 })));
+    setNotifCount(0);
+    api.post('/notificaciones.php?action=marcar_todas_leidas', {}).catch(() => {});
+  };
+
+  const tiempoRelativo = (fecha: string) => {
+    const diffMs = Date.now() - new Date(fecha.replace(' ', 'T')).getTime();
+    const min = Math.floor(diffMs / 60000);
+    if (min < 1) return 'ahora';
+    if (min < 60) return `hace ${min} min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `hace ${h} h`;
+    return `hace ${Math.floor(h / 24)} d`;
+  };
 
   // ── Colors ───────────────────────────────────────────────────────────────────
   const bg      = isDark ? '#080D18' : '#FFFFFF';
@@ -70,6 +121,7 @@ export default function Header() {
       if (locRef.current && !locRef.current.contains(e.target as Node)) setShowLocPicker(false);
       if (userRef.current && !userRef.current.contains(e.target as Node)) setShowUserMenu(false);
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearchDrop(false);
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotif(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -113,7 +165,6 @@ export default function Header() {
 
   const selectMunicipio = (m: string) => {
     setMunicipio(m);
-    localStorage.setItem(LOC_KEY, m);
     setShowLocPicker(false);
     setLocSearch('');
     if (user?.id) {
@@ -137,10 +188,11 @@ export default function Header() {
   const rol = (user?.role || (user as any)?.rol) as RolKey;
 
   const navLinks = [
-    { path: '/',         label: 'Inicio',   icon: iHome() },
-    { path: '/explorar', label: 'Explorar', icon: iCompass() },
-    { path: '/reels',    label: 'Reels',    icon: iReels() },
-    { path: '/chat',     label: 'Chats',    icon: iChat() },
+    { path: '/',          label: t('header.nav.inicio'),   icon: iHome() },
+    { path: '/explorar',  label: t('header.nav.explorar'), icon: iCompass() },
+    { path: '/reels',     label: t('header.nav.reels'),    icon: iReels() },
+    { path: '/historial', label: t('header.nav.pedidos'),  icon: iOrders() },
+    { path: '/chat',      label: t('header.nav.chats'),    icon: iChat() },
   ];
 
   // ── Shared dropdown style ─────────────────────────────────────────────────────
@@ -200,7 +252,7 @@ export default function Header() {
             transition: 'border-color 0.15s', fontFamily: 'inherit',
           }}>
             {iPin(accent)}
-            <span style={{ color: mutedCol }}>Enviar a</span>
+            <span style={{ color: mutedCol }}>{t('header.enviarA')}</span>
             <strong style={{ color: textCol, maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{municipio}</strong>
             {iChevron(mutedCol, showLocPicker)}
           </button>
@@ -208,7 +260,7 @@ export default function Header() {
             <div style={{ ...dropdownStyle, top: 'calc(100% + 8px)', left: 0, width: 240 }}>
               <div style={{ padding: '10px 12px', borderBottom: `1px solid ${border}` }}>
                 <input
-                  autoFocus type="text" placeholder="Buscar municipio..."
+                  autoFocus type="text" placeholder={t('header.buscarMunicipio')}
                   value={locSearch} onChange={e => setLocSearch(e.target.value)}
                   style={{
                     width: '100%', border: `1.5px solid ${border}`, borderRadius: 8,
@@ -251,7 +303,7 @@ export default function Header() {
             {iSearch(mutedCol)}
             <input
               type="text"
-              placeholder="Buscar productos, tiendas..."
+              placeholder={t('header.buscarPlaceholder')}
               value={searchQ}
               onChange={e => handleSearchInput(e.target.value)}
               onFocus={() => { if (searchQ.trim()) setShowSearchDrop(true); }}
@@ -280,11 +332,11 @@ export default function Header() {
                 <div style={{ padding: '20px 16px', display: 'flex', alignItems: 'center', gap: 10, color: mutedCol, fontSize: 13 }}>
                   <div style={{ width: 16, height: 16, border: `2px solid ${border}`, borderTopColor: accent, borderRadius: '50%', animation: 'hSpin 0.8s linear infinite' }} />
                   <style>{`@keyframes hSpin{to{transform:rotate(360deg)}}`}</style>
-                  Buscando...
+                  {t('header.buscando')}
                 </div>
               ) : searchResults.length === 0 ? (
                 <div style={{ padding: '16px', color: mutedCol, fontSize: 13, textAlign: 'center' }}>
-                  Sin resultados para "{searchQ}"
+                  {t('header.sinResultados', { q: searchQ })}
                 </div>
               ) : (
                 <>
@@ -337,7 +389,7 @@ export default function Header() {
                     }}
                   >
                     {iSearch(accent)}
-                    Ver todos los resultados para "{searchQ}"
+                    {t('header.verTodos', { q: searchQ })}
                     <svg viewBox="0 0 24 24" fill="none" stroke={accent} strokeWidth="2.5" width="14" height="14"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
                   </button>
                 </>
@@ -349,9 +401,61 @@ export default function Header() {
         {/* Right actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           {/* Theme toggle */}
-          <button onClick={toggleTheme} title={isDark ? 'Modo claro' : 'Modo oscuro'} style={iconBtnStyle(inputBg, border, textCol)}>
+          <button onClick={toggleTheme} title={isDark ? t('header.modoClaro') : t('header.modoOscuro')} style={iconBtnStyle(inputBg, border, textCol)}>
             {isDark ? iSun() : iMoon()}
           </button>
+
+          {/* Notificaciones */}
+          {user && (
+            <div ref={notifRef} style={{ position: 'relative' }}>
+              <button onClick={abrirNotificaciones} style={{ ...iconBtnStyle(inputBg, border, textCol), position: 'relative' }}>
+                {iBell()}
+                {notifCount > 0 && (
+                  <span style={{
+                    position: 'absolute', top: -5, right: -5,
+                    background: '#EF4444', color: '#FFF',
+                    fontSize: 10, fontWeight: 900,
+                    width: 18, height: 18, borderRadius: 9,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    border: `2px solid ${bg}`,
+                  }}>{notifCount > 9 ? '9+' : notifCount}</span>
+                )}
+              </button>
+              {showNotif && (
+                <div style={{ ...dropdownStyle, top: 'calc(100% + 8px)', right: 0, width: 340, maxHeight: 420, overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: `1px solid ${border}` }}>
+                    <strong style={{ fontSize: 13, color: textCol }}>Notificaciones</strong>
+                    {notifs.some(n => !n.leida) && (
+                      <button onClick={marcarTodasLeidas} style={{ background: 'none', border: 'none', color: accent, fontWeight: 700, fontSize: 11, cursor: 'pointer' }}>
+                        Marcar todas leídas
+                      </button>
+                    )}
+                  </div>
+                  {notifs.length === 0 ? (
+                    <div style={{ padding: 24, textAlign: 'center', color: mutedCol, fontSize: 13 }}>Sin notificaciones todavía.</div>
+                  ) : notifs.map(n => (
+                    <button
+                      key={n.id}
+                      onClick={() => marcarLeida(n.id)}
+                      style={{
+                        width: '100%', textAlign: 'left', display: 'flex', gap: 8, alignItems: 'flex-start',
+                        padding: '12px 14px', border: 'none', borderBottom: `1px solid ${border}`,
+                        background: n.leida ? 'transparent' : (isDark ? 'rgba(59,130,246,0.08)' : 'rgba(37,99,235,0.05)'),
+                        cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      {!n.leida && <span style={{ width: 7, height: 7, borderRadius: 4, background: accent, marginTop: 5, flexShrink: 0 }} />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12.5, fontWeight: n.leida ? 600 : 800, color: textCol }}>{n.titulo}</div>
+                        {n.cuerpo && <div style={{ fontSize: 11.5, color: mutedCol, marginTop: 2 }}>{n.cuerpo}</div>}
+                        <div style={{ fontSize: 10.5, color: mutedCol, marginTop: 3 }}>{tiempoRelativo(n.created_at)}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Cart */}
           <button onClick={() => navigate('/carritoypago')} style={{ ...iconBtnStyle(inputBg, border, textCol), position: 'relative' }}>
@@ -391,7 +495,7 @@ export default function Header() {
                 }
               </div>
               <span style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {user ? ((user.name ?? '').split(' ')[0] || 'Usuario') : 'Ingresar'}
+                {user ? ((user.name ?? '').split(' ')[0] || t('header.usuario')) : t('header.ingresar')}
               </span>
               {user && iChevron(mutedCol, showUserMenu)}
             </button>
@@ -423,12 +527,12 @@ export default function Header() {
                   </div>
                 </div>
                 {[
-                  { label: 'Mi Perfil',       path: '/perfil',             show: true },
-                  { label: 'Configuración',   path: '/perfil',             show: true },
-                  { label: 'Idioma',          path: '/perfil',             show: true },
-                  { label: 'Mi Tienda',       path: '/dashboard-vendedor', show: rol === 'vendedor' },
-                  { label: '🚚 Mis Entregas', path: '/entregas',           show: rol === 'repartidor' },
-                  { label: '⚙️ Panel Admin',  path: '/admin',              show: rol === 'admin' },
+                  { label: t('header.miPerfil'),       path: '/perfil',             show: true },
+                  { label: t('header.configuracion'),  path: '/perfil',             show: true },
+                  { label: t('header.idioma'),         path: '/perfil',             show: true },
+                  { label: t('header.miTienda'),       path: '/dashboard-vendedor', show: rol === 'vendedor' },
+                  { label: t('header.misEntregas'),    path: '/entregas',           show: rol === 'repartidor' },
+                  { label: t('header.panelAdmin'),     path: '/admin',              show: rol === 'admin' },
                 ].filter(i => i.show).map((item, idx) => (
                   <button key={`${item.path}-${idx}`}
                     onClick={() => { navigate(item.path); setShowUserMenu(false); }}
@@ -444,13 +548,13 @@ export default function Header() {
                 ))}
                 <div style={{ borderTop: `1px solid ${border}`, margin: '4px 0' }} />
                 <button
-                  onClick={() => { localStorage.removeItem('lm_token_v1'); window.location.href = '/login'; }}
+                  onClick={() => { logout(); window.location.href = '/login'; }}
                   style={{
                     width: '100%', textAlign: 'left', padding: '10px 16px',
                     border: 'none', background: 'transparent', cursor: 'pointer',
                     fontSize: 13, fontWeight: 700, color: '#EF4444', fontFamily: 'inherit',
                   }}
-                >Cerrar Sesión</button>
+                >{t('header.cerrarSesion')}</button>
               </div>
             )}
           </div>
@@ -490,9 +594,6 @@ export default function Header() {
             );
           })}
         </div>
-        <div style={{ position: 'absolute', right: 24, fontSize: 12, color: mutedCol, fontWeight: 500 }}>
-          Entregando en <strong style={{ color: textCol }}>{municipio}</strong>
-        </div>
       </div>
     </div>
   );
@@ -520,6 +621,9 @@ function iChat() {
 }
 function iReels() {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><rect x="2" y="2" width="20" height="20" rx="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>;
+}
+function iOrders() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>;
 }
 function iProfile(rol?: string) {
   if (rol === 'admin') return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
@@ -550,4 +654,7 @@ function iSun() {
 }
 function iMoon() {
   return <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>;
+}
+function iBell() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>;
 }

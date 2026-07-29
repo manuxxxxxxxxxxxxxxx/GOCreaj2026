@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView,
+  View, Text, StyleSheet,
   TouchableOpacity, Image, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useNavigation } from '@react-navigation/native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { api, Endpoints } from '@/services/api';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
+import { RootStackParamList } from '@/types';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
+import ScreenHeader from '@/components/ScreenHeader';
+import ScreenScroll from '@/components/ScreenScroll';
 
 type RolSol = 'vendedor' | 'repartidor';
 type Vehiculo = 'bicicleta' | 'moto' | 'carro' | 'pickup';
@@ -46,6 +48,12 @@ const ROL_INFO = {
     emoji: '🚴',
   },
 };
+
+const MUNICIPIOS = [
+  'San Salvador', 'Mejicanos', 'Soyapango', 'Apopa', 'Ilopango', 'Delgado',
+  'Santa Tecla', 'Antiguo Cuscatlán', 'San Miguel', 'Santa Ana', 'Ahuachapán',
+  'Sonsonate', 'Usulután', 'Cojutepeque', 'La Unión',
+];
 
 const VEHICULOS: { id: Vehiculo; label: string; emoji: string }[] = [
   { id: 'bicicleta', label: 'Bicicleta', emoji: '🚲' },
@@ -86,16 +94,18 @@ function PhotoBox({
 
 export default function BecomeSellerScreen() {
   const nav        = useNavigation();
+  const route      = useRoute<RouteProp<RootStackParamList, 'BecomeSeller'>>();
   const { refrescar } = useAuth();
   const { colors } = useTheme();
-  const insets     = useSafeAreaInsets();
   const c          = colors;
 
-  const [rol, setRol]               = useState<RolSol>('vendedor');
+  const [rol, setRol]               = useState<RolSol>(route.params?.rol ?? 'vendedor');
   const [nombre, setNombre]         = useState('');
+  const [municipio, setMunicipio]   = useState('');
   const [dui, setDui]               = useState('');
   const [frente, setFrente]         = useState<string | null>(null);
   const [reverso, setReverso]       = useState<string | null>(null);
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [enviando, setEnviando]     = useState(false);
 
   // Vendedor
@@ -109,12 +119,15 @@ export default function BecomeSellerScreen() {
 
   async function enviar() {
     if (!nombre.trim()) return Alert.alert('Datos faltantes', 'Ingresa tu nombre completo');
+    if (!municipio) return Alert.alert('Datos faltantes', 'Selecciona tu municipio');
     if (!dui || dui.replace(/\D/g, '').length < 9) return Alert.alert('DUI inválido', 'El DUI debe tener 9 dígitos');
     if (!frente || !reverso) return Alert.alert('Fotos DUI', 'Sube el frente y reverso de tu DUI');
+    if (!aceptaTerminos) return Alert.alert('Términos y condiciones', 'Debes aceptar los términos y condiciones para continuar');
 
     const body: Record<string, unknown> = {
       rol_solicitado: rol,
       nombre_completo: nombre.trim(),
+      municipio,
       dui_numero: dui,
       dui_frente: frente,
       dui_reverso: reverso,
@@ -146,16 +159,9 @@ export default function BecomeSellerScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: c.background }}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 10, backgroundColor: c.accent }]}>
-        <TouchableOpacity onPress={() => nav.goBack()} style={styles.backBtn} activeOpacity={0.8}>
-          <Ionicons name="arrow-back" size={22} color="#FFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Únete como Socio</Text>
-        <View style={{ width: 36 }} />
-      </View>
+      <ScreenHeader title="Únete como Socio" tone="accent" />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScreenScroll>
         {/* Hero */}
         <View style={[styles.heroBox, { backgroundColor: c.card, borderColor: c.border }]}>
           <Text style={styles.heroEmoji}>{info.emoji}</Text>
@@ -226,6 +232,23 @@ export default function BecomeSellerScreen() {
           onChangeText={setDui}
           inputType="dui"
         />
+
+        <Text style={[styles.subLabel, { color: c.muted }]}>Municipio</Text>
+        <View style={styles.vehiculoRow}>
+          {MUNICIPIOS.map(m => {
+            const active = municipio === m;
+            return (
+              <TouchableOpacity
+                key={m}
+                style={[styles.vehiculoBtn, { borderColor: active ? c.accent : c.border, backgroundColor: active ? c.accent : c.card, minWidth: undefined, paddingHorizontal: 12 }]}
+                onPress={() => setMunicipio(m)}
+                activeOpacity={0.85}
+              >
+                <Text style={[styles.vehiculoTxt, { color: active ? '#FFF' : c.text }]}>{m}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
         {/* ── Fotos DUI ── */}
         <Text style={[styles.label, { color: c.text }]}>Foto del DUI</Text>
@@ -314,6 +337,19 @@ export default function BecomeSellerScreen() {
           </>
         )}
 
+        <TouchableOpacity
+          style={[styles.termsRow, { borderColor: aceptaTerminos ? c.accent : c.border, backgroundColor: aceptaTerminos ? `${c.accent}10` : c.card }]}
+          onPress={() => setAceptaTerminos(v => !v)}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.checkbox, { borderColor: aceptaTerminos ? c.accent : c.border, backgroundColor: aceptaTerminos ? c.accent : 'transparent' }]}>
+            {aceptaTerminos && <Ionicons name="checkmark" size={14} color="#FFF" />}
+          </View>
+          <Text style={[styles.termsTxt, { color: c.text }]}>
+            He leído y acepto los <Text style={{ fontWeight: '800', color: c.accent }}>términos y condiciones</Text> de [SV]Go para socios.
+          </Text>
+        </TouchableOpacity>
+
         <View style={{ height: Spacing.lg }} />
         <Button label="Enviar solicitud" icon="paper-plane-outline" loading={enviando} onPress={enviar} />
 
@@ -321,23 +357,12 @@ export default function BecomeSellerScreen() {
           Al enviar, aceptas que tus datos serán revisados por el equipo de [SV]Go para verificación de identidad.
         </Text>
         <View style={{ height: Spacing.xl }} />
-      </ScrollView>
+      </ScreenScroll>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md, paddingBottom: Spacing.md,
-  },
-  backBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  headerTitle: { color: '#FFF', fontSize: Fonts.regular + 1, fontWeight: '800' },
-  content: { padding: Spacing.md },
 
   heroBox: {
     flexDirection: 'row', alignItems: 'center',
@@ -400,4 +425,7 @@ const styles = StyleSheet.create({
   vehiculoTxt:   { fontWeight: '700', fontSize: Fonts.small },
 
   disclaimer: { textAlign: 'center', fontSize: Fonts.small - 1, marginTop: Spacing.md, lineHeight: 17 },
+  termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1.5, marginTop: Spacing.md },
+  checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 2, justifyContent: 'center', alignItems: 'center', marginTop: 1 },
+  termsTxt: { flex: 1, fontSize: Fonts.small, lineHeight: 18, fontWeight: '500' },
 });

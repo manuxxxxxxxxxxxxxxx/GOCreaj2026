@@ -18,23 +18,12 @@
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
 }
 
-body {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  background: #000;
-  color: var(--text);
-  min-height: 100vh;
-  overflow-x: hidden;
-}
+/* body/html: ver css/global.css (importado una sola vez en main.tsx). Reels.tsx
+   ya pone su propio fondo negro en sus contenedores raíz. */
 .reels-main-wrapper .svgo-header { position:relative !important; flex-shrink:0; }
 
 /* ── NAV (igual que market.html) ── */
-nav {
-  position: sticky; top: 0; z-index: 200;
-  background: var(--white);
-  border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 48px; height: 60px;
-}
+/* nav: ya no se usa un <nav> crudo (todas las páginas usan <Header/>). */
 .nav-logo {
   display: flex; align-items: center; gap: 10px;
   font-weight: 800; font-size: 1.05rem; color: var(--purple);

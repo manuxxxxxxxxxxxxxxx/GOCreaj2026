@@ -25,12 +25,7 @@
   --shadow-lg: 0 12px 36px rgba(74, 109, 140, 0.12);
 }
 
-body {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-}
+/* body/html: ver css/global.css (importado una sola vez en main.tsx) */
 
 /* ══════════════════════════════
    DUAL ROW DYNAMIC HEADER (SVGO BRAND)

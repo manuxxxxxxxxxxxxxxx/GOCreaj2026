@@ -10,20 +10,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { api, Endpoints, traducirError } from '@/services/api';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { useAuth } from '@/context/AuthContext';
 import { useLang } from '@/context/LangContext';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
-import { Usuario } from '@/types';
+import { Usuario, RootStackParamList } from '@/types';
 
 type Modo = 'login' | 'registro';
 interface AuthResp { ok: boolean; usuario?: Usuario; token?: string; error?: string }
 
 export default function AuthScreen() {
-  const { iniciar } = useAuth();
+  const { usuario, iniciar } = useAuth();
   const { cambiarIdioma, langLabel, t, lang } = useLang();
   const { colors, isDark, toggleTheme } = useTheme();
   const insets = useSafeAreaInsets();
+  const nav = useNavigation<NavigationProp<RootStackParamList>>();
+
+  // Ahora que el modo invitado puede llegar a esta pantalla, un login exitoso
+  // de una cuenta que ya tiene username no dispara el reset automático del
+  // stack (el set de pantallas no cambia) — hay que navegar explícitamente.
+  useEffect(() => {
+    if (usuario?.username) nav.navigate('Main' as never);
+  }, [usuario, nav]);
 
   const [modo, setModo] = useState<Modo>('login');
   const [cargando, setCargando] = useState(false);

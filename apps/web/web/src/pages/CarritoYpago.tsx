@@ -53,6 +53,11 @@ export default function CarritoYpago() {
   const [showCvv, setShowCvv] = useState(false);
   const [efectivoPagaCon, setEfectivoPagaCon] = useState('');
 
+  // Tarjetas guardadas
+  const [tarjetasGuardadas, setTarjetasGuardadas] = useState<any[]>([]);
+  const [tarjetaGuardadaId, setTarjetaGuardadaId] = useState<number | null>(null);
+  const [guardarTarjeta, setGuardarTarjeta] = useState(false);
+
   // Dirección de entrega
   const [direcciones, setDirecciones] = useState<Direccion[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | 'nueva'>('nueva');
@@ -84,6 +89,14 @@ export default function CarritoYpago() {
     }).catch(() => {});
     api.get('/productos.php?action=municipios').then(res => {
       if (res.data.ok) setMunicipios(res.data.municipios || []);
+    }).catch(() => {});
+    api.get('/carrito_pagos.php?action=metodos_listar').then(res => {
+      if (res.data.ok) {
+        const metodos = res.data.metodos || [];
+        setTarjetasGuardadas(metodos);
+        const pred = metodos.find((m: any) => m.predeterminado);
+        if (pred) setTarjetaGuardadaId(pred.id);
+      }
     }).catch(() => {});
   }, [user]);
 
@@ -143,7 +156,7 @@ export default function CarritoYpago() {
 
     if (!direccionTexto) { setCheckoutError('Ingresa o selecciona una dirección de entrega.'); return; }
     if (!municipioVal) { setCheckoutError('Selecciona el municipio de entrega.'); return; }
-    if (paymentMode === 1) {
+    if (paymentMode === 1 && !tarjetaGuardadaId) {
       if (formatCardNumber(cardNum).replace(/\s/g, '').length < 13 || !cardName || cardExpiry.length < 5 || cardCvv.length < 3) {
         setCheckoutError('Completa los datos de tu tarjeta.');
         return;
@@ -171,9 +184,14 @@ export default function CarritoYpago() {
         lng: direccionSeleccionada?.lng ?? undefined,
       };
       if (paymentMode === 1) {
-        payload.tarjeta_numero = cardNum.replace(/\s/g, '');
-        payload.tarjeta_cvv = cardCvv;
-        payload.tarjeta_exp = cardExpiry;
+        if (tarjetaGuardadaId) {
+          payload.metodo_pago_id = tarjetaGuardadaId;
+        } else {
+          payload.tarjeta_numero = cardNum.replace(/\s/g, '');
+          payload.tarjeta_cvv = cardCvv;
+          payload.tarjeta_exp = cardExpiry;
+          if (guardarTarjeta) payload.guardar_tarjeta = true;
+        }
       } else if (efectivoPagaCon) {
         payload.efectivo_paga_con = efectivoPagaCon;
       }
@@ -427,6 +445,32 @@ export default function CarritoYpago() {
                     flexDirection: 'column',
                     gap: '16px',
                   }}>
+                    {tarjetasGuardadas.length > 0 && (
+                      <div>
+                        <label style={labelStyle}>Tarjetas guardadas</label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {tarjetasGuardadas.map((m: any) => (
+                            <div
+                              key={m.id}
+                              onClick={() => setTarjetaGuardadaId(prev => prev === m.id ? null : m.id)}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, cursor: 'pointer',
+                                border: `1.5px solid ${tarjetaGuardadaId === m.id ? 'var(--accent)' : 'var(--line)'}`,
+                                background: tarjetaGuardadaId === m.id ? 'var(--accent-soft)' : 'transparent',
+                              }}
+                            >
+                              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>
+                                {String(m.marca).charAt(0).toUpperCase() + String(m.marca).slice(1)} •••• {m.ultimos4}
+                              </span>
+                            </div>
+                          ))}
+                          <div onClick={() => setTarjetaGuardadaId(null)} style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--accent)', cursor: 'pointer' }}>
+                            {tarjetaGuardadaId ? '' : '↳ Usando datos de tarjeta nueva abajo'}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', opacity: tarjetaGuardadaId ? 0.4 : 1, pointerEvents: tarjetaGuardadaId ? 'none' : 'auto' }}>
                     {/* Card number */}
                     <div>
                       <label style={labelStyle}>Número de tarjeta</label>
@@ -510,6 +554,13 @@ export default function CarritoYpago() {
                           </button>
                         </div>
                       </div>
+                    </div>
+
+                    {/* Guardar tarjeta */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setGuardarTarjeta(v => !v)}>
+                      <input type="checkbox" checked={guardarTarjeta} onChange={e => setGuardarTarjeta(e.target.checked)} style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Guardar esta tarjeta para la próxima vez</span>
+                    </div>
                     </div>
 
                     {/* Security notice */}
@@ -626,7 +677,7 @@ export default function CarritoYpago() {
                 <div className="card-title"><span className="card-title-text">Método de pago</span></div>
                 <p style={{ margin: 0, fontSize: '0.92rem' }}>
                   {paymentMode === 1
-                    ? `Tarjeta terminada en ${cardNum.replace(/\s/g, '').slice(-4)}`
+                    ? `Tarjeta terminada en ${tarjetaGuardadaId ? tarjetasGuardadas.find((m: any) => m.id === tarjetaGuardadaId)?.ultimos4 : cardNum.replace(/\s/g, '').slice(-4)}`
                     : `Pago en efectivo contra entrega${efectivoPagaCon ? ' — pagas con $' + efectivoPagaCon : ''}`}
                 </p>
               </div>

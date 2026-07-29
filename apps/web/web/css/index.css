@@ -15,22 +15,7 @@
     --radius: 20px;
   }
 
-  body {
-    font-family: 'Plus Jakarta Sans', sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.5;
-  }
-
-  /* ── NAV ── */
-  nav {
-    position: sticky; top: 0; z-index: 100;
-    background: var(--white);
-    border-bottom: 1px solid #e8ecf0;
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 48px;
-    height: 60px;
-  }
+  /* body/html: ver css/global.css (importado una sola vez en main.tsx). */
   .nav-logo {
     display: flex; align-items: center; gap: 10px;
     font-weight: 700; font-size: 1.1rem; color: var(--blue);
@@ -368,8 +353,7 @@
 }
 
 
-#root { width: 100%; max-width: none !important; margin: 0; padding: 0; }
-
-
-html, body { overflow-y: auto !important; height: auto !important; }
+/* #root / html,body: movidas a css/global.css (importado una sola vez en
+   main.tsx). Los !important de aquí se filtraban a TODAS las páginas y
+   rompían layouts que dependían de su propio overflow (p. ej. Explorar). */
 

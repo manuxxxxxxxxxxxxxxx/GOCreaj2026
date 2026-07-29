@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import Footer from '../components/Footer';
 import { api } from '../api';
 import '../../css/historial.css';
 import '../../css/dark.css';
@@ -24,12 +25,20 @@ interface Order {
   repartidor_id: number | null;
   total: string;
   metodo_pago: 'efectivo' | 'tarjeta' | 'paypal';
-  estado: 'preparacion' | 'en_camino' | 'entregado' | 'rechazado_repartidor' | 'cancelado';
+  estado: 'pendiente_confirmacion' | 'preparacion' | 'en_camino' | 'entregado' | 'rechazado_repartidor' | 'cancelado';
   direccion_entrega: string;
   vendedor_nombre: string;
   repartidor_nombre: string | null;
   items: OrderItem[];
   created_at: string;
+}
+
+const APROBACION_LIMITE_MIN = 10;
+
+function minutosDesde(fecha: string): number {
+  const t = new Date(fecha.replace(' ', 'T')).getTime();
+  if (Number.isNaN(t)) return 0;
+  return (Date.now() - t) / 60000;
 }
 
 export default function Historial() {
@@ -62,9 +71,20 @@ export default function Historial() {
       case 'entregado': return 'Entregado';
       case 'en_camino': return 'En camino';
       case 'preparacion': return 'Preparando';
+      case 'pendiente_confirmacion': return 'Pendiente de aprobación';
       case 'cancelado': return 'Cancelado';
+      case 'rechazado_repartidor': return 'Rechazado';
       default: return status;
     }
+  };
+
+  const cancelarPedido = async (id: number) => {
+    if (!window.confirm('¿Cancelar este pedido? Se reembolsará el total a tu billetera.')) return;
+    try {
+      const res = await api.post('/carrito_pagos.php?action=cancelar', { pedido_id: id });
+      if (res.data.ok) fetchOrders();
+      else alert(res.data.error ?? 'No se pudo cancelar el pedido.');
+    } catch { alert('Error de conexión.'); }
   };
 
   const getCategoryIcon = (cat?: string) => {
@@ -112,9 +132,10 @@ export default function Historial() {
 
         <div className="hist-filters">
           <button className={`hist-filter ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>Todos</button>
-          <button className={`hist-filter ${filter === 'entregado' ? 'active' : ''}`} onClick={() => setFilter('entregado')}>Entregados</button>
-          <button className={`hist-filter ${filter === 'en_camino' ? 'active' : ''}`} onClick={() => setFilter('en_camino')}>En camino</button>
+          <button className={`hist-filter ${filter === 'pendiente_confirmacion' ? 'active' : ''}`} onClick={() => setFilter('pendiente_confirmacion')}>Pendientes</button>
           <button className={`hist-filter ${filter === 'preparacion' ? 'active' : ''}`} onClick={() => setFilter('preparacion')}>Preparación</button>
+          <button className={`hist-filter ${filter === 'en_camino' ? 'active' : ''}`} onClick={() => setFilter('en_camino')}>En camino</button>
+          <button className={`hist-filter ${filter === 'entregado' ? 'active' : ''}`} onClick={() => setFilter('entregado')}>Entregados</button>
         </div>
 
         <div id="orders-list">
@@ -157,17 +178,29 @@ export default function Historial() {
                   </div>
                 )}
 
+                {o.estado === 'pendiente_confirmacion' && (
+                  <p style={{ fontSize: '0.8rem', fontStyle: 'italic', opacity: 0.75, margin: '4px 0 0' }}>
+                    Esperando que la tienda apruebe tu pedido
+                    {minutosDesde(o.created_at) < APROBACION_LIMITE_MIN
+                      ? ` (puedes cancelar en ${Math.max(0, Math.ceil(APROBACION_LIMITE_MIN - minutosDesde(o.created_at)))} min si no responde).`
+                      : '.'}
+                  </p>
+                )}
+
                 <div className="order-card-footer">
                   <div className="order-total">
                     Total pagado: <span>${parseFloat(o.total).toFixed(2)}</span>
                   </div>
                   <div className="order-actions">
                     <button className="order-action-btn secondary" onClick={() => navigate('/chat')}>💬 Mensaje</button>
-                    {(o.estado === 'en_camino' || o.estado === 'preparacion') ? (
-                      <button className="order-action-btn primary" onClick={() => navigate(`/entregas/${o.id}`)}>📍 Rastrear</button>
-                    ) : (
-                      <button className="order-action-btn primary" onClick={() => navigate('/market')}>🛍️ Pedir de nuevo</button>
+                    {o.estado === 'pendiente_confirmacion' && minutosDesde(o.created_at) >= APROBACION_LIMITE_MIN && (
+                      <button className="order-action-btn secondary" onClick={() => cancelarPedido(o.id)}>✕ Cancelar</button>
                     )}
+                    {(o.estado === 'en_camino' || (o.estado === 'preparacion' && o.repartidor_id)) ? (
+                      <button className="order-action-btn primary" onClick={() => navigate(`/entregas/${o.id}`)}>📍 Rastrear</button>
+                    ) : o.estado === 'entregado' || o.estado === 'cancelado' || o.estado === 'rechazado_repartidor' ? (
+                      <button className="order-action-btn primary" onClick={() => navigate('/')}>🛍️ Pedir de nuevo</button>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -175,6 +208,7 @@ export default function Historial() {
           )}
         </div>
       </div>
+      <Footer />
     </div>
   );
 }

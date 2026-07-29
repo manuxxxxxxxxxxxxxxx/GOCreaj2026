@@ -93,22 +93,42 @@ switch ($action) {
         $pago_estado = 'pendiente';
         $pago_ref = null;
         if ($data['metodo_pago'] === 'tarjeta') {
-            $numero = preg_replace('/\D/', '', (string)($data['tarjeta_numero'] ?? ''));
-            $cvv    = preg_replace('/\D/', '', (string)($data['tarjeta_cvv'] ?? ''));
-            $exp    = (string)($data['tarjeta_exp'] ?? '');
-            if (strlen($numero) < 13 || strlen($cvv) < 3 || !preg_match('/^\d{2}\/\d{2}$/', $exp)) {
-                jout(['ok' => false, 'error' => 'Datos de tarjeta inválidos'], 400);
+            if (!empty($data['metodo_pago_id'])) {
+                // Tarjeta guardada: ya fue validada (Luhn) al momento de guardarla, solo confirmamos que es suya.
+                $stTok = db()->prepare("SELECT id, marca, ultimos4 FROM metodos_pago WHERE id = ? AND usuario_id = ?");
+                $stTok->execute([(int)$data['metodo_pago_id'], $user['id']]);
+                $tok = $stTok->fetch();
+                if (!$tok) jout(['ok' => false, 'error' => 'Método de pago no encontrado'], 404);
+                $pago_estado = 'pagado';
+                $pago_ref = 'SBX-' . strtoupper(bin2hex(random_bytes(4))) . '-' . $tok['ultimos4'];
+            } else {
+                $numero = preg_replace('/\D/', '', (string)($data['tarjeta_numero'] ?? ''));
+                $cvv    = preg_replace('/\D/', '', (string)($data['tarjeta_cvv'] ?? ''));
+                $exp    = (string)($data['tarjeta_exp'] ?? '');
+                if (strlen($numero) < 13 || strlen($cvv) < 3 || !preg_match('/^\d{2}\/\d{2}$/', $exp)) {
+                    jout(['ok' => false, 'error' => 'Datos de tarjeta inválidos'], 400);
+                }
+                $sum = 0; $alt = false;
+                for ($i = strlen($numero) - 1; $i >= 0; $i--) {
+                    $n = (int)$numero[$i];
+                    if ($alt) { $n *= 2; if ($n > 9) $n -= 9; }
+                    $sum += $n;
+                    $alt = !$alt;
+                }
+                if ($sum % 10 !== 0) jout(['ok' => false, 'error' => 'Número de tarjeta no válido'], 400);
+                $pago_estado = 'pagado';
+                $pago_ref = 'SBX-' . strtoupper(bin2hex(random_bytes(4)));
+                if (!empty($data['guardar_tarjeta'])) {
+                    if (preg_match('/^4/', $numero)) $marcaG = 'visa';
+                    elseif (preg_match('/^(5[1-5]|2[2-7])/', $numero)) $marcaG = 'mastercard';
+                    elseif (preg_match('/^3[47]/', $numero)) $marcaG = 'amex';
+                    else $marcaG = 'tarjeta';
+                    preg_match('/^(\d{2})\/(\d{2})$/', $exp, $mExpG);
+                    $tieneOtrasG = (int)db()->query("SELECT COUNT(*) FROM metodos_pago WHERE usuario_id = " . (int)$user['id'])->fetchColumn() > 0;
+                    db()->prepare("INSERT INTO metodos_pago (usuario_id, token, marca, ultimos4, exp_mes, exp_anio, predeterminado) VALUES (?, ?, ?, ?, ?, ?, ?)")
+                        ->execute([$user['id'], 'TOK-' . strtoupper(bin2hex(random_bytes(16))), $marcaG, substr($numero, -4), (int)$mExpG[1], 2000 + (int)$mExpG[2], $tieneOtrasG ? 0 : 1]);
+                }
             }
-            $sum = 0; $alt = false;
-            for ($i = strlen($numero) - 1; $i >= 0; $i--) {
-                $n = (int)$numero[$i];
-                if ($alt) { $n *= 2; if ($n > 9) $n -= 9; }
-                $sum += $n;
-                $alt = !$alt;
-            }
-            if ($sum % 10 !== 0) jout(['ok' => false, 'error' => 'Número de tarjeta no válido'], 400);
-            $pago_estado = 'pagado';
-            $pago_ref = 'SBX-' . strtoupper(bin2hex(random_bytes(4)));
         } elseif ($data['metodo_pago'] === 'paypal') {
             if (empty($data['paypal_codigo_2fa'])) jout(['ok' => false, 'error' => 'Código 2FA requerido'], 400);
             $pago_estado = 'pagado';
@@ -181,7 +201,7 @@ switch ($action) {
                 $ins = db()->prepare(
                     "INSERT INTO pedidos
                      (comprador_id, vendedor_id, total, metodo_pago, direccion_entrega, lat_entrega, lng_entrega, pago_estado, pago_referencia, efectivo_paga_con, municipio_entrega, departamento_entrega, cupon_codigo, descuento_cupon, estado)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'preparacion')"
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente_confirmacion')"
                 );
                 $ins->execute([
                     $user['id'], $vendedor_id, round($total, 2),
@@ -367,6 +387,81 @@ switch ($action) {
             db()->rollBack();
             jout(['ok' => false, 'error' => $e->getMessage()], 500);
         }
+        break;
+
+    // ═══ Métodos de pago guardados (tokenizados) ═══════════════════════════
+    // No hay procesador de pagos real integrado en este proyecto (el checkout ya es
+    // un sandbox propio que valida Luhn/CVV). Seguimos el mismo patrón: solo guardamos
+    // un token opaco + marca + últimos 4 dígitos, NUNCA el número completo ni el CVV.
+    // Si en el futuro se integra un procesador real (Stripe, etc.), aquí es donde se
+    // reemplaza la generación del token por el token que devuelva ese procesador.
+
+    case 'metodos_listar':
+        $st = db()->prepare(
+            "SELECT id, marca, ultimos4, exp_mes, exp_anio, predeterminado
+             FROM metodos_pago WHERE usuario_id = ? ORDER BY predeterminado DESC, created_at DESC"
+        );
+        $st->execute([$user['id']]);
+        jout(['ok' => true, 'metodos' => $st->fetchAll()]);
+        break;
+
+    case 'metodos_guardar':
+        require_fields($data, ['tarjeta_numero', 'tarjeta_cvv', 'tarjeta_exp']);
+        $numero = preg_replace('/\D/', '', (string)$data['tarjeta_numero']);
+        $cvv    = preg_replace('/\D/', '', (string)$data['tarjeta_cvv']);
+        $exp    = (string)$data['tarjeta_exp'];
+        if (strlen($numero) < 13 || strlen($cvv) < 3 || !preg_match('/^(\d{2})\/(\d{2})$/', $exp, $mExp)) {
+            jout(['ok' => false, 'error' => 'Datos de tarjeta inválidos'], 400);
+        }
+        $sum = 0; $alt = false;
+        for ($i = strlen($numero) - 1; $i >= 0; $i--) {
+            $n = (int)$numero[$i];
+            if ($alt) { $n *= 2; if ($n > 9) $n -= 9; }
+            $sum += $n;
+            $alt = !$alt;
+        }
+        if ($sum % 10 !== 0) jout(['ok' => false, 'error' => 'Número de tarjeta no válido'], 400);
+
+        if (preg_match('/^4/', $numero)) $marca = 'visa';
+        elseif (preg_match('/^(5[1-5]|2[2-7])/', $numero)) $marca = 'mastercard';
+        elseif (preg_match('/^3[47]/', $numero)) $marca = 'amex';
+        else $marca = 'tarjeta';
+
+        $token = 'TOK-' . strtoupper(bin2hex(random_bytes(16)));
+        $ultimos4 = substr($numero, -4);
+        $expMes = (int)$mExp[1];
+        $expAnio = 2000 + (int)$mExp[2];
+
+        if (!empty($data['predeterminado'])) {
+            db()->prepare("UPDATE metodos_pago SET predeterminado = 0 WHERE usuario_id = ?")->execute([$user['id']]);
+        }
+        $tieneOtras = (int)db()->query("SELECT COUNT(*) FROM metodos_pago WHERE usuario_id = " . (int)$user['id'])->fetchColumn() > 0;
+        $predeterminado = !empty($data['predeterminado']) || !$tieneOtras;
+        if ($predeterminado && $tieneOtras) {
+            db()->prepare("UPDATE metodos_pago SET predeterminado = 0 WHERE usuario_id = ?")->execute([$user['id']]);
+        }
+
+        $ins = db()->prepare(
+            "INSERT INTO metodos_pago (usuario_id, token, marca, ultimos4, exp_mes, exp_anio, predeterminado)
+             VALUES (?, ?, ?, ?, ?, ?, ?)"
+        );
+        $ins->execute([$user['id'], $token, $marca, $ultimos4, $expMes, $expAnio, $predeterminado ? 1 : 0]);
+        jout(['ok' => true, 'id' => (int)db()->lastInsertId()]);
+        break;
+
+    case 'metodos_eliminar':
+        require_fields($data, ['id']);
+        db()->prepare("DELETE FROM metodos_pago WHERE id = ? AND usuario_id = ?")
+            ->execute([(int)$data['id'], $user['id']]);
+        jout(['ok' => true]);
+        break;
+
+    case 'metodos_predeterminado':
+        require_fields($data, ['id']);
+        db()->prepare("UPDATE metodos_pago SET predeterminado = 0 WHERE usuario_id = ?")->execute([$user['id']]);
+        db()->prepare("UPDATE metodos_pago SET predeterminado = 1 WHERE id = ? AND usuario_id = ?")
+            ->execute([(int)$data['id'], $user['id']]);
+        jout(['ok' => true]);
         break;
 
     default:

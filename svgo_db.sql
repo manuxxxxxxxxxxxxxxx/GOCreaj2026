@@ -423,3 +423,22 @@ ALTER TABLE tiendas
 ALTER TABLE usuarios
   ADD COLUMN IF NOT EXISTS en_linea           TINYINT(1) NOT NULL DEFAULT 0    AFTER activo,
   ADD COLUMN IF NOT EXISTS username_changed_at DATETIME   NULL                  AFTER username;
+
+-- =============================================
+-- MIGRATIONS v2.2
+-- =============================================
+ALTER TABLE productos
+  ADD COLUMN IF NOT EXISTS tiempo_preparacion VARCHAR(20) NULL AFTER estado_stock;
+
+-- =============================================
+-- MIGRATIONS v2.3 — Módulo de Pedidos (confirmación doble de recogida)
+-- =============================================
+ALTER TABLE pedidos
+  ADD COLUMN IF NOT EXISTS confirmado_vendedor_recogida   TINYINT(1) NOT NULL DEFAULT 0 AFTER progreso_repartidor,
+  ADD COLUMN IF NOT EXISTS confirmado_repartidor_recogida TINYINT(1) NOT NULL DEFAULT 0 AFTER confirmado_vendedor_recogida;
+
+-- =============================================
+-- MIGRATIONS v2.4 — Formulario "Convertirse en socio": municipio
+-- =============================================
+ALTER TABLE solicitudes_rol
+  ADD COLUMN IF NOT EXISTS municipio VARCHAR(80) NULL AFTER nombre_completo;

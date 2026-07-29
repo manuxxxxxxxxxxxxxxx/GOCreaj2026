@@ -48,38 +48,15 @@
 
 html { scroll-behavior: smooth; }
 
-body {
-  font-family: var(--f-body);
-  background: var(--bg);
-  color: var(--ink);
-  min-height: 100vh;
-  padding: 0; /* Ajustado para el Navbar */
-  padding-bottom: 4rem;
+/* body/html: ver css/global.css (importado una sola vez en main.tsx).
+   El padding-bottom:4rem y el fondo con radial-gradient que tenía esta regla
+   se filtraban a TODAS las páginas (Vite no scopea el CSS por ruta), dejando
+   un espacio vacío falso debajo del Footer en páginas que no lo necesitaban. */
+.page-wrapper {
   font-size: 14px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  background-image:
-    radial-gradient(ellipse at top left,    rgba(79, 70, 229, 0.03), transparent 50%),
-    radial-gradient(ellipse at bottom right, rgba(79, 70, 229, 0.02), transparent 50%);
-  background-attachment: fixed;
 }
 
-/* ═══════ NAV BAR GLOBAL ═══════ */
-nav {
-  position: sticky; 
-  top: 0; 
-  z-index: 100;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-  display: flex; 
-  align-items: center; 
-  justify-content: space-between;
-  padding: 0 48px;
-  height: 60px;
-  box-shadow: var(--sh-sm);
-}
+/* nav: ya no se usa un <nav> crudo (todas las páginas usan <Header/>). */
 
 .nav-logo {
   display: flex; align-items: center; gap: 10px;

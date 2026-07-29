@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, type React
 
 const API_URL = `http://${window.location.hostname}/GOCreaj2026/apps/mobile/backend`;
 const TOKEN_KEY = 'lm_token_v1';
+const MUNICIPIO_KEY = 'svgo_municipio';
 
 // --- Types ---
 export type Product = {
@@ -36,9 +37,12 @@ interface GlobalContextType {
   cartTotal: number;
   cartCount: number;
   user: User;
+  authReady: boolean;
   login: (userData: any) => void;
   logout: () => void;
   refreshUser: () => Promise<void>;
+  municipio: string;
+  setMunicipio: (m: string) => void;
 }
 
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
@@ -69,8 +73,16 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  // User State
-  const [user, setUser] = useState<User>(null);
+  // User State — se lee de localStorage de forma síncrona (no en un efecto) para
+  // que en el primer render ya sepamos si hay sesión, y así RequireAuth no
+  // redirija de más a /login antes de que el efecto de abajo tenga chance de correr.
+  const [user, setUser] = useState<User>(() => {
+    try {
+      const saved = localStorage.getItem('lm_user_v1');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+  const [authReady, setAuthReady] = useState(() => !localStorage.getItem(TOKEN_KEY));
 
   const login = useCallback((userData: any) => {
     // Normaliza: guarda tanto 'role' (inglés) como 'rol' (PHP) para máxima compatibilidad
@@ -108,9 +120,15 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
               role:  u.rol,
               ...u,
             });
+          } else {
+            // Token inválido/expirado — no hay sesión real, no dejar authReady colgado.
+            setUser(null);
+            localStorage.removeItem('lm_user_v1');
+            localStorage.removeItem(TOKEN_KEY);
           }
         })
-        .catch(() => {}); // sin conexión → usa caché local
+        .catch(() => {}) // sin conexión → usa caché local
+        .finally(() => setAuthReady(true));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -134,6 +152,8 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('lm_user_v1');
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem('lm_cart_v1');
     setCart([]);
   };
 
@@ -254,6 +274,14 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
 
   const clearCart = () => saveCart([]);
 
+  // Ubicación seleccionada ("Enviar a") — compartida globalmente para que
+  // Market/Explorar prioricen resultados de esa zona (sección 3.2 del spec).
+  const [municipio, setMunicipioState] = useState(() => localStorage.getItem(MUNICIPIO_KEY) || '');
+  const setMunicipio = useCallback((m: string) => {
+    setMunicipioState(m);
+    localStorage.setItem(MUNICIPIO_KEY, m);
+  }, []);
+
   const cartTotal = cart.reduce((acc, item) => acc + (item.price * (item.qty || 1)), 0);
   const cartCount = cart.reduce((acc, item) => acc + (item.qty || 1), 0);
 
@@ -261,7 +289,8 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
     <GlobalContext.Provider value={{
       theme, toggleTheme,
       cart, addToCart, removeFromCart, updateCartQty, clearCart, cartTotal, cartCount,
-      user, login, logout, refreshUser
+      user, authReady, login, logout, refreshUser,
+      municipio, setMunicipio,
     }}>
       {children}
     </GlobalContext.Provider>

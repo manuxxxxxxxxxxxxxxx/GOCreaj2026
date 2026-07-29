@@ -1,11 +1,38 @@
 import { useState, useEffect, useRef } from 'react';
-import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import Header from '../components/Header';
+import Footer from '../components/Footer';
+import { useGlobal } from '../context/GlobalContext';
 import { api, API_URL, SOCKET_URL } from '../api';
-import '../../css/index.css';
 import '../../css/dashboards.css';
 import '../../css/dark.css';
+
+declare global { interface Window { L: any } }
+const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+const LEAFLET_JS  = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+
+function useLeaflet() {
+  const [ready, setReady] = useState(!!window.L);
+  useEffect(() => {
+    if (window.L) { setReady(true); return; }
+    if (!document.querySelector(`link[href="${LEAFLET_CSS}"]`)) {
+      const l = document.createElement('link');
+      l.rel = 'stylesheet'; l.href = LEAFLET_CSS;
+      document.head.appendChild(l);
+    }
+    if (document.querySelector(`script[src="${LEAFLET_JS}"]`)) {
+      const t = setInterval(() => { if (window.L) { setReady(true); clearInterval(t); } }, 50);
+      return () => clearInterval(t);
+    }
+    const s = document.createElement('script');
+    s.src = LEAFLET_JS; s.async = true;
+    s.onload = () => setReady(true);
+    document.body.appendChild(s);
+  }, []);
+  return ready;
+}
 
 interface Order {
   id: string;
@@ -14,7 +41,12 @@ interface Order {
   address: string;
   items: string;
   total: number;
-  status: 'pending' | 'active' | 'completed';
+  status: 'pending' | 'picking_up' | 'active' | 'completed';
+  distancia_km?: number | null;
+  confirmadoRepartidor?: boolean;
+  tiendaLat?: number | null;
+  tiendaLng?: number | null;
+  ganancia?: number;
 }
 
 interface Perfil {
@@ -51,10 +83,15 @@ function fotoUri(foto?: string | null): string | undefined {
 }
 
 export default function RepartidorDashboard() {
-  const { theme, toggleTheme } = useGlobal();
   const navigate = useNavigate();
+  const { theme } = useGlobal();
   const fileRef = useRef<HTMLInputElement>(null);
   const socketRef = useRef<Socket | null>(null);
+  const leafletReady = useLeaflet();
+  const mapEl = useRef<HTMLDivElement>(null);
+  const mapObj = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     const socket = io(SOCKET_URL, { reconnection: true, reconnectionDelay: 1500 });
@@ -68,6 +105,24 @@ export default function RepartidorDashboard() {
   const [editandoBio, setEditandoBio] = useState(false);
   const [bioDraft, setBioDraft] = useState('');
   const [guardandoPerfil, setGuardandoPerfil] = useState(false);
+
+  // Ganancias y tiempo invertido por día
+  const [gananciasPorDia, setGananciasPorDia] = useState<{ fecha: string; monto: number }[]>([]);
+  const [minutosPorDia, setMinutosPorDia] = useState<{ fecha: string; minutos: number }[]>([]);
+
+  const fmtDia = (fecha: string) => {
+    const d = new Date(fecha + 'T00:00:00');
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  useEffect(() => {
+    api.get('/repartidor_dashboard.php?action=ganancias').then(res => {
+      if (res.data.ok) {
+        setGananciasPorDia((res.data.ganancias_por_dia || []).map((g: any) => ({ fecha: fmtDia(g.fecha), monto: Number(g.monto) })));
+        setMinutosPorDia((res.data.minutos_por_dia || []).map((m: any) => ({ fecha: fmtDia(m.fecha), minutos: Number(m.minutos) })));
+      }
+    }).catch(() => {});
+  }, []);
 
   const fetchPerfil = async () => {
     try {
@@ -125,6 +180,63 @@ export default function RepartidorDashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  // ── Mapa de pedidos disponibles (tiendas solicitando delivery) ──────────────
+  useEffect(() => {
+    if (!leafletReady || !mapEl.current || mapObj.current) return;
+    const L = window.L;
+    const map = L.map(mapEl.current, { center: [13.7, -89.2], zoom: 12, zoomControl: true });
+    L.tileLayer(theme === 'dark'
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap © CartoDB', subdomains: 'abcd', maxZoom: 19,
+    }).addTo(map);
+    mapObj.current = map;
+  }, [leafletReady, theme]);
+
+  useEffect(() => {
+    if (!mapObj.current || !window.L) return;
+    const L = window.L;
+    markersRef.current.forEach(m => mapObj.current.removeLayer(m));
+    markersRef.current = [];
+
+    const conCoords = availableOrders.filter(o => o.tiendaLat != null && o.tiendaLng != null);
+    conCoords.forEach(o => {
+      const activo = selectedOrderId === o.id;
+      const marker = L.marker([o.tiendaLat, o.tiendaLng], {
+        icon: L.divIcon({
+          className: '', iconSize: [30, 30], iconAnchor: [15, 15],
+          html: `<div style="background:${activo ? '#16A34A' : '#2563EB'};color:#fff;width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.4);border:2px solid #fff;">
+                  <span style="transform:rotate(45deg);font-size:13px;">🏪</span></div>`,
+        }),
+      })
+        .addTo(mapObj.current)
+        .bindTooltip(`${o.store} · $${(o.ganancia ?? 0).toFixed(2)}`)
+        .on('click', () => setSelectedOrderId(o.id));
+      markersRef.current.push(marker);
+    });
+
+    if (conCoords.length > 0) {
+      const bounds = conCoords.map(o => [o.tiendaLat, o.tiendaLng]);
+      mapObj.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+    }
+  }, [availableOrders, selectedOrderId]);
+
+  // Mientras está disponible, reporta su posición (usada por "repartidores cercanos" y el orden por distancia).
+  useEffect(() => {
+    if (!isAvailable || !navigator.geolocation) return;
+    const enviar = () => {
+      navigator.geolocation.getCurrentPosition(pos => {
+        const municipio = localStorage.getItem('svgo_municipio') || 'San Salvador';
+        api.post('/auth.php?action=actualizar_ubicacion', {
+          municipio, lat: pos.coords.latitude, lng: pos.coords.longitude,
+        }).catch(() => {});
+      }, () => {});
+    };
+    enviar();
+    const iv = setInterval(enviar, 45000);
+    return () => clearInterval(iv);
+  }, [isAvailable]);
+
   const fetchData = async () => {
     try {
       const resDisp = await api.get('/repartidor_dashboard.php?action=disponibles');
@@ -132,26 +244,33 @@ export default function RepartidorDashboard() {
         setAvailableOrders(resDisp.data.pedidos.map((p: any) => ({
           id: p.id.toString(),
           client: p.comprador_nombre || 'Cliente',
-          store: p.vendedor_nombre || 'Tienda',
+          store: p.tienda_nombre || p.vendedor_nombre || 'Tienda',
           address: p.direccion_entrega || 'Dirección no especificada',
-          items: 'Artículos varios',
+          items: (p.items || []).map((it: any) => `${it.cantidad}× ${it.nombre}`).join(', ') || 'Sin detalle de artículos',
           total: parseFloat(p.total),
-          status: 'pending'
+          status: 'pending',
+          distancia_km: p.distancia_km ?? null,
+          tiendaLat: p.tienda_lat != null ? Number(p.tienda_lat) : null,
+          tiendaLng: p.tienda_lng != null ? Number(p.tienda_lng) : null,
+          ganancia: p.ganancia_repartidor != null ? Number(p.ganancia_repartidor) : undefined,
         })));
       }
 
       const resMis = await api.get('/repartidor_dashboard.php?action=mis_entregas');
       if (resMis.data.ok) {
         const myOrders = resMis.data.pedidos;
-        const active = myOrders.filter((p: any) => p.estado === 'en_camino').map((p: any) => ({
-          id: p.id.toString(),
-          client: p.comprador_nombre || 'Cliente',
-          store: p.vendedor_nombre || 'Tienda',
-          address: p.direccion_entrega || 'Dirección no especificada',
-          items: 'Artículos varios',
-          total: parseFloat(p.total),
-          status: 'active'
-        }));
+        const active = myOrders
+          .filter((p: any) => p.estado === 'en_camino' || p.estado === 'preparacion')
+          .map((p: any) => ({
+            id: p.id.toString(),
+            client: p.comprador_nombre || 'Cliente',
+            store: p.vendedor_nombre || 'Tienda',
+            address: p.direccion_entrega || 'Dirección no especificada',
+            items: 'Artículos varios',
+            total: parseFloat(p.total),
+            status: p.estado === 'en_camino' ? 'active' : 'picking_up',
+            confirmadoRepartidor: !!p.confirmado_repartidor_recogida,
+          }));
         setActiveDeliveries(active);
 
         const completed = myOrders.filter((p: any) => p.estado === 'entregado');
@@ -179,6 +298,15 @@ export default function RepartidorDashboard() {
     }, 3000);
   };
 
+  const handleRejectOrder = async (order: Order) => {
+    try {
+      await api.post('/repartidor_dashboard.php?action=rechazar', { pedido_id: order.id });
+      setAvailableOrders(prev => prev.filter(o => o.id !== order.id));
+      if (selectedOrderId === order.id) setSelectedOrderId(null);
+      triggerToast('Pedido descartado. No volverá a aparecer en tu lista.');
+    } catch (e) { console.error(e); }
+  };
+
   const handleAcceptOrder = async (order: Order) => {
     if (!isAvailable) {
       triggerToast('Activa tu disponibilidad para aceptar pedidos.');
@@ -187,13 +315,24 @@ export default function RepartidorDashboard() {
     try {
       const res = await api.post('/repartidor_dashboard.php?action=aceptar', { pedido_id: order.id });
       if (res.data.ok) {
-        socketRef.current?.emit('pedido-estado-cambio', { pedidoId: Number(order.id), estado: 'en_camino' });
+        socketRef.current?.emit('pedido-estado-cambio', { pedidoId: Number(order.id), estado: 'preparacion' });
         fetchData();
-        triggerToast('Pedido aceptado. Recoge en la tienda.');
+        triggerToast('Pedido aceptado. Ve a recogerlo a la tienda y confirma ahí.');
       }
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const handleConfirmarRecogida = async (order: Order) => {
+    try {
+      const res = await api.post('/repartidor_dashboard.php?action=confirmar_recogida', { pedido_id: order.id });
+      if (res.data.ok) {
+        socketRef.current?.emit('pedido-estado-cambio', { pedidoId: Number(order.id), estado: res.data.en_camino ? 'en_camino' : 'preparacion' });
+        fetchData();
+        triggerToast(res.data.en_camino ? '¡Recogida confirmada — pedido en camino!' : 'Recogida confirmada. Esperando que la tienda confirme también.');
+      }
+    } catch (e) { console.error(e); }
   };
 
   const handleCompleteDelivery = async (order: Order) => {
@@ -211,46 +350,7 @@ export default function RepartidorDashboard() {
 
   return (
     <div className="historial-main-wrapper">
-      {/* ══ NAV ══ */}
-      <nav>
-        <a onClick={() => navigate('/')} style={{ cursor: 'pointer' }} className="nav-logo">
-          <div className="logo-icon" style={{ background: '#4A6D8C', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '1rem', letterSpacing: '-0.5px' }}>
-            SV
-          </div>
-          <span className="logo-text">GO</span>
-        </a>
-        <ul className="nav-links">
-          <li><a onClick={() => navigate('/market')} style={{ cursor: 'pointer' }}>Marketplace</a></li>
-          <li><a onClick={() => navigate('/reels')} style={{ cursor: 'pointer' }}>Reels</a></li>
-          <li><a onClick={() => navigate('/chat')} style={{ cursor: 'pointer' }}>Mensajes</a></li>
-        </ul>
-        <div className="nav-right">
-          <button 
-            className="lm-theme-toggle" 
-            onClick={toggleTheme} 
-            title={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            {theme === 'light' ? (
-              <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18">
-                <circle cx="12" cy="12" r="5" fill="currentColor"/>
-                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-              </svg>
-            )}
-          </button>
-          <button className="lm-theme-toggle" onClick={() => navigate('/login')} title="Cerrar sesión" style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
-            </svg>
-          </button>
-        </div>
-      </nav>
+      <Header />
 
       {/* ══ MAIN ══ */}
       <div className="dash-wrap">
@@ -326,62 +426,93 @@ export default function RepartidorDashboard() {
           </div>
         </div>
 
-        {/* Two-column panels */}
-        <div className="dash-columns">
-          {/* LEFT: Entregas Activas */}
-          <div className="panel-card">
-            <div className="panel-header">
-              <span className="panel-title">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--blue)' }}>
-                  <rect x="1" y="3" width="15" height="13" rx="2"/>
-                  <path d="M16 8h4l3 3v5h-7V8z"/>
-                  <circle cx="5.5" cy="18.5" r="2.5"/>
-                  <circle cx="18.5" cy="18.5" r="2.5"/>
-                </svg>
-                Entregas Activas
-              </span>
-              <span className="panel-badge">{activeDeliveries.length}</span>
-            </div>
-            <div className="panel-body">
-              {activeDeliveries.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-                  No tienes entregas en curso. Acepta pedidos a la derecha.
-                </div>
-              ) : (
-                activeDeliveries.map(o => (
-                  <div key={o.id} className="dash-item-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div className="dash-item-left">
-                        <span className="dash-item-emoji">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-                        </span>
-                        <div className="dash-item-info">
-                          <h4>Pedido #{o.id} - {o.store}</h4>
-                          <p>{o.items}</p>
-                        </div>
+        {/* Entregas Activas — ancho completo */}
+        <div className="panel-card" style={{ marginBottom: 24 }}>
+          <div className="panel-header">
+            <span className="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--blue)' }}>
+                <rect x="1" y="3" width="15" height="13" rx="2"/>
+                <path d="M16 8h4l3 3v5h-7V8z"/>
+                <circle cx="5.5" cy="18.5" r="2.5"/>
+                <circle cx="18.5" cy="18.5" r="2.5"/>
+              </svg>
+              Entregas Activas
+            </span>
+            <span className="panel-badge">{activeDeliveries.length}</span>
+          </div>
+          <div className="panel-body">
+            {activeDeliveries.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+                No tienes entregas en curso. Acepta un pedido disponible más abajo.
+              </div>
+            ) : (
+              activeDeliveries.map(o => (
+                <div key={o.id} className="dash-item-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="dash-item-left">
+                      <span className="dash-item-emoji">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                      </span>
+                      <div className="dash-item-info">
+                        <h4>Pedido #{o.id} - {o.store}</h4>
+                        <p>{o.items}</p>
                       </div>
-                      <span className="dash-item-status active">En camino</span>
                     </div>
-                    <div style={{ padding: '8px 12px', background: 'var(--bg)', borderRadius: '10px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      <strong>Entregar a:</strong> {o.client} <br />
-                      <strong>Dirección:</strong> {o.address}
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                      <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text)' }}>Monto: ${o.total.toFixed(2)}</span>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="btn-primary" onClick={() => navigate('/chat')} style={{ padding: '6px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                          Chat
-                        </button>
+                    <span className="dash-item-status active">{o.status === 'picking_up' ? 'Recogiendo en tienda' : 'En camino'}</span>
+                  </div>
+                  <div style={{ padding: '8px 12px', background: 'var(--bg)', borderRadius: '10px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    <strong>Entregar a:</strong> {o.client} <br />
+                    <strong>Dirección:</strong> {o.address}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                    <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text)' }}>Monto: ${o.total.toFixed(2)}</span>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button className="btn-primary" onClick={() => navigate('/chat')} style={{ padding: '6px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        Chat
+                      </button>
+                      {o.status === 'picking_up' ? (
+                        o.confirmadoRepartidor ? (
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic', alignSelf: 'center' }}>Esperando a la tienda…</span>
+                        ) : (
+                          <button className="btn-primary" onClick={() => handleConfirmarRecogida(o)} style={{ padding: '6px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
+                            Confirmar recogida
+                          </button>
+                        )
+                      ) : (
                         <button className="btn-primary" onClick={() => handleCompleteDelivery(o)} style={{ padding: '6px 12px', fontSize: '0.78rem', background: 'var(--green)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
                           Entregar
                         </button>
-                      </div>
+                      )}
                     </div>
                   </div>
-                ))
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Pedidos disponibles: mapa a la izquierda, lista a la derecha */}
+        <div className="dash-columns">
+          {/* LEFT: Mapa de tiendas solicitando delivery */}
+          <div className="panel-card" style={{ minHeight: 480 }}>
+            <div className="panel-header">
+              <span className="panel-title">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--green)' }}>
+                  <path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/>
+                </svg>
+                Mapa de solicitudes
+              </span>
+            </div>
+            <div style={{ flex: 1, minHeight: 420, position: 'relative' }}>
+              {!leafletReady && (
+                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                  Cargando mapa...
+                </div>
               )}
+              <div ref={mapEl} style={{ width: '100%', height: '100%', minHeight: 420 }} />
             </div>
           </div>
 
@@ -405,7 +536,15 @@ export default function RepartidorDashboard() {
                 </div>
               ) : (
                 availableOrders.map(o => (
-                  <div key={o.id} className="dash-item-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '12px' }}>
+                  <div
+                    key={o.id}
+                    className="dash-item-row"
+                    onClick={() => setSelectedOrderId(o.id)}
+                    style={{
+                      flexDirection: 'column', alignItems: 'stretch', gap: '12px', cursor: 'pointer',
+                      border: selectedOrderId === o.id ? '2px solid var(--green)' : undefined,
+                      borderRadius: selectedOrderId === o.id ? 12 : undefined,
+                    }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div className="dash-item-left">
                         <span className="dash-item-emoji">
@@ -421,13 +560,28 @@ export default function RepartidorDashboard() {
                     <div style={{ padding: '8px 12px', background: 'var(--bg)', borderRadius: '10px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                       <strong>Tienda:</strong> {o.store} <br />
                       <strong>Destino:</strong> {o.address}
+                      {o.distancia_km != null && <><br /><strong>Distancia:</strong> {o.distancia_km} km</>}
                     </div>
+                    {o.ganancia != null && (
+                      <div style={{ fontSize: '0.78rem', color: 'var(--green)', fontWeight: 700 }}>
+                        Ganas ${o.ganancia.toFixed(2)} por esta entrega
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                       <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text)' }}>Monto: ${o.total.toFixed(2)}</span>
-                      <button className="btn-primary" onClick={() => handleAcceptOrder(o)} style={{ padding: '8px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
-                        Aceptar Entrega
-                      </button>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRejectOrder(o); }}
+                          style={{ padding: '8px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1.5px solid var(--border, #E2E8F0)', borderRadius: 10, color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 700 }}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                          Rechazar
+                        </button>
+                        <button className="btn-primary" onClick={(e) => { e.stopPropagation(); handleAcceptOrder(o); }} style={{ padding: '8px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+                          Aceptar Entrega
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -526,12 +680,60 @@ export default function RepartidorDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Ganancias y tiempo invertido por día */}
+        <div className="panel-card" style={{ marginTop: '24px' }}>
+          <div className="panel-header">
+            <span className="panel-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--blue)' }}>
+                <line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>
+              </svg>
+              Ganancias y tiempo
+            </span>
+          </div>
+          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '10px' }}>Dinero ganado por día</div>
+              {gananciasPorDia.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Aún no tienes entregas completadas para graficar.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={gananciasPorDia}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #E2E8F0)" />
+                    <XAxis dataKey="fecha" fontSize={12} />
+                    <YAxis fontSize={12} tickFormatter={(v: number) => `$${v}`} />
+                    <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`, 'Ganado']} />
+                    <Line type="monotone" dataKey="monto" stroke="var(--blue, #2563EB)" strokeWidth={2.5} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '10px' }}>Tiempo invertido por día (minutos)</div>
+              {minutosPorDia.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Aún no hay suficientes datos de tiempo de entrega.</div>
+              ) : (
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={minutosPorDia}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #E2E8F0)" />
+                    <XAxis dataKey="fecha" fontSize={12} />
+                    <YAxis fontSize={12} tickFormatter={(v: number) => `${v}m`} />
+                    <Tooltip formatter={(v: number) => [`${v} min`, 'Tiempo']} />
+                    <Line type="monotone" dataKey="minutos" stroke="#8B5CF6" strokeWidth={2.5} dot={{ r: 3 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Toast Notification */}
       <div className={`lm-toast ${showToast ? 'show' : ''}`} style={{ background: '#111111', color: '#fff', borderRadius: '16px', display: 'flex', gap: '12px', padding: '14px 20px', boxShadow: '0 8px 24px rgba(0,0,0,0.2)' }}>
         <span style={{ fontWeight: '600', fontSize: '0.9rem' }}>{toastMsg}</span>
       </div>
+
+      <Footer />
     </div>
   );
 }

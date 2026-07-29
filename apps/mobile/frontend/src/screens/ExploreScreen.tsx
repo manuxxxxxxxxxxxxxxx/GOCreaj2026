@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { api, Endpoints, API_URL } from '@/services/api';
 import { useTheme } from '@/context/ThemeContext';
@@ -18,15 +18,17 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const { width: W, height: H } = Dimensions.get('window');
 
+// Debe coincidir con el whitelist CATS_VALIDAS del backend (vendedor_dashboard.php) —
+// mismo contrato que ya usan SellerScreen.tsx y VendedorDashboard.tsx (web).
 const CATEGORIAS = [
-  { key: '',           label: 'Todo',       icon: 'grid-outline' as const },
-  { key: 'Comida',     label: 'Comida',     icon: 'fast-food-outline' as const },
-  { key: 'Bebidas',    label: 'Bebidas',    icon: 'cafe-outline' as const },
-  { key: 'Panadería',  label: 'Panadería',  icon: 'nutrition-outline' as const },
-  { key: 'Ropa',       label: 'Ropa',       icon: 'shirt-outline' as const },
-  { key: 'Electrónica',label: 'Tech',       icon: 'phone-portrait-outline' as const },
-  { key: 'Mascotas',   label: 'Mascotas',   icon: 'paw-outline' as const },
-  { key: 'Salud',      label: 'Salud',      icon: 'medkit-outline' as const },
+  { key: '',          label: 'Todo',      icon: 'grid-outline' as const },
+  { key: 'comida',    label: 'Comida',    icon: 'fast-food-outline' as const },
+  { key: 'bebidas',   label: 'Bebidas',   icon: 'cafe-outline' as const },
+  { key: 'panaderia', label: 'Panadería', icon: 'nutrition-outline' as const },
+  { key: 'postres',   label: 'Postres',   icon: 'ice-cream-outline' as const },
+  { key: 'frutas',    label: 'Frutas',    icon: 'nutrition-outline' as const },
+  { key: 'verduras',  label: 'Verduras',  icon: 'leaf-outline' as const },
+  { key: 'general',   label: 'Otros',     icon: 'ellipsis-horizontal-outline' as const },
 ];
 
 interface Producto {
@@ -94,8 +96,11 @@ export default function ExploreScreen() {
 
   const [query, setQuery]       = useState('');
   const [cat, setCat]           = useState('');
+  const [zona, setZona]         = useState('');
+  const [municipios, setMunicipios] = useState<string[]>([]);
   const [items, setItems]       = useState<Producto[]>([]);
   const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState(false);
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [selected, setSelected] = useState<number | null>(null);
   const [page, setPage]         = useState(1);
@@ -107,10 +112,10 @@ export default function ExploreScreen() {
   const mapItemsWithCoords = items.filter(i => i.tienda_lat && i.tienda_lng);
   const mapPins = mapItemsWithCoords.map(i => ({
     id: i.id, lat: Number(i.tienda_lat), lng: Number(i.tienda_lng),
-    precio: i.precio, nombre: i.nombre, tiendaNombre: i.tienda_nombre,
+    precio: i.precio, nombre: i.nombre, tiendaNombre: i.tienda_nombre, categoria: i.categoria,
   }));
 
-  const buscar = useCallback(async (q: string, categoria: string, pageNum = 1, append = false) => {
+  const buscar = useCallback(async (q: string, categoria: string, zonaFiltro: string, pageNum = 1, append = false) => {
     setLoading(true);
     try {
       // Endpoint correcto: productos.php?action=buscar (LIKE + FULLTEXT) o listar si no hay query
@@ -120,26 +125,41 @@ export default function ExploreScreen() {
         : `productos.php?action=listar`;
       const url =
         `${base}&page=${pageNum}&limit=20&con_coordenadas=1` +
-        (categoria ? `&categoria=${encodeURIComponent(categoria)}` : '');
+        (categoria ? `&categoria=${encodeURIComponent(categoria)}` : '') +
+        (zonaFiltro ? `&municipio=${encodeURIComponent(zonaFiltro)}` : '');
       const r = await api<{ ok: boolean; productos?: Producto[]; has_more?: boolean }>(url);
       if (r.ok && r.productos) {
         setItems(prev => append ? [...prev, ...r.productos!] : r.productos!);
         setHasMore(r.has_more ?? (r.productos!.length === 20));
+        setError(false);
+      } else {
+        setError(true);
       }
-    } catch { /* offline-safe */ }
+    } catch { setError(true); }
     setLoading(false);
   }, []);
 
   useEffect(() => {
     setPage(1);
-    void buscar(query, cat, 1, false);
-  }, [query, cat, buscar]);
+    void buscar(query, cat, zona, 1, false);
+  }, [query, cat, zona, buscar]);
+
+  // Re-consulta al volver a la pestaña (por si el usuario cambió "Entregar en" mientras tanto)
+  useFocusEffect(useCallback(() => {
+    void buscar(query, cat, zona, 1, false);
+  }, [buscar, query, cat, zona]));
+
+  useEffect(() => {
+    api<{ ok: boolean; municipios?: string[] }>('productos.php?action=municipios')
+      .then(r => { if (r.ok && r.municipios) setMunicipios(r.municipios); })
+      .catch(() => {});
+  }, []);
 
   const loadMore = () => {
     if (!hasMore || loading) return;
     const next = page + 1;
     setPage(next);
-    void buscar(query, cat, next, true);
+    void buscar(query, cat, zona, next, true);
   };
 
   const selectItem = (item: Producto) => {
@@ -238,6 +258,32 @@ export default function ExploreScreen() {
         })}
       </ScrollView>
 
+      {/* ── Filtro de zona ── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[S.catsScroll, { backgroundColor: colors.card, borderBottomColor: colors.border, borderTopWidth: 0 }]}
+        contentContainerStyle={S.catsContent}
+      >
+        {[{ key: '', label: 'Todas las zonas' }, ...municipios.map(m => ({ key: m, label: m }))].map(z => {
+          const active = zona === z.key;
+          return (
+            <TouchableOpacity
+              key={z.key || 'todas'}
+              style={[
+                S.catChip,
+                { backgroundColor: active ? colors.accent : colors.elevated, borderColor: active ? colors.accent : colors.border },
+              ]}
+              onPress={() => setZona(z.key)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="location-outline" size={13} color={active ? '#FFF' : colors.muted} style={{ marginRight: 5 }} />
+              <Text style={[S.catChipTxt, { color: active ? '#FFF' : colors.text }]}>{z.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
       {viewMode === 'map' ? (
         /* ─── VISTA MAPA ─────────────────────────────────────── */
         <View style={{ flex: 1 }}>
@@ -270,8 +316,15 @@ export default function ExploreScreen() {
             </View>
             {items.length === 0 && !loading ? (
               <View style={S.emptyCarousel}>
-                <Ionicons name="search-outline" size={32} color={colors.muted} />
-                <Text style={[S.emptyTxt, { color: colors.muted }]}>Sin resultados. Prueba otra búsqueda.</Text>
+                <Ionicons name={error ? 'cloud-offline-outline' : 'search-outline'} size={32} color={colors.muted} />
+                <Text style={[S.emptyTxt, { color: colors.muted }]}>
+                  {error ? 'No se pudo cargar. Verifica tu conexión.' : 'Sin resultados. Prueba otra búsqueda.'}
+                </Text>
+                {error && (
+                  <TouchableOpacity onPress={() => buscar(query, cat, zona, 1, false)} style={S.retryBtn}>
+                    <Text style={[S.retryTxt, { color: colors.accent }]}>Reintentar</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
               <FlatList
@@ -329,8 +382,15 @@ export default function ExploreScreen() {
           ListEmptyComponent={
             loading ? <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} /> : (
               <View style={S.emptyBlock}>
-                <Ionicons name="search-outline" size={44} color={colors.muted} />
-                <Text style={[S.emptyTxt, { color: colors.muted }]}>Sin resultados. Prueba otra búsqueda.</Text>
+                <Ionicons name={error ? 'cloud-offline-outline' : 'search-outline'} size={44} color={colors.muted} />
+                <Text style={[S.emptyTxt, { color: colors.muted }]}>
+                  {error ? 'No se pudo cargar. Verifica tu conexión.' : 'Sin resultados. Prueba otra búsqueda.'}
+                </Text>
+                {error && (
+                  <TouchableOpacity onPress={() => buscar(query, cat, zona, 1, false)} style={S.retryBtn}>
+                    <Text style={[S.retryTxt, { color: colors.accent }]}>Reintentar</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )
           }
@@ -424,4 +484,6 @@ const S = StyleSheet.create({
   // Empty
   emptyBlock: { alignItems: 'center', paddingTop: 60, gap: Spacing.md },
   emptyTxt:   { fontSize: Fonts.regular, fontWeight: '500', textAlign: 'center', paddingHorizontal: Spacing.xl },
+  retryBtn:   { marginTop: 4, paddingVertical: 8, paddingHorizontal: 18, borderRadius: Radius.pill },
+  retryTxt:   { fontSize: Fonts.regular, fontWeight: '700' },
 });

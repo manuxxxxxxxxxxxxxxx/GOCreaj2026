@@ -36,10 +36,10 @@ function adjuntar_items_con_stock(array &$pedidos): void {
 switch ($action) {
 
     case 'disponibles':
-        $r = db()->prepare("SELECT en_linea FROM usuarios WHERE id = ?");
+        $r = db()->prepare("SELECT en_linea, lat, lng FROM usuarios WHERE id = ?");
         $r->execute([$user['id']]);
-        $en_linea = (int)$r->fetchColumn();
-        if (!$en_linea) { jout(['ok' => true, 'pedidos' => [], 'en_linea' => false]); }
+        $yo = $r->fetch();
+        if (!$yo || !(int)$yo['en_linea']) { jout(['ok' => true, 'pedidos' => [], 'en_linea' => false]); }
 
         $st = db()->prepare(
             "SELECT p.*,
@@ -52,7 +52,12 @@ switch ($action) {
              FROM pedidos p
              JOIN usuarios v ON v.id = p.vendedor_id
              JOIN usuarios c ON c.id = p.comprador_id
-             LEFT JOIN tiendas t ON t.vendedor_id = v.id
+             LEFT JOIN (
+                 SELECT i.pedido_id, MIN(t2.id) AS tienda_id
+                 FROM pedido_items i JOIN productos pr ON pr.id = i.producto_id JOIN tiendas t2 ON t2.id = pr.tienda_id
+                 GROUP BY i.pedido_id
+             ) pt ON pt.pedido_id = p.id
+             LEFT JOIN tiendas t ON t.id = pt.tienda_id
              WHERE p.repartidor_id IS NULL
                AND p.estado = 'preparacion'
                AND p.pago_estado = 'pagado'
@@ -65,6 +70,20 @@ switch ($action) {
         $st->execute([COMISION_REPARTIDOR_PCT, $user['id']]);
         $pedidos = $st->fetchAll();
         adjuntar_items_con_stock($pedidos);
+
+        // Si conocemos la posición del repartidor, ordenamos "cercanos primero".
+        if ($yo['lat'] !== null && $yo['lng'] !== null) {
+            foreach ($pedidos as &$p) {
+                $p['distancia_km'] = ($p['tienda_lat'] !== null && $p['tienda_lng'] !== null)
+                    ? round(distancia_km((float)$yo['lat'], (float)$yo['lng'], (float)$p['tienda_lat'], (float)$p['tienda_lng']), 2)
+                    : null;
+            }
+            usort($pedidos, function ($a, $b) {
+                if ($a['distancia_km'] === null) return 1;
+                if ($b['distancia_km'] === null) return -1;
+                return $a['distancia_km'] <=> $b['distancia_km'];
+            });
+        }
         jout(['ok' => true, 'pedidos' => $pedidos, 'en_linea' => true]);
         break;
 
@@ -73,7 +92,7 @@ switch ($action) {
         $pid = (int)$data['pedido_id'];
 
         $activos = (int)db()->query(
-            "SELECT COUNT(*) FROM pedidos WHERE repartidor_id = {$user['id']} AND estado = 'en_camino'"
+            "SELECT COUNT(*) FROM pedidos WHERE repartidor_id = {$user['id']} AND estado IN ('preparacion','en_camino')"
         )->fetchColumn();
         if ($activos >= MAX_PEDIDOS_ACTIVOS) {
             jout(['ok' => false, 'error' => "Ya tienes {$activos} entregas en curso. Completa alguna antes de aceptar otra."], 400);
@@ -86,16 +105,18 @@ switch ($action) {
             $row = $check->fetch();
             if (!$row) { db()->rollBack(); jout(['ok' => false, 'error' => 'Pedido ya tomado'], 409); }
 
-            db()->prepare("UPDATE pedidos SET repartidor_id = ?, estado = 'en_camino' WHERE id = ?")
+            // Queda asignado pero AÚN NO "en_camino" — falta la confirmación doble de recogida en tienda.
+            db()->prepare("UPDATE pedidos SET repartidor_id = ?, repartidor_asignado_at = NOW() WHERE id = ?")
                 ->execute([$user['id'], $pid]);
 
-            $msg = "🛵 Tu pedido fue aceptado por el repartidor {$user['nombre']}. Va en camino.";
-            $msgV = "🛵 Repartidor {$user['nombre']} aceptó el pedido #{$pid}.";
+            $msg = "🛵 El repartidor {$user['nombre']} tomó tu pedido y va a recogerlo a la tienda.";
+            $msgV = "🛵 Repartidor {$user['nombre']} tomó el pedido #{$pid}. Confirma la recogida cuando llegue.";
             db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
                 ->execute([$user['id'], (int)$row['comprador_id'], $msg]);
             db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
                 ->execute([$user['id'], (int)$row['vendedor_id'], $msgV]);
-            crear_notificacion((int)$row['comprador_id'], 'pedido', 'Tu pedido va en camino', $msg, $pid);
+            crear_notificacion((int)$row['comprador_id'], 'pedido', 'Repartidor asignado', $msg, $pid);
+            crear_notificacion((int)$row['vendedor_id'], 'pedido', 'Repartidor en camino a tu tienda', $msgV, $pid);
 
             db()->commit();
             jout(['ok' => true]);
@@ -103,6 +124,25 @@ switch ($action) {
             db()->rollBack();
             jout(['ok' => false, 'error' => $e->getMessage()], 500);
         }
+        break;
+
+    // ─── Confirmación (lado repartidor) de que recogió el pedido en la tienda ───
+    case 'confirmar_recogida':
+        require_fields($data, ['pedido_id']);
+        $pid = (int)$data['pedido_id'];
+        $sel = db()->prepare("SELECT * FROM pedidos WHERE id = ? AND repartidor_id = ?");
+        $sel->execute([$pid, $user['id']]);
+        $ped = $sel->fetch();
+        if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
+
+        db()->prepare("UPDATE pedidos SET confirmado_repartidor_recogida = 1, progreso_repartidor = 'recolectado' WHERE id = ?")->execute([$pid]);
+
+        $yaConfirmadoVendedor = (int)$ped['confirmado_vendedor_recogida'] === 1;
+        if ($yaConfirmadoVendedor) {
+            db()->prepare("UPDATE pedidos SET estado = 'en_camino', progreso_repartidor = 'camino_cliente' WHERE id = ?")->execute([$pid]);
+            crear_notificacion((int)$ped['comprador_id'], 'pedido', '¡Tu pedido va en camino!', "El repartidor recogió tu pedido #SV-{$pid} y va hacia ti.", $pid);
+        }
+        jout(['ok' => true, 'en_camino' => $yaConfirmadoVendedor]);
         break;
 
     // ─── Descartar un pedido disponible: NO lo bloquea para el resto de la flota ───
@@ -124,7 +164,12 @@ switch ($action) {
              FROM pedidos p
              JOIN usuarios v ON v.id = p.vendedor_id
              JOIN usuarios c ON c.id = p.comprador_id
-             LEFT JOIN tiendas t ON t.vendedor_id = v.id
+             LEFT JOIN (
+                 SELECT i.pedido_id, MIN(t2.id) AS tienda_id
+                 FROM pedido_items i JOIN productos pr ON pr.id = i.producto_id JOIN tiendas t2 ON t2.id = pr.tienda_id
+                 GROUP BY i.pedido_id
+             ) pt ON pt.pedido_id = p.id
+             LEFT JOIN tiendas t ON t.id = pt.tienda_id
              WHERE p.repartidor_id = ? ORDER BY p.created_at DESC"
         );
         $st->execute([$user['id']]);
@@ -311,6 +356,27 @@ switch ($action) {
         );
         $st->execute([$user['id']]);
         jout(['ok' => true, 'resenas' => $st->fetchAll()]);
+        break;
+
+    // ─── Ganancias y tiempo invertido, agrupado por día (para la gráfica de "Mi cuenta") ───
+    case 'ganancias':
+        $stG = db()->prepare(
+            "SELECT DATE(created_at) AS fecha, SUM(monto) AS monto
+             FROM wallet_movimientos
+             WHERE usuario_id = ? AND tipo = 'entrega'
+             GROUP BY DATE(created_at) ORDER BY fecha ASC LIMIT 30"
+        );
+        $stG->execute([$user['id']]);
+
+        $stT = db()->prepare(
+            "SELECT DATE(updated_at) AS fecha, SUM(TIMESTAMPDIFF(MINUTE, repartidor_asignado_at, updated_at)) AS minutos
+             FROM pedidos
+             WHERE repartidor_id = ? AND estado = 'entregado' AND repartidor_asignado_at IS NOT NULL
+             GROUP BY DATE(updated_at) ORDER BY fecha ASC LIMIT 30"
+        );
+        $stT->execute([$user['id']]);
+
+        jout(['ok' => true, 'ganancias_por_dia' => $stG->fetchAll(), 'minutos_por_dia' => $stT->fetchAll()]);
         break;
 
     default:

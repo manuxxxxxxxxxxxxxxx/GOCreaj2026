@@ -24,13 +24,7 @@
   --white: #ffffff;
 }
 
-body { 
-  font-family: 'Plus Jakarta Sans', sans-serif; 
-  background: var(--bg); 
-  color: var(--text); 
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-}
+/* body/html: ver css/global.css (importado una sola vez en main.tsx) */
 
 .historial-main-wrapper {
   min-height: 100vh;
@@ -38,22 +32,9 @@ body {
   flex-direction: column;
 }
 
-/* ══ GLASSMORPHIC NAVIGATION ══ */
-nav { 
-  position: sticky; 
-  top: 0; 
-  z-index: 200; 
-  background: rgba(255, 255, 255, 0.85); 
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(226, 232, 240, 0.8); 
-  display: flex; 
-  align-items: center; 
-  justify-content: space-between; 
-  padding: 0 48px; 
-  height: 64px; 
-  transition: background 0.3s;
-}
+/* nav: ya no se usa un <nav> crudo en ninguna página activa (todas usan el
+   componente compartido <Header/>), se deja fuera para no seguir peleando
+   por z-index/background con las otras hojas de estilo. */
 
 .nav-logo { 
   display: flex; 

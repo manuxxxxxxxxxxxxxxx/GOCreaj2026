@@ -23,6 +23,7 @@ import { Spacing, Radius, Fonts } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { RootStackParamList } from '@/types';
 import { useAuth } from '@/context/AuthContext';
+import GuestGate from '@/components/GuestGate';
 import LeafletMapView from '@/components/LeafletMapView';
 import CallWebViewModal, { CallInfo } from '@/components/CallWebViewModal';
 
@@ -705,6 +706,16 @@ export function ChatListScreen() {
     { key: 'favoritos', label: 'Favoritos' }, { key: 'archivados', label: 'Archivados' },
   ];
 
+  if (!usuario) {
+    return (
+      <GuestGate
+        icon="chatbubbles-outline"
+        title="Inicia sesión para chatear"
+        subtitle="Los chats están disponibles solo para cuentas registradas. Inicia sesión o crea una cuenta para hablar con tiendas y repartidores."
+      />
+    );
+  }
+
   return (
     <View style={[S.root, { backgroundColor: colors.background }]}>
       <View style={[S.topBar, { paddingTop: insets.top + 14, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
@@ -1211,6 +1222,28 @@ export default function ChatScreen() {
           activeOpacity={0.8}
         >
           <Ionicons name="call-outline" size={18} color={colors.accent} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[S.callHeaderBtn, { backgroundColor: colors.accentLight, marginLeft: 8 }]}
+          onPress={() => Alert.alert(otro?.nombre ?? nombre, undefined, [
+            {
+              text: 'Bloquear usuario', style: 'destructive', onPress: () => {
+                Alert.alert('Bloquear', `¿Bloquear a ${otro?.nombre ?? nombre}? No podrán escribirte y no verás sus mensajes.`, [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Bloquear', style: 'destructive', onPress: async () => {
+                      await api(Endpoints.authBloquearUsuario, { body: { usuario_id: otroId } });
+                      nav.goBack();
+                    },
+                  },
+                ]);
+              },
+            },
+            { text: 'Cancelar', style: 'cancel' },
+          ])}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="ellipsis-vertical" size={18} color={colors.accent} />
         </TouchableOpacity>
       </View>
 

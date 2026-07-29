@@ -1,10 +1,19 @@
 import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useGlobal } from '../context/GlobalContext';
 import Header from '../components/Header';
+import Footer from '../components/Footer';
 import { api } from '../api';
 
 type RolType = 'vendedor' | 'repartidor';
+type Vehiculo = 'bicicleta' | 'moto' | 'carro' | 'pickup';
+
+const VEHICULOS: { id: Vehiculo; label: string; emoji: string }[] = [
+  { id: 'bicicleta', label: 'Bicicleta', emoji: '🚲' },
+  { id: 'moto',      label: 'Moto',      emoji: '🏍️' },
+  { id: 'carro',     label: 'Carro',     emoji: '🚗' },
+  { id: 'pickup',    label: 'Pickup',    emoji: '🛻' },
+];
 
 const MUNICIPIOS_SV = [
   'San Salvador', 'Santa Ana', 'Mejicanos', 'Delgado', 'Soyapango',
@@ -25,11 +34,19 @@ function fileToBase64(file: File): Promise<string> {
 export default function BecomeSeller() {
   const navigate = useNavigate();
   const { user } = useGlobal();
-  const [rol, setRol] = useState<RolType>('vendedor');
+  const [searchParams] = useSearchParams();
+  const rolInicial = searchParams.get('rol') === 'repartidor' ? 'repartidor' : 'vendedor';
+  const [rol, setRol] = useState<RolType>(rolInicial);
   const [nombre, setNombre] = useState('');
   const [dui, setDui] = useState('');
   const [municipio, setMunicipio] = useState('');
-  const [credenciales, setCredenciales] = useState('');
+  const [nombreNegocio, setNombreNegocio] = useState('');
+  const [vehiculo, setVehiculo] = useState<Vehiculo>('moto');
+  const [licFrente, setLicFrente] = useState('');
+  const [licReverso, setLicReverso] = useState('');
+  const [licFrentePreview, setLicFrentePreview] = useState('');
+  const [licReversoPreview, setLicReversoPreview] = useState('');
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [duiFrente, setDuiFrente] = useState('');
   const [duiReverso, setDuiReverso] = useState('');
   const [duiFrentePreview, setDuiFrentePreview] = useState('');
@@ -40,13 +57,17 @@ export default function BecomeSeller() {
 
   const frenteRef = useRef<HTMLInputElement>(null);
   const reversoRef = useRef<HTMLInputElement>(null);
+  const licFrenteRef = useRef<HTMLInputElement>(null);
+  const licReversoRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>, side: 'frente' | 'reverso') => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>, side: 'frente' | 'reverso' | 'lic_frente' | 'lic_reverso') => {
     const file = e.target.files?.[0];
     if (!file) return;
     const b64 = await fileToBase64(file);
     if (side === 'frente') { setDuiFrente(b64); setDuiFrentePreview(b64); }
-    else { setDuiReverso(b64); setDuiReversoPreview(b64); }
+    else if (side === 'reverso') { setDuiReverso(b64); setDuiReversoPreview(b64); }
+    else if (side === 'lic_frente') { setLicFrente(b64); setLicFrentePreview(b64); }
+    else { setLicReverso(b64); setLicReversoPreview(b64); }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,6 +77,7 @@ export default function BecomeSeller() {
     if (!dui.trim() || dui.replace(/\D/g, '').length < 8) { setError('Ingresa un número de DUI válido'); return; }
     if (!duiFrente) { setError('Sube la foto frontal de tu DUI'); return; }
     if (!duiReverso) { setError('Sube la foto del reverso de tu DUI'); return; }
+    if (!aceptaTerminos) { setError('Debes aceptar los términos y condiciones'); return; }
     if (!user) { navigate('/login'); return; }
 
     setSending(true);
@@ -63,10 +85,13 @@ export default function BecomeSeller() {
       const res = await api.post('/perfil_solicitudes.php?action=crear', {
         rol_solicitado: rol,
         nombre_completo: nombre,
+        municipio,
         dui_numero: dui,
         dui_frente: duiFrente,
         dui_reverso: duiReverso,
-        credenciales: municipio ? `municipio: ${municipio}; ${credenciales}` : credenciales,
+        ...(rol === 'vendedor'
+          ? { nombre_negocio: nombreNegocio }
+          : { tipo_vehiculo: vehiculo, licencia_frente: licFrente || undefined, licencia_reverso: licReverso || undefined }),
       });
       if (res.data.ok) {
         setSent(true);
@@ -102,6 +127,7 @@ export default function BecomeSeller() {
             Volver a mi perfil
           </button>
         </div>
+        <Footer />
       </>
     );
   }
@@ -185,19 +211,61 @@ export default function BecomeSeller() {
             </select>
           </div>
 
-          {/* Credenciales adicionales */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontWeight: '600', fontSize: '0.85rem', marginBottom: '6px' }}>
-              {rol === 'vendedor' ? 'Nombre de tu tienda / negocio' : 'Vehículo / moto (opcional)'}
-            </label>
-            <input
-              type="text"
-              value={credenciales}
-              onChange={e => setCredenciales(e.target.value)}
-              placeholder={rol === 'vendedor' ? 'Ej: Panadería El Sol' : 'Ej: Honda Wave 2022'}
-              style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #E2DCEF', borderRadius: '10px', fontSize: '0.9rem', boxSizing: 'border-box' }}
-            />
-          </div>
+          {rol === 'vendedor' ? (
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontWeight: '600', fontSize: '0.85rem', marginBottom: '6px' }}>Nombre de tu tienda / negocio</label>
+              <input
+                type="text"
+                value={nombreNegocio}
+                onChange={e => setNombreNegocio(e.target.value)}
+                placeholder="Ej: Panadería El Sol"
+                style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #E2DCEF', borderRadius: '10px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+              />
+            </div>
+          ) : (
+            <>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontWeight: '600', fontSize: '0.85rem', marginBottom: '8px' }}>Tipo de vehículo</label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {VEHICULOS.map(v => (
+                    <button
+                      key={v.id} type="button" onClick={() => setVehiculo(v.id)}
+                      style={{
+                        padding: '10px 16px', borderRadius: '10px', border: '2px solid',
+                        borderColor: vehiculo === v.id ? '#4A6D8C' : '#E2DCEF',
+                        background: vehiculo === v.id ? '#EEF4F9' : 'transparent',
+                        color: vehiculo === v.id ? '#4A6D8C' : 'inherit',
+                        fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
+                      }}
+                    >
+                      {v.emoji} {v.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ fontWeight: '700', fontSize: '0.9rem', marginBottom: '12px' }}>Licencia de conducir (opcional)</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div>
+                    <input ref={licFrenteRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e, 'lic_frente')} />
+                    <button type="button" onClick={() => licFrenteRef.current?.click()} style={{ width: '100%', aspectRatio: '16/9', border: '2px dashed', borderColor: licFrente ? '#22c55e' : '#E2DCEF', borderRadius: '12px', background: 'transparent', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {licFrentePreview
+                        ? <img src={licFrentePreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                        : <div style={{ textAlign: 'center', color: '#6B7280' }}><div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div><div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Lic. Frente</div></div>}
+                    </button>
+                  </div>
+                  <div>
+                    <input ref={licReversoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e, 'lic_reverso')} />
+                    <button type="button" onClick={() => licReversoRef.current?.click()} style={{ width: '100%', aspectRatio: '16/9', border: '2px dashed', borderColor: licReverso ? '#22c55e' : '#E2DCEF', borderRadius: '12px', background: 'transparent', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {licReversoPreview
+                        ? <img src={licReversoPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                        : <div style={{ textAlign: 'center', color: '#6B7280' }}><div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div><div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Lic. Reverso</div></div>}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* DUI photos */}
           <div style={{ marginBottom: '28px' }}>
@@ -250,6 +318,17 @@ export default function BecomeSeller() {
             </div>
           </div>
 
+          <label style={{
+            display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '14px 16px',
+            border: `1.5px solid ${aceptaTerminos ? '#4A6D8C' : '#E2DCEF'}`, borderRadius: '10px',
+            marginBottom: '16px', cursor: 'pointer', background: aceptaTerminos ? '#EEF4F9' : 'transparent',
+          }}>
+            <input type="checkbox" checked={aceptaTerminos} onChange={e => setAceptaTerminos(e.target.checked)} style={{ marginTop: '3px', width: '16px', height: '16px', flexShrink: 0 }} />
+            <span style={{ fontSize: '0.85rem' }}>
+              He leído y acepto los <strong>términos y condiciones</strong> de [SV]Go para socios.
+            </span>
+          </label>
+
           {error && (
             <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#dc2626', padding: '12px 16px', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '16px' }}>
               {error}
@@ -269,6 +348,7 @@ export default function BecomeSeller() {
           </button>
         </form>
       </div>
+      <Footer />
     </>
   );
 }

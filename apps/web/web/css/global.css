@@ -1,0 +1,76 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   global.css — única fuente de verdad para <body>/<html> y el scrollbar.
+   Se importa UNA sola vez en src/main.tsx (no por página) para evitar que
+   cada página pelee por estas reglas: Vite empaqueta todo el CSS importado
+   por cualquier componente en un solo stylesheet global — no hay scoping
+   por ruta — así que definir `body{}` en 6+ archivos de página distintos
+   hacía que la última hoja de estilos cargada "ganara" de forma impredecible
+   (fondo equivocado, padding-bottom fantasma, etc).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #F5F5F5;
+  color: #111111;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html.dark body {
+  background: #0f172a;
+  color: #f1f5f9;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
+
+/* Los navegadores NO heredan color/fuente en elementos de formulario por
+   defecto (usan sus propios colores de sistema) — por eso botones sin un
+   `color` explícito (p. ej. los MenuItem del perfil) se veían con texto
+   negro/oscuro fijo aunque el resto de la página estuviera en modo oscuro. */
+button, input, select, textarea {
+  color: inherit;
+  font: inherit;
+}
+
+/* ── Scrollbar consistente en toda la app ── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.5) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.5);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.8);
+  background-clip: padding-box;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.6);
+  background-clip: padding-box;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.8);
+  background-clip: padding-box;
+}

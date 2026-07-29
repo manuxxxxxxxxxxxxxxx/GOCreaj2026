@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { api } from '../api';
 import { useGlobal } from '../context/GlobalContext';
 import GoogleAuthButton from '../components/GoogleAuthButton';
@@ -11,6 +11,8 @@ export default function Login() {
   const [searchParams] = useSearchParams();
   const [isRegister, setIsRegister] = useState(searchParams.get('tab') === 'register');
   const navigate = useNavigate();
+  const location = useLocation();
+  const redirectTo = (location.state as { from?: string } | null)?.from;
   const { login } = useGlobal();
   const [loading, setLoading] = useState(false);
 
@@ -61,7 +63,8 @@ export default function Login() {
         });
 
         const userRole = res.data.usuario.rol;
-        if (userRole === 'admin' || userRole === 'master_admin') navigate('/admin');
+        if (redirectTo) navigate(redirectTo);
+        else if (userRole === 'admin' || userRole === 'master_admin') navigate('/admin');
         else if (userRole === 'vendedor' || userRole === 'seller') navigate('/dashboard-vendedor');
         else if (userRole === 'repartidor' || userRole === 'driver') navigate('/dashboard-repartidor');
         else navigate('/');
@@ -112,7 +115,7 @@ export default function Login() {
       if (res.data.ok) {
         localStorage.setItem('lm_token_v1', res.data.token);
         login({ name: res.data.usuario.nombre, email: res.data.usuario.email, role: res.data.usuario.rol, ...res.data.usuario });
-        navigate('/');
+        navigate(redirectTo || '/');
       } else {
         setErrors({ ...newErrors, general: res.data.error || 'Error al registrar' });
       }
