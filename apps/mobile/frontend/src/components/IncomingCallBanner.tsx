@@ -70,6 +70,7 @@ export default function IncomingCallBanner() {
 
   const aceptar = async () => {
     if (!incoming) return;
+    if (!token) setToken(await getToken());
     await api(Endpoints.chatResponderLlamada, { body: { llamada_id: incoming.id, aceptar: true } });
     setCall({ llamadaId: incoming.id, tipo: incoming.tipo, room: incoming.webrtc_room });
     setIncoming(null);

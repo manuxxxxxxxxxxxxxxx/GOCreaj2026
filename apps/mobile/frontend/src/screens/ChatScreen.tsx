@@ -27,7 +27,7 @@ import GuestGate from '@/components/GuestGate';
 import LeafletMapView from '@/components/LeafletMapView';
 import CallWebViewModal, { CallInfo } from '@/components/CallWebViewModal';
 
-const SOCKET_URL: string = process.env.EXPO_PUBLIC_SOCKET_URL ?? 'http://192.168.0.12:3001';
+const SOCKET_URL: string = process.env.EXPO_PUBLIC_SOCKET_URL ?? 'http://192.168.1.63:3001';
 
 type ChatRoute = RouteProp<RootStackParamList, 'Chat'>;
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -1133,6 +1133,13 @@ export default function ChatScreen() {
 
   // ── Llamadas ─────────────────────────────────────────────────────────────
   const iniciarLlamada = async (tipo: LlamadaTipo) => {
+    // Si el usuario toca "Llamar" antes de que termine de cargar el token (useEffect async),
+    // lo esperamos aquí para no abrir el WebView de la llamada con un token vacío.
+    let token = authToken;
+    if (!token) {
+      token = await getToken();
+      setAuthToken(token);
+    }
     const r = await api<{ ok: boolean; llamada_id?: number; room?: string }>(Endpoints.chatIniciarLlamada, { body: { receptor_id: otroId, tipo } });
     if (r.ok && r.llamada_id && r.room) setOutCall({ llamadaId: r.llamada_id, tipo, room: r.room });
   };

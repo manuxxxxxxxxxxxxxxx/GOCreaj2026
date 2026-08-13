@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import { useGlobal } from "../context/GlobalContext";
 import Header from '../components/Header';
@@ -670,6 +671,7 @@ export default function Chat() {
   const isDark = theme === 'dark';
   const S = makeStyles(isDark);
   const myId = user?.id != null ? Number(user.id) : undefined;
+  const location = useLocation();
 
   const [contacts, setContacts]           = useState<Contact[]>([]);
   const [selected, setSelected]           = useState<Contact | null>(null);
@@ -801,7 +803,7 @@ export default function Chat() {
       const pc = pcRef.current;
       if (!pc) return;
       try {
-        const offer = await pc.createOffer({ offerToReceiveAudio: true });
+        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: activeCallRef.current?.tipo === 'video' });
         await pc.setLocalDescription(offer);
         socket.emit('offer', { room: (pc as any)._room ?? '', sdp: offer, to: socketId });
       } catch (e) { console.warn('[webrtc] offer error', e); }
@@ -889,6 +891,12 @@ export default function Chat() {
   const selectedRef = useRef<Contact | null>(null);
   useEffect(() => { selectedRef.current = selected; }, [selected]);
 
+  // El efecto de sockets solo depende de [myId] (ver más abajo), así que su closure
+  // vería siempre el `activeCall` del primer render (null) — usamos un ref para
+  // poder leer el tipo de llamada actual (voz/video) dentro del handler 'peer-joined'.
+  const activeCallRef = useRef<ActiveCall | null>(null);
+  useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
+
   const fetchContacts = useCallback(async (t = tab, q = search) => {
     try {
       const res = await api.get(`/chat_multi.php?action=conversaciones&tab=${t}&q=${encodeURIComponent(q)}`);
@@ -914,6 +922,14 @@ export default function Chat() {
   }, []);
 
   useEffect(() => { void fetchContacts(tab, search); }, [tab, search, fetchContacts]);
+
+  // Si venimos de "Preguntar a la tienda" en Reels, abrimos directo esa conversación.
+  useEffect(() => {
+    const otroId = (location.state as { otroId?: number } | null)?.otroId;
+    if (!otroId || contacts.length === 0) return;
+    const match = contacts.find(c => c.id === Number(otroId));
+    if (match) setSelected(match);
+  }, [location.state, contacts]);
 
   // Poll de respaldo, baja frecuencia (el socket hace el trabajo pesado)
   useEffect(() => {

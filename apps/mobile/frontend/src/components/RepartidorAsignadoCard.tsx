@@ -23,7 +23,7 @@ function img(p?: string | null): string | undefined {
   return m ? `${API_URL}/uploads/${m[1]}` : `${API_URL}/uploads/${p}`;
 }
 
-export default function RepartidorAsignadoCard({ pedidoId }: { pedidoId: number }) {
+export default function RepartidorAsignadoCard({ pedidoId, mostrarUbicacion = true }: { pedidoId: number; mostrarUbicacion?: boolean }) {
   const { colors } = useTheme();
   const { t } = useLang();
   const nav = useNavigation<any>();
@@ -87,14 +87,25 @@ export default function RepartidorAsignadoCard({ pedidoId }: { pedidoId: number 
         )}
       </View>
 
-      <TouchableOpacity
-        onPress={() => nav.navigate('Chat', { otroId: r.id, otroNombre: r.nombre })}
-        activeOpacity={0.85}
-        style={[styles.chatBtn, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
-      >
-        <Ionicons name="chatbubble-ellipses" size={16} color="#FFF" />
-        <Text style={styles.chatTxt}>Chat</Text>
-      </TouchableOpacity>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {mostrarUbicacion && (
+          <TouchableOpacity
+            onPress={() => nav.navigate('Tracking', { pedidoId })}
+            activeOpacity={0.85}
+            style={[styles.chatBtn, { backgroundColor: colors.accentLight, shadowOpacity: 0 }]}
+          >
+            <Ionicons name="location" size={16} color={colors.accent} />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          onPress={() => nav.navigate('Chat', { otroId: r.id, otroNombre: r.nombre })}
+          activeOpacity={0.85}
+          style={[styles.chatBtn, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
+        >
+          <Ionicons name="chatbubble-ellipses" size={16} color="#FFF" />
+          <Text style={styles.chatTxt}>Chat</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }

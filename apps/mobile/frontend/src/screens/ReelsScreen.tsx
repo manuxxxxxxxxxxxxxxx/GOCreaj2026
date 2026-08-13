@@ -6,15 +6,33 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
+import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { api, Endpoints, API_URL } from '@/services/api';
-import { Producto, Comentario, RootStackParamList } from '@/types';
+import { Producto, Comentario, RootStackParamList, Tienda } from '@/types';
 import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation/native';
 import TiendaBottomSheet from '@/components/TiendaBottomSheet';
+
+/** Selecciona un video de la galería y devuelve un dataURL base64 (data:video/mp4;base64,...). */
+async function pickVideoB64(): Promise<string | null> {
+  const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!granted) { Alert.alert('Permiso requerido', 'Necesitamos acceso a la galería.'); return null; }
+  const r = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+    base64: true,
+    quality: 0.7,
+    videoMaxDuration: 60,
+  });
+  if (r.canceled || !r.assets[0].base64) return null;
+  const uri = r.assets[0].uri ?? '';
+  const ext = uri.split('.').pop()?.toLowerCase() ?? 'mp4';
+  const mime = ext === 'mov' ? 'video/quicktime' : ext === 'webm' ? 'video/webm' : 'video/mp4';
+  return `data:${mime};base64,${r.assets[0].base64}`;
+}
 
 const { height, width } = Dimensions.get('window');
 
@@ -23,6 +41,19 @@ function imgUri(p?: string | null): string | undefined {
   if (p.startsWith('data:') || p.startsWith('http')) return p;
   const m = p.match(/\/uploads\/(.+)$/);
   return m ? `${API_URL}/uploads/${m[1]}` : `${API_URL}/uploads/${p}`;
+}
+
+// Preguntas preterminadas para "Preguntar a la tienda" — el comprador elige una (o escribe la suya)
+// y confirma antes de enviar; nunca se reenvía el reel a otros usuarios, solo a la tienda dueña del video.
+const OTRA_PREGUNTA = '__otra__';
+function preguntasPreterminadas(p: Producto): string[] {
+  return [
+    `¿Cuál es el precio de "${p.nombre}"?`,
+    `¿Tienen "${p.nombre}" disponible en stock ahora mismo?`,
+    '¿Hacen envíos a mi zona?',
+    '¿Tienen otros colores, tallas o presentaciones disponibles?',
+    `Quiero reservar "${p.nombre}", ¿cómo puedo hacerlo?`,
+  ];
 }
 
 interface ReelsResp { ok: boolean; reels?: Producto[] }
@@ -58,6 +89,13 @@ export default function ReelsScreen(): React.JSX.Element {
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused]     = useState<Record<number, boolean>>({});
 
+  // Preguntar a la tienda (preguntas preterminadas + confirmación)
+  const [preguntarVisible, setPreguntarVisible] = useState(false);
+  const [productoPreguntar, setProductoPreguntar] = useState<Producto | null>(null);
+  const [preguntaElegida, setPreguntaElegida] = useState<string | null>(null);
+  const [preguntaLibre, setPreguntaLibre] = useState('');
+  const [enviandoPregunta, setEnviandoPregunta] = useState(false);
+
   // Comentarios
   const [comVisible, setComVisible]   = useState(false);
   const [comLista, setComLista]       = useState<Comentario[]>([]);
@@ -67,6 +105,15 @@ export default function ReelsScreen(): React.JSX.Element {
   const [productoActivo, setProductoActivo] = useState<Producto | null>(null);
   const [cargandoCom, setCargandoCom] = useState(false);
   const [tiendaSheetId, setTiendaSheetId] = useState<number | null>(null);
+
+  // Subir reel (vendedor) — punto de entrada directo desde el propio apartado de Reels
+  const [miTienda, setMiTienda]     = useState<Tienda | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [upNombre, setUpNombre]     = useState('');
+  const [upPrecio, setUpPrecio]     = useState('');
+  const [upDesc, setUpDesc]         = useState('');
+  const [upVideo, setUpVideo]       = useState<string | null>(null);
+  const [subiendoReel, setSubiendoReel] = useState(false);
 
   // ─── Carga inicial ───
   const cargar = useCallback(async () => {
@@ -84,6 +131,50 @@ export default function ReelsScreen(): React.JSX.Element {
   }, []);
 
   useFocusEffect(useCallback(() => { void cargar(); }, [cargar]));
+
+  useEffect(() => {
+    if (usuario?.rol !== 'vendedor') return;
+    (async () => {
+      try {
+        const r = await api<{ ok: boolean; tiendas?: Tienda[] }>(Endpoints.vendedorTiendas);
+        setMiTienda(r.ok && r.tiendas?.length ? r.tiendas[0] : null);
+      } catch { setMiTienda(null); }
+    })();
+  }, [usuario?.rol]);
+
+  const resetUpload = () => { setUpNombre(''); setUpPrecio(''); setUpDesc(''); setUpVideo(null); };
+
+  const elegirVideoReel = async () => {
+    const v = await pickVideoB64();
+    if (v) setUpVideo(v);
+  };
+
+  const publicarReel = async () => {
+    if (!miTienda) return Alert.alert('Sin tienda', 'Necesitas una tienda para publicar reels.');
+    if (!upNombre.trim()) return Alert.alert('Falta el título', 'Ponle un título a tu reel.');
+    if (!upVideo) return Alert.alert('Falta el video', 'Selecciona un video de hasta 60s.');
+    setSubiendoReel(true);
+    try {
+      const r = await api<{ ok: boolean; error?: string }>(Endpoints.vendedorCrearProducto, {
+        body: {
+          tienda_id: miTienda.id, nombre: upNombre.trim(), descripcion: upDesc,
+          precio: parseFloat(upPrecio) || 0, stock: 999, categoria: 'general',
+          es_reel: 1, video: upVideo,
+        },
+      });
+      if (r.ok) {
+        setShowUpload(false);
+        resetUpload();
+        await cargar();
+      } else {
+        Alert.alert('Error', r.error ?? 'No se pudo publicar el reel.');
+      }
+    } catch {
+      Alert.alert('Error', 'No se pudo publicar el reel.');
+    } finally {
+      setSubiendoReel(false);
+    }
+  };
 
   const onViewable = useRef(({ viewableItems }: { viewableItems: Array<{ index: number | null }> }) => {
     if (viewableItems.length > 0 && viewableItems[0]?.index != null) setActiveIndex(viewableItems[0].index);
@@ -118,14 +209,27 @@ export default function ReelsScreen(): React.JSX.Element {
     }
   };
 
-  // Reenviar el producto únicamente al chat de la tienda (para preguntar sobre él) — nunca a otros usuarios.
-  const preguntarATienda = async (p: Producto) => {
+  // Abre el selector de preguntas preterminadas — el envío real solo ocurre al confirmar,
+  // y siempre va únicamente al chat de la tienda dueña de este reel (nunca a otros usuarios).
+  const abrirPreguntar = (p: Producto) => {
     if (!p.vendedor_id) return;
+    setProductoPreguntar(p);
+    setPreguntaElegida(null);
+    setPreguntaLibre('');
+    setPreguntarVisible(true);
+  };
+
+  const confirmarPregunta = async () => {
+    const p = productoPreguntar;
+    if (!p || !p.vendedor_id) return;
+    const mensaje = (preguntaElegida === OTRA_PREGUNTA ? preguntaLibre : preguntaElegida ?? '').trim();
+    if (!mensaje) return;
+    setEnviandoPregunta(true);
     try {
-      await api(Endpoints.chatDesdeProducto, {
-        body: { producto_id: p.id, mensaje: `Hola, tengo una pregunta sobre: ${p.nombre}` },
-      });
+      await api(Endpoints.chatDesdeProducto, { body: { producto_id: p.id, mensaje } });
     } catch { /* si falla el envío del snapshot, igual abrimos el chat */ }
+    setEnviandoPregunta(false);
+    setPreguntarVisible(false);
     nav.navigate('Chat' as any, { otroId: p.vendedor_id, nombre: p.tienda_nombre ?? 'Vendedor' });
   };
 
@@ -181,6 +285,82 @@ export default function ReelsScreen(): React.JSX.Element {
     }
   };
 
+  // ─── Modal: subir reel (vendedor) — reutilizable en el estado vacío y en el feed ───
+  const uploadModal = (
+    <Modal visible={showUpload} animationType="slide" transparent onRequestClose={() => { if (!subiendoReel) setShowUpload(false); }}>
+      <KeyboardAvoidingView
+        style={[styles.modalRoot, { backgroundColor: 'rgba(0,0,0,0.65)' }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <View style={[styles.modalBox, { height: '80%', backgroundColor: colors.background }]}>
+          <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+          <View style={[styles.modalHeader, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Publicar reel</Text>
+            <TouchableOpacity onPress={() => { if (!subiendoReel) setShowUpload(false); }}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ padding: Spacing.md, flex: 1 }}>
+            <TouchableOpacity
+              onPress={elegirVideoReel}
+              style={{
+                height: 160, borderRadius: Radius.md, borderWidth: 2, borderStyle: 'dashed',
+                borderColor: upVideo ? colors.accent : colors.border, backgroundColor: colors.card,
+                justifyContent: 'center', alignItems: 'center', marginBottom: 14, overflow: 'hidden',
+              }}
+            >
+              {upVideo ? (
+                <Video source={{ uri: upVideo }} style={StyleSheet.absoluteFill} resizeMode={ResizeMode.COVER} isMuted useNativeControls={false} />
+              ) : (
+                <View style={{ alignItems: 'center', gap: 6 }}>
+                  <Ionicons name="videocam-outline" size={30} color={colors.accent} />
+                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>Subir video (hasta 60s, MP4/MOV)</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+
+            <TextInput
+              placeholder="Título del reel *"
+              placeholderTextColor={colors.muted}
+              value={upNombre}
+              onChangeText={setUpNombre}
+              style={[styles.comInput, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border, marginBottom: 10 }]}
+            />
+            <TextInput
+              placeholder="Precio ($)"
+              placeholderTextColor={colors.muted}
+              value={upPrecio}
+              onChangeText={setUpPrecio}
+              keyboardType="decimal-pad"
+              style={[styles.comInput, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border, marginBottom: 10 }]}
+            />
+            <TextInput
+              placeholder="Descripción"
+              placeholderTextColor={colors.muted}
+              value={upDesc}
+              onChangeText={setUpDesc}
+              multiline
+              style={[styles.comInput, { color: colors.text, backgroundColor: colors.card, borderColor: colors.border, minHeight: 70, textAlignVertical: 'top' }]}
+            />
+          </View>
+
+          <View style={{ padding: Spacing.md, borderTopWidth: 1.5, borderTopColor: colors.border, backgroundColor: colors.card }}>
+            <TouchableOpacity
+              onPress={publicarReel}
+              disabled={subiendoReel}
+              style={{ backgroundColor: colors.accent, borderRadius: Radius.pill, paddingVertical: 14, alignItems: 'center', opacity: subiendoReel ? 0.6 : 1 }}
+            >
+              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 14 }}>
+                {subiendoReel ? 'Publicando...' : 'Publicar reel'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
   // ─── Render ───
   if (cargando) return (
     <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
@@ -200,12 +380,13 @@ export default function ReelsScreen(): React.JSX.Element {
       </Text>
       {usuario?.rol === 'vendedor' && (
         <TouchableOpacity
-          onPress={() => nav.navigate('Main' as any)}
+          onPress={() => setShowUpload(true)}
           style={{ marginTop: 24, backgroundColor: '#2563EB', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 99 }}
         >
           <Text style={{ color: '#FFF', fontWeight: '800' }}>Subir mi primer reel</Text>
         </TouchableOpacity>
       )}
+      {uploadModal}
     </View>
   );
 
@@ -277,7 +458,7 @@ export default function ReelsScreen(): React.JSX.Element {
                   <Text style={styles.actionCount}>Guardar</Text>
                 </TouchableOpacity>
                 {item.vendedor_id ? (
-                  <TouchableOpacity style={styles.actionBtn} onPress={() => preguntarATienda(item)}>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => abrirPreguntar(item)}>
                     <Ionicons name="send" size={26} color="#FFF" />
                     <Text style={styles.actionCount}>Preguntar</Text>
                   </TouchableOpacity>
@@ -392,6 +573,102 @@ export default function ReelsScreen(): React.JSX.Element {
         </KeyboardAvoidingView>
       </Modal>
 
+      {/* ── Modal Preguntar a la tienda (preguntas preterminadas + confirmación) ── */}
+      <Modal visible={preguntarVisible} animationType="slide" transparent onRequestClose={() => setPreguntarVisible(false)}>
+        <KeyboardAvoidingView
+          style={[styles.modalRoot, { backgroundColor: 'rgba(0,0,0,0.65)' }]}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={[styles.modalBox, { height: '65%', backgroundColor: colors.background }]}>
+            <View style={[styles.modalHandle, { backgroundColor: colors.border }]} />
+            <View style={[styles.modalHeader, { borderBottomColor: colors.border, backgroundColor: colors.card }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Preguntar a la tienda</Text>
+              <TouchableOpacity onPress={() => setPreguntarVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ padding: Spacing.md, flex: 1 }}>
+              <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 12, lineHeight: 17 }}>
+                Elige una pregunta sobre este reel. Se enviará solo a{' '}
+                <Text style={{ fontWeight: '800', color: colors.text }}>{productoPreguntar?.tienda_nombre ?? 'la tienda'}</Text>, nunca a otros usuarios.
+              </Text>
+
+              {productoPreguntar && preguntasPreterminadas(productoPreguntar).map((q, i) => {
+                const activa = preguntaElegida === q;
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    onPress={() => setPreguntaElegida(q)}
+                    style={{
+                      flexDirection: 'row', alignItems: 'center', gap: 10,
+                      padding: 12, borderRadius: Radius.md, marginBottom: 8,
+                      borderWidth: 1.5, borderColor: activa ? colors.accent : colors.border,
+                      backgroundColor: activa ? colors.accentLight : colors.card,
+                    }}
+                  >
+                    <Ionicons name={activa ? 'radio-button-on' : 'radio-button-off'} size={18} color={activa ? colors.accent : colors.muted} />
+                    <Text style={{ flex: 1, color: colors.text, fontSize: 13, fontWeight: activa ? '700' : '500' }}>{q}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              <TouchableOpacity
+                onPress={() => setPreguntaElegida(OTRA_PREGUNTA)}
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 10,
+                  padding: 12, borderRadius: Radius.md, marginBottom: 8,
+                  borderWidth: 1.5, borderColor: preguntaElegida === OTRA_PREGUNTA ? colors.accent : colors.border,
+                  backgroundColor: preguntaElegida === OTRA_PREGUNTA ? colors.accentLight : colors.card,
+                }}
+              >
+                <Ionicons name={preguntaElegida === OTRA_PREGUNTA ? 'radio-button-on' : 'radio-button-off'} size={18} color={preguntaElegida === OTRA_PREGUNTA ? colors.accent : colors.muted} />
+                <Text style={{ flex: 1, color: colors.text, fontSize: 13, fontWeight: preguntaElegida === OTRA_PREGUNTA ? '700' : '500' }}>Escribir otra pregunta</Text>
+              </TouchableOpacity>
+
+              {preguntaElegida === OTRA_PREGUNTA && (
+                <TextInput
+                  placeholder="Escribe tu pregunta sobre este reel..."
+                  placeholderTextColor={colors.muted}
+                  value={preguntaLibre}
+                  onChangeText={setPreguntaLibre}
+                  multiline
+                  style={[styles.comInput, { color: colors.text, backgroundColor: colors.background, borderColor: colors.border, minHeight: 60, textAlignVertical: 'top' }]}
+                />
+              )}
+            </View>
+
+            <View style={{ padding: Spacing.md, borderTopWidth: 1.5, borderTopColor: colors.border, backgroundColor: colors.card }}>
+              <TouchableOpacity
+                onPress={confirmarPregunta}
+                disabled={enviandoPregunta || !preguntaElegida || (preguntaElegida === OTRA_PREGUNTA && !preguntaLibre.trim())}
+                style={{
+                  backgroundColor: (!preguntaElegida || (preguntaElegida === OTRA_PREGUNTA && !preguntaLibre.trim())) ? colors.border : colors.accent,
+                  borderRadius: Radius.pill, paddingVertical: 14, alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 14 }}>
+                  {enviandoPregunta ? 'Enviando...' : 'Confirmar y enviar'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── FAB "Subir reel" (solo vendedores) ── */}
+      {usuario?.rol === 'vendedor' && (
+        <TouchableOpacity
+          onPress={() => setShowUpload(true)}
+          style={[styles.fabSubir, { top: insets.top + 16, backgroundColor: colors.accent }]}
+          activeOpacity={0.85}
+        >
+          <Ionicons name="add" size={20} color="#FFF" />
+          <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 12 }}>Subir reel</Text>
+        </TouchableOpacity>
+      )}
+      {uploadModal}
+
       <TiendaBottomSheet tiendaId={tiendaSheetId} onClose={() => setTiendaSheetId(null)} />
     </View>
   );
@@ -439,6 +716,12 @@ function CommentItem({ c, colors, depth = 0, onResponder, onLike }: {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#000' },
   slide: { backgroundColor: '#000' },
+  fabSubir: {
+    position: 'absolute', left: Spacing.md, zIndex: 20,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    paddingHorizontal: 14, paddingVertical: 9, borderRadius: Radius.pill,
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 6,
+  },
   gradient: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.38)' },
   actions: {
     position: 'absolute', right: Spacing.md,

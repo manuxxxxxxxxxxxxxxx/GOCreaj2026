@@ -14,7 +14,8 @@
       "bundleIdentifier": "com.svgo.app",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Usamos tu ubicacion para mostrar tiendas cercanas",
-        "NSCameraUsageDescription": "Usamos la camara para fotos del DUI",
+        "NSCameraUsageDescription": "Usamos la camara para fotos del DUI y videollamadas",
+        "NSMicrophoneUsageDescription": "Usamos el microfono para llamadas de voz y video, y notas de voz en el chat",
         "NSPhotoLibraryUsageDescription": "Necesitamos acceso a tus fotos",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
@@ -27,6 +28,7 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
+        "RECORD_AUDIO",
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE"
       ],
@@ -50,7 +52,7 @@
       ]
     ],
     "extra": {
-      "apiUrl": "http://192.168.0.11/GOCreaj2026/backend"
+      "apiUrl": "http://172.20.10.2/GOCreaj2026/apps/mobile/backend"
     }
   }
 }

@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // EXPO_PUBLIC_API_URL se lee del archivo .env automáticamente (Expo SDK 49+)
 export const API_URL: string =
   process.env.EXPO_PUBLIC_API_URL ??
-  'http://192.168.0.11/GOCreaj2026/apps/mobile/backend';
+  'http://192.168.1.63/GOCreaj2026/apps/mobile/backend';
 
 let cachedToken: string | null = null;
 let isOnline = true;

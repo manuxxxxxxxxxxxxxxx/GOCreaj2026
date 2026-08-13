@@ -97,8 +97,8 @@ export interface Pedido {
   direccion_entrega: string;
   lat_entrega?: number | null;
   lng_entrega?: number | null;
-  lat_repartidor?: number | null;
-  lng_repartidor?: number | null;
+  repartidor_lat?: number | null;
+  repartidor_lng?: number | null;
   tiempo_estimado?: number | null;
   trafico?: string | null;
   vendedor_nombre?: string;

@@ -1,0 +1,30 @@
+env: load .env
+env: export EXPO_PUBLIC_API_URL EXPO_PUBLIC_SOCKET_URL EXPO_PUBLIC_WEB_URL REACT_NATIVE_PACKAGER_HOSTNAME
+Starting project at C:\xampp\htdocs\GOCreaj2026\apps\mobile\frontend
+Starting Metro Bundler
+The following packages should be updated for best compatibility with the installed expo version:
+  expo@54.0.34 - expected version: ~54.0.36
+Your project may not work correctly until you install the expected versions of the packages.
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Android node_modules\expo\AppEntry.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+| (node:16496) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:14264) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:11860) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:1788) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:8740) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:16752) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:15672) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+| (node:12624) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+| (Use `node --trace-warnings ...` to show where the warning was created)
+Android node_modules\expo\AppEntry.js ▓▓▓▓▓░░░░░░░░░░░ 36.3% (156/348)
+Android node_modules\expo\AppEntry.js ▓▓▓▓▓▓▓▓▓▓▓░░░░░ 71.5% (789/933)
+Android node_modules\expo\AppEntry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 90.4% (1424/1511)
+Android Bundled 12966ms node_modules\expo\AppEntry.js (1825 modules)

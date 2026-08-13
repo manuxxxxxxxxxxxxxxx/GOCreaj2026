@@ -15,7 +15,7 @@ import { Pedido, RootStackParamList } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { resolveMediaUrl } from '@/utils/media';
 
-const SOCKET_URL: string = process.env.EXPO_PUBLIC_SOCKET_URL ?? 'http://192.168.0.12:3001';
+const SOCKET_URL: string = process.env.EXPO_PUBLIC_SOCKET_URL ?? 'http://192.168.1.63:3001';
 
 type Nav   = NativeStackNavigationProp<RootStackParamList, 'Tracking'>;
 type Route = RouteProp<RootStackParamList, 'Tracking'>;
@@ -94,8 +94,8 @@ export default function MapTrackingScreen() {
     socket.on('pedido-ubicacion', (payload: { lat: number; lng: number; tiempo_estimado?: number; trafico?: string }) => {
       setPedido(prev => prev ? {
         ...prev,
-        lat_repartidor: payload.lat,
-        lng_repartidor: payload.lng,
+        repartidor_lat: payload.lat,
+        repartidor_lng: payload.lng,
         tiempo_estimado: payload.tiempo_estimado ?? prev.tiempo_estimado,
         trafico: payload.trafico ?? prev.trafico,
       } : prev);
@@ -154,8 +154,8 @@ export default function MapTrackingScreen() {
   const tiendaLng = pedido.tienda_lng ?? -89.2182;
   const clienteLat = pedido.lat_entrega ?? tiendaLat;
   const clienteLng = pedido.lng_entrega ?? tiendaLng;
-  const repLat = pedido.lat_repartidor;
-  const repLng = pedido.lng_repartidor;
+  const repLat = pedido.repartidor_lat;
+  const repLng = pedido.repartidor_lng;
 
   const ruta = repLat && repLng
     ? [{ latitude: repLat, longitude: repLng }, { latitude: clienteLat, longitude: clienteLng }]

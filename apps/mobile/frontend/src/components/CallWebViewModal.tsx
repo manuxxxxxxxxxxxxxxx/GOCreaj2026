@@ -2,7 +2,7 @@ import React from 'react';
 import { Modal, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
-const WEB_URL: string = process.env.EXPO_PUBLIC_WEB_URL ?? 'http://192.168.0.12:5173';
+const WEB_URL: string = process.env.EXPO_PUBLIC_WEB_URL ?? 'http://192.168.1.63:5173';
 
 export interface CallInfo {
   llamadaId: number;

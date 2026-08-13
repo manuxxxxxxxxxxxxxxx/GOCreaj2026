@@ -9,15 +9,17 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { api, Endpoints, traducirError } from '@/services/api';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
 import { useAuth } from '@/context/AuthContext';
 import { Spacing } from '@/theme/colors';
 import { resolveMediaUrl } from '@/utils/media';
+import { RootStackParamList } from '@/types';
 import ScreenScroll from '@/components/ScreenScroll';
 
-const SOCKET_URL: string = process.env.EXPO_PUBLIC_SOCKET_URL ?? 'http://192.168.0.12:3001';
+const SOCKET_URL: string = process.env.EXPO_PUBLIC_SOCKET_URL ?? 'http://192.168.1.63:3001';
 
 interface PedidoMatch {
   id: number;
@@ -64,6 +66,7 @@ export default function DriverScreen() {
   const { t, lang } = useLang();
   const { usuario, cerrarSesion, refrescar } = useAuth();
   const insets = useSafeAreaInsets();
+  const nav = useNavigation<NavigationProp<RootStackParamList>>();
 
   // Refresca el rol al abrir (por si el admin lo cambió)
   useEffect(() => { void refrescar(); }, []);
@@ -175,6 +178,38 @@ export default function DriverScreen() {
     const iv = setInterval(enviarUbicacion, 45000);
     return () => { cancelado = true; clearInterval(iv); };
   }, [enLinea]);
+
+  // Mientras hay una entrega "en_camino", reporta la ubicación EXACTA del repartidor
+  // para ESE pedido — es lo que la tienda y el comprador ven en vivo en su mapa de rastreo
+  // (antes esto solo se enviaba desde MapTrackingScreen, pantalla a la que el repartidor
+  // nunca navega durante una entrega real, así que la ubicación nunca se actualizaba).
+  const idsEnCamino = entregas.filter(p => p.estado === 'en_camino').map(p => p.id).join(',');
+  useEffect(() => {
+    if (!idsEnCamino) return;
+    const ids = idsEnCamino.split(',').map(Number);
+    let cancelado = false;
+    const enviarUbicacionPedidos = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted' || cancelado) return;
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        for (const pid of ids) {
+          try {
+            const r = await api<{ ok: boolean; tiempo_estimado?: number; trafico?: string }>(
+              Endpoints.trackingActualizar, { body: { pedido_id: pid, lat: loc.coords.latitude, lng: loc.coords.longitude } },
+            );
+            socketRef.current?.emit('pedido-ubicacion', {
+              pedidoId: pid, lat: loc.coords.latitude, lng: loc.coords.longitude,
+              tiempo_estimado: r.tiempo_estimado, trafico: r.trafico,
+            });
+          } catch { /* seguimos con el resto de pedidos activos */ }
+        }
+      } catch { /* silencioso: no crítico si falla una actualización */ }
+    };
+    void enviarUbicacionPedidos();
+    const iv = setInterval(enviarUbicacionPedidos, 10000);
+    return () => { cancelado = true; clearInterval(iv); };
+  }, [idsEnCamino]);
 
   const toggleEnLinea = async () => {
     const nuevo = !enLinea;
@@ -393,14 +428,24 @@ export default function DriverScreen() {
                   </Text>
                 )}
                 {p.estado === 'en_camino' && (
-                  <TouchableOpacity
-                    onPress={() => completar(p)}
-                    activeOpacity={0.88}
-                    style={[styles.acceptBtn, { backgroundColor: colors.success, shadowColor: colors.success }]}
-                  >
-                    <Ionicons name="checkmark-done-circle" size={18} color="#FFF" />
-                    <Text style={styles.acceptTxt}>Marcar entregado</Text>
-                  </TouchableOpacity>
+                  <>
+                    <TouchableOpacity
+                      onPress={() => nav.navigate('Tracking' as any, { pedidoId: p.id })}
+                      activeOpacity={0.88}
+                      style={[styles.acceptBtn, { backgroundColor: colors.accentLight, shadowOpacity: 0, marginTop: 8 }]}
+                    >
+                      <Ionicons name="location" size={18} color={colors.accent} />
+                      <Text style={[styles.acceptTxt, { color: colors.accent }]}>Ver mi ubicación en el mapa</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => completar(p)}
+                      activeOpacity={0.88}
+                      style={[styles.acceptBtn, { backgroundColor: colors.success, shadowColor: colors.success }]}
+                    >
+                      <Ionicons name="checkmark-done-circle" size={18} color="#FFF" />
+                      <Text style={styles.acceptTxt}>Marcar entregado</Text>
+                    </TouchableOpacity>
+                  </>
                 )}
               </View>
             ))}

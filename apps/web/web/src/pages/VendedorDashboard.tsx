@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useContext, createContext } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useGlobal } from '../context/GlobalContext';
 import Header from '../components/Header';
 import TiendaWizard from '../components/TiendaWizard';
@@ -107,8 +108,148 @@ const IC = {
   truck:   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>,
 };
 
+// ── Theme (compartido con Field/UploadZone/Modal/Btn vía contexto) ─────────────
+// Estos 4 componentes viven a nivel de módulo (no dentro de VendedorDashboard) para que
+// React conserve su identidad entre renders — si se declararan dentro del componente,
+// se recrearían en cada tecla y React desmontaría/remontaría los <input> reales,
+// causando que el formulario solo dejara escribir un caracter a la vez.
+interface DashTheme {
+  text: string; muted: string; border: string; accent: string;
+  card: string; elevated: string; inputBg: string; isDark: boolean;
+}
+const ThemeContext = createContext<DashTheme>({
+  text: '#0F172A', muted: '#94A3B8', border: '#E2E8F0', accent: '#2563EB',
+  card: '#FFFFFF', elevated: '#F1F5F9', inputBg: '#F8FAFC', isDark: false,
+});
+
+// ── Field wrapper ────────────────────────────────────────────────────────────
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const { muted } = useContext(ThemeContext);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <label style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: muted }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+// ── Upload zone ──────────────────────────────────────────────────────────────
+function UploadZone({ src, onFile, accept, placeholder, height = 120 }: {
+  src?: string | null; onFile: (f: File) => void;
+  accept: string; placeholder: React.ReactNode; height?: number;
+}) {
+  const { accent, border, inputBg, muted } = useContext(ThemeContext);
+  return (
+    <label style={{
+      display: 'block', position: 'relative',
+      height, borderRadius: 12, overflow: 'hidden',
+      border: `2px dashed ${src ? accent : border}`,
+      background: src ? 'transparent' : inputBg,
+      cursor: 'pointer', transition: 'border-color 0.2s',
+    }}>
+      {src
+        ? <>
+            {accept.includes('video')
+              ? <video src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
+              : <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            }
+            <div style={{
+              position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: 0, transition: 'opacity 0.2s',
+            }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
+            >
+              <span style={{ color: '#fff', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+                {IC.upload} Cambiar
+              </span>
+            </div>
+          </>
+        : <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <span style={{ color: accent }}>{placeholder}</span>
+            <span style={{ fontSize: 12, color: muted, fontWeight: 600 }}>Clic para seleccionar</span>
+          </div>
+      }
+      <input type="file" accept={accept} style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
+    </label>
+  );
+}
+
+// ── Modal shell ───────────────────────────────────────────────────────────────
+function Modal({ show, onClose, title, children, footer }: {
+  show: boolean; onClose: () => void; title: React.ReactNode;
+  children: React.ReactNode; footer: React.ReactNode;
+}) {
+  const { card, border, text, elevated, muted } = useContext(ThemeContext);
+  if (!show) return null;
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 2000,
+      background: 'rgba(2,8,23,0.72)', backdropFilter: 'blur(6px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 20,
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{
+        background: card, borderRadius: 20, width: '100%', maxWidth: 500,
+        border: `1px solid ${border}`, overflow: 'hidden',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
+        maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+      }}>
+        {/* Head */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px', borderBottom: `1px solid ${border}`,
+        }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: text }}>{title}</div>
+          <button onClick={onClose} style={{
+            background: elevated, border: 'none', borderRadius: 8,
+            width: 32, height: 32, cursor: 'pointer', color: muted,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>{IC.x}</button>
+        </div>
+        {/* Body */}
+        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', flex: 1 }}>
+          {children}
+        </div>
+        {/* Footer */}
+        <div style={{ padding: '16px 24px', borderTop: `1px solid ${border}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          {footer}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Btn ───────────────────────────────────────────────────────────────────────
+function Btn({ onClick, children, variant = 'primary', disabled = false, small = false }: {
+  onClick: () => void; children: React.ReactNode;
+  variant?: 'primary' | 'ghost' | 'danger'; disabled?: boolean; small?: boolean;
+}) {
+  const { accent, elevated, text, border } = useContext(ThemeContext);
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: small ? '7px 14px' : '10px 22px',
+        borderRadius: 10, cursor: disabled ? 'not-allowed' : 'pointer',
+        fontFamily: 'inherit', fontSize: small ? 13 : 14, fontWeight: 700,
+        display: 'flex', alignItems: 'center', gap: 6,
+        opacity: disabled ? 0.6 : 1, transition: 'all 0.15s',
+        background: variant === 'primary' ? accent : variant === 'danger' ? '#EF4444' : elevated,
+        color: variant === 'ghost' ? text : '#fff',
+        border: variant === 'ghost' ? `1.5px solid ${border}` : 'none',
+      } as React.CSSProperties}
+    >
+      {children}
+    </button>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 export default function VendedorDashboard() {
+  const navigate = useNavigate();
   const { theme } = useGlobal();
   const isDark = theme === 'dark';
 
@@ -456,123 +597,11 @@ export default function VendedorDashboard() {
     fontFamily: 'inherit', transition: 'border-color 0.15s',
   };
 
-  // ── Field wrapper ────────────────────────────────────────────────────────────
-  const Field = ({ label, children }: { label: string; children: React.ReactNode }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <label style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px', color: muted }}>{label}</label>
-      {children}
-    </div>
-  );
-
-  // ── Upload zone ──────────────────────────────────────────────────────────────
-  const UploadZone = ({ src, onFile, accept, placeholder, height = 120 }: {
-    src?: string | null; onFile: (f: File) => void;
-    accept: string; placeholder: React.ReactNode; height?: number;
-  }) => (
-    <label style={{
-      display: 'block', position: 'relative',
-      height, borderRadius: 12, overflow: 'hidden',
-      border: `2px dashed ${src ? accent : border}`,
-      background: src ? 'transparent' : inputBg,
-      cursor: 'pointer', transition: 'border-color 0.2s',
-    }}>
-      {src
-        ? <>
-            {accept.includes('video')
-              ? <video src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted />
-              : <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            }
-            <div style={{
-              position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              opacity: 0, transition: 'opacity 0.2s',
-            }}
-              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
-              onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
-            >
-              <span style={{ color: '#fff', fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-                {IC.upload} Cambiar
-              </span>
-            </div>
-          </>
-        : <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-            <span style={{ color: accent }}>{placeholder}</span>
-            <span style={{ fontSize: 12, color: muted, fontWeight: 600 }}>Clic para seleccionar</span>
-          </div>
-      }
-      <input type="file" accept={accept} style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
-    </label>
-  );
-
-  // ── Modal shell ───────────────────────────────────────────────────────────────
-  const Modal = ({ show, onClose, title, children, footer }: {
-    show: boolean; onClose: () => void; title: React.ReactNode;
-    children: React.ReactNode; footer: React.ReactNode;
-  }) => {
-    if (!show) return null;
-    return (
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 2000,
-        background: 'rgba(2,8,23,0.72)', backdropFilter: 'blur(6px)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 20,
-      }} onClick={e => e.target === e.currentTarget && onClose()}>
-        <div style={{
-          background: card, borderRadius: 20, width: '100%', maxWidth: 500,
-          border: `1px solid ${border}`, overflow: 'hidden',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
-          maxHeight: '90vh', display: 'flex', flexDirection: 'column',
-        }}>
-          {/* Head */}
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '20px 24px', borderBottom: `1px solid ${border}`,
-          }}>
-            <div style={{ fontSize: 17, fontWeight: 800, color: text }}>{title}</div>
-            <button onClick={onClose} style={{
-              background: elevated, border: 'none', borderRadius: 8,
-              width: 32, height: 32, cursor: 'pointer', color: muted,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>{IC.x}</button>
-          </div>
-          {/* Body */}
-          <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto', flex: 1 }}>
-            {children}
-          </div>
-          {/* Footer */}
-          <div style={{ padding: '16px 24px', borderTop: `1px solid ${border}`, display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-            {footer}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  // ── Btn ───────────────────────────────────────────────────────────────────────
-  const Btn = ({ onClick, children, variant = 'primary', disabled = false, small = false }: {
-    onClick: () => void; children: React.ReactNode;
-    variant?: 'primary' | 'ghost' | 'danger'; disabled?: boolean; small?: boolean;
-  }) => (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        padding: small ? '7px 14px' : '10px 22px',
-        borderRadius: 10, border: 'none', cursor: disabled ? 'not-allowed' : 'pointer',
-        fontFamily: 'inherit', fontSize: small ? 13 : 14, fontWeight: 700,
-        display: 'flex', alignItems: 'center', gap: 6,
-        opacity: disabled ? 0.6 : 1, transition: 'all 0.15s',
-        background: variant === 'primary' ? accent : variant === 'danger' ? '#EF4444' : elevated,
-        color: variant === 'ghost' ? text : '#fff',
-        border: variant === 'ghost' ? `1.5px solid ${border}` : 'none',
-      } as React.CSSProperties}
-    >
-      {children}
-    </button>
-  );
+  const themeValue: DashTheme = { text, muted, border, accent, card, elevated, inputBg, isDark };
 
   // ── Render ─────────────────────────────────────────────────────────────────────
   return (
+    <ThemeContext.Provider value={themeValue}>
     <div style={{ minHeight: '100vh', background: bg, color: text }}>
       <Header />
 
@@ -1064,7 +1093,7 @@ export default function VendedorDashboard() {
           <Field label="Categoría">
             <select style={inpStyle} value={etCat} onChange={e => setEtCat(e.target.value)}>
               <option value="">— Sin categoría —</option>
-              {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+              {CATEGORIAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </Field>
         </div>
@@ -1158,7 +1187,17 @@ export default function VendedorDashboard() {
 
             {pedidoDetalle.repartidor_id ? (
               <div style={{ borderTop: `1px solid ${border}`, paddingTop: 10 }}>
-                <div style={{ fontSize: 12, color: muted, fontWeight: 700, marginBottom: 4 }}>Repartidor asignado</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <div style={{ fontSize: 12, color: muted, fontWeight: 700 }}>Repartidor asignado</div>
+                  {pedidoDetalle.estado === 'en_camino' && (
+                    <button
+                      onClick={() => navigate(`/entregas/${pedidoDetalle.id}`)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: accent, cursor: 'pointer', fontWeight: 700, fontSize: 12, padding: 0 }}
+                    >
+                      📍 Ver ubicación en vivo
+                    </button>
+                  )}
+                </div>
                 <div style={{ color: text, fontWeight: 700 }}>
                   {pedidoDetalle.repartidor_nombre} {pedidoDetalle.repartidor_en_linea ? '🟢 en línea' : '⚪ desconectado'}
                 </div>
@@ -1278,5 +1317,6 @@ export default function VendedorDashboard() {
         </div>
       )}
     </div>
+    </ThemeContext.Provider>
   );
 }

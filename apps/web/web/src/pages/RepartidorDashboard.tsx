@@ -237,6 +237,32 @@ export default function RepartidorDashboard() {
     return () => clearInterval(iv);
   }, [isAvailable]);
 
+  // Mientras hay una entrega "en_camino", reporta la ubicación EXACTA del repartidor para
+  // ESE pedido — es lo que la tienda y el comprador ven en vivo en su mapa de rastreo
+  // (antes esto nunca se enviaba desde el dashboard web del repartidor).
+  const idsEnCamino = activeDeliveries.filter(o => o.status === 'active').map(o => o.id).join(',');
+  useEffect(() => {
+    if (!idsEnCamino || !navigator.geolocation) return;
+    const ids = idsEnCamino.split(',');
+    const enviarUbicacionPedidos = () => {
+      navigator.geolocation.getCurrentPosition(pos => {
+        const { latitude, longitude } = pos.coords;
+        ids.forEach(async pid => {
+          try {
+            const res = await api.post('/pedidos_tracking.php?action=actualizar_ubicacion', { pedido_id: Number(pid), lat: latitude, lng: longitude });
+            socketRef.current?.emit('pedido-ubicacion', {
+              pedidoId: Number(pid), lat: latitude, lng: longitude,
+              tiempo_estimado: res.data?.tracking?.tiempo_estimado, trafico: res.data?.tracking?.trafico,
+            });
+          } catch {}
+        });
+      }, () => {});
+    };
+    enviarUbicacionPedidos();
+    const iv = setInterval(enviarUbicacionPedidos, 10000);
+    return () => clearInterval(iv);
+  }, [idsEnCamino]);
+
   const fetchData = async () => {
     try {
       const resDisp = await api.get('/repartidor_dashboard.php?action=disponibles');
@@ -471,6 +497,11 @@ export default function RepartidorDashboard() {
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="13" height="13"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                         Chat
                       </button>
+                      {o.status === 'active' && (
+                        <button onClick={() => navigate(`/entregas/${o.id}`)} style={{ padding: '6px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px', background: 'transparent', border: '1.5px solid var(--border, #E2E8F0)', borderRadius: 10, color: 'var(--text)', cursor: 'pointer', fontWeight: 700 }}>
+                          📍 Ver ubicación
+                        </button>
+                      )}
                       {o.status === 'picking_up' ? (
                         o.confirmadoRepartidor ? (
                           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontStyle: 'italic', alignSelf: 'center' }}>Esperando a la tienda…</span>

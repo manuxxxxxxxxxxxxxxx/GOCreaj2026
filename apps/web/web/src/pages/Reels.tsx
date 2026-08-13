@@ -64,10 +64,37 @@ function buildTree(flat: Comentario[]): Comentario[] {
   return roots;
 }
 
+// Sube el archivo de video vía multipart (mismo endpoint que usa el Dashboard del vendedor).
+async function uploadVideo(file: File, token: string | null): Promise<string> {
+  const fd = new FormData();
+  fd.append('video', file);
+  const res = await fetch(`${API_URL}/upload.php?type=video`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: fd,
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error ?? 'Error al subir video');
+  return json.url as string;
+}
+
 function fmtCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
+}
+
+// Preguntas preterminadas para "Preguntar a la tienda" — el comprador elige una (o escribe la suya)
+// y confirma antes de enviar; nunca se reenvía el reel a otros usuarios, solo a la tienda dueña del video.
+const OTRA_PREGUNTA = '__otra__';
+function preguntasPreterminadas(r: Reel): string[] {
+  return [
+    `¿Cuál es el precio de "${r.nombre}"?`,
+    `¿Tienen "${r.nombre}" disponible en stock ahora mismo?`,
+    '¿Hacen envíos a mi zona?',
+    '¿Tienen otros colores, tallas o presentaciones disponibles?',
+    `Quiero reservar "${r.nombre}", ¿cómo puedo hacerlo?`,
+  ];
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────
@@ -90,11 +117,28 @@ export default function Reels() {
   const [activeReel, setActiveReel] = useState<Reel | null>(null);
   const [comLoading, setComLoading] = useState(false);
 
+  // Preguntar a la tienda (preguntas preterminadas + confirmación)
+  const [askOpen, setAskOpen] = useState(false);
+  const [askReel, setAskReel] = useState<Reel | null>(null);
+  const [askChoice, setAskChoice] = useState<string | null>(null);
+  const [askFree, setAskFree] = useState('');
+  const [askSending, setAskSending] = useState(false);
+
+  // Subir reel (vendedor) — punto de entrada directo desde el propio apartado de Reels
+  const esVendedor = ((user as any)?.role || (user as any)?.rol) === 'vendedor';
+  const [miTienda, setMiTienda]         = useState<{ id: number; nombre: string } | null>(null);
+  const [showUpload, setShowUpload]     = useState(false);
+  const [upTitulo, setUpTitulo]         = useState('');
+  const [upPrecio, setUpPrecio]         = useState('');
+  const [upDesc, setUpDesc]             = useState('');
+  const [upVideoFile, setUpVideoFile]   = useState<File | null>(null);
+  const [upVideoPreview, setUpVideoPreview] = useState<string | null>(null);
+  const [subiendoReel, setSubiendoReel] = useState(false);
+
   const [toast, setToast] = useState('');
 
-  // ─── Carga inicial ───
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
+  const cargarReels = useCallback(() => {
+    setLoading(true);
     api.get('/productos.php?action=reels')
       .then(res => {
         if (res.data.ok && Array.isArray(res.data.reels)) {
@@ -119,8 +163,47 @@ export default function Reels() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-    return () => { document.body.style.overflow = ''; };
   }, []);
+
+  // ─── Carga inicial ───
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    cargarReels();
+    return () => { document.body.style.overflow = ''; };
+  }, [cargarReels]);
+
+  useEffect(() => {
+    if (!esVendedor) return;
+    api.get('/vendedor_dashboard.php?action=mis_tiendas')
+      .then(res => setMiTienda(res.data?.tiendas?.[0] ?? null))
+      .catch(() => setMiTienda(null));
+  }, [esVendedor]);
+
+  const publicarReel = async () => {
+    if (!miTienda) return showToast('Necesitas una tienda para publicar reels');
+    if (!upTitulo.trim()) return showToast('Ponle un título a tu reel');
+    if (!upVideoFile) return showToast('Selecciona un video de hasta 60s');
+    setSubiendoReel(true);
+    try {
+      const token = localStorage.getItem('lm_token_v1');
+      const videoUrl = await uploadVideo(upVideoFile, token);
+      const res = await api.post('/vendedor_dashboard.php?action=crear_producto', {
+        tienda_id: miTienda.id, nombre: upTitulo.trim(), descripcion: upDesc,
+        video: videoUrl, categoria: 'general', es_reel: true,
+        precio: parseFloat(upPrecio) || 0,
+      });
+      if (res.data.ok) {
+        setShowUpload(false);
+        setUpTitulo(''); setUpPrecio(''); setUpDesc(''); setUpVideoFile(null); setUpVideoPreview(null);
+        cargarReels();
+      } else {
+        showToast(res.data.error ?? 'No se pudo publicar el reel');
+      }
+    } catch (e: any) {
+      showToast(e.message ?? 'No se pudo publicar el reel');
+    }
+    setSubiendoReel(false);
+  };
 
   // ─── Scroll snap → cambia el activo ───
   useEffect(() => {
@@ -192,16 +275,27 @@ export default function Reels() {
     } catch {}
   };
 
-  // Reenviar el producto únicamente al chat de la tienda (para preguntar sobre él) — nunca a otros usuarios.
-  const preguntarATienda = async (r: Reel) => {
+  // Abre el selector de preguntas preterminadas — el envío real solo ocurre al confirmar,
+  // y siempre va únicamente al chat de la tienda dueña de este reel (nunca a otros usuarios).
+  const abrirPreguntar = (r: Reel) => {
     if (!user) { navigate('/login'); return; }
+    setAskReel(r);
+    setAskChoice(null);
+    setAskFree('');
+    setAskOpen(true);
+  };
+
+  const confirmarPregunta = async () => {
+    if (!askReel) return;
+    const mensaje = (askChoice === OTRA_PREGUNTA ? askFree : askChoice ?? '').trim();
+    if (!mensaje) return;
+    setAskSending(true);
     try {
-      await api.post('/chat_multi.php?action=desde_producto', {
-        producto_id: r.id,
-        mensaje: `Hola, tengo una pregunta sobre: ${r.nombre}`,
-      });
+      await api.post('/chat_multi.php?action=desde_producto', { producto_id: askReel.id, mensaje });
     } catch { /* si falla el snapshot, igual abrimos el chat */ }
-    navigate('/chat');
+    setAskSending(false);
+    setAskOpen(false);
+    navigate('/chat', { state: { otroId: askReel.vendedor_id } });
   };
 
   // ─── Comentarios ───
@@ -246,6 +340,88 @@ export default function Reels() {
     } catch {}
   };
 
+  // ── Botón + modal "Subir reel" (vendedor) — reutilizable en el estado vacío y en el feed ──
+  const fabSubirReel = esVendedor && (
+    <button
+      onClick={() => setShowUpload(true)}
+      style={{
+        position: 'fixed', top: 96, left: 24, zIndex: 1500,
+        display: 'flex', alignItems: 'center', gap: 6,
+        background: '#2563EB', color: '#FFF', border: 'none', borderRadius: 99,
+        padding: '10px 18px', fontWeight: 800, fontSize: 13, cursor: 'pointer',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+      }}
+    >
+      + Subir reel
+    </button>
+  );
+
+  const uploadModal = showUpload && (
+    <div onClick={() => !subiendoReel && setShowUpload(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--bg, #fff)', width: '100%', maxWidth: 480, maxHeight: '85vh',
+        borderRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1.5px solid var(--border, #e2e8f0)' }}>
+          <strong>Publicar reel</strong>
+          <button onClick={() => setShowUpload(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer' }}>×</button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <label style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
+            height: 140, borderRadius: 14, border: `2px dashed ${upVideoFile ? '#2563EB' : 'var(--border, #e2e8f0)'}`,
+            cursor: 'pointer', overflow: 'hidden', position: 'relative', background: 'var(--bg-secondary, #F9FAFB)',
+          }}>
+            {upVideoPreview ? (
+              <video src={upVideoPreview} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              <>
+                <span style={{ fontSize: 26 }}>🎬</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted, #6b7280)' }}>Subir video (hasta 60s, MP4/MOV/WebM)</span>
+              </>
+            )}
+            <input
+              type="file" accept="video/mp4,video/quicktime,video/webm,video/x-msvideo,video/*"
+              style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) { setUpVideoFile(f); setUpVideoPreview(URL.createObjectURL(f)); } }}
+            />
+          </label>
+
+          <input
+            type="text" value={upTitulo} onChange={e => setUpTitulo(e.target.value)}
+            placeholder="Título del reel *"
+            style={{ padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border, #e2e8f0)', outline: 'none', fontFamily: 'inherit', fontSize: 14 }}
+          />
+          <input
+            type="number" step="0.01" min="0" value={upPrecio} onChange={e => setUpPrecio(e.target.value)}
+            placeholder="Precio ($)"
+            style={{ padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border, #e2e8f0)', outline: 'none', fontFamily: 'inherit', fontSize: 14 }}
+          />
+          <textarea
+            value={upDesc} onChange={e => setUpDesc(e.target.value)}
+            placeholder="Descripción"
+            style={{ minHeight: 70, padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border, #e2e8f0)', outline: 'none', fontFamily: 'inherit', fontSize: 14, resize: 'vertical', boxSizing: 'border-box' }}
+          />
+        </div>
+
+        <div style={{ padding: 16, borderTop: '1.5px solid var(--border, #e2e8f0)' }}>
+          <button
+            onClick={publicarReel}
+            disabled={subiendoReel}
+            style={{
+              width: '100%', padding: '13px 0', borderRadius: 99, border: 'none',
+              background: '#2563EB', color: '#FFF', fontWeight: 800, fontSize: 14,
+              cursor: subiendoReel ? 'not-allowed' : 'pointer', opacity: subiendoReel ? 0.6 : 1,
+            }}
+          >
+            {subiendoReel ? 'Publicando...' : 'Publicar reel'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   // ─── Render ───
   if (loading) return (
     <div style={{ background: '#000', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#FFF' }}>
@@ -267,6 +443,8 @@ export default function Reels() {
           Cuando los vendedores publiquen reels aparecerán aquí.
         </p>
       </div>
+      {fabSubirReel}
+      {uploadModal}
     </>
   );
 
@@ -411,7 +589,7 @@ export default function Reels() {
                 <ActionBtn icon="❤️" label={fmtCount(r.likes_count)} active={!!r.isLiked} onClick={() => toggleLike(r)} />
                 <ActionBtn icon="💬" label={fmtCount(r.comentarios_count)} onClick={() => openComments(r)} />
                 <ActionBtn icon="🔖" label={r.isSaved ? 'Guardado' : 'Guardar'} active={!!r.isSaved} onClick={() => toggleSave(r)} />
-                {r.vendedor_id && <ActionBtn icon="✉️" label="Preguntar" onClick={() => preguntarATienda(r)} />}
+                {r.vendedor_id && <ActionBtn icon="✉️" label="Preguntar" onClick={() => abrirPreguntar(r)} />}
               </div>
 
               {/* Contador arriba derecha */}
@@ -473,6 +651,87 @@ export default function Reels() {
         </div>
       )}
 
+      {/* ── Modal Preguntar a la tienda (preguntas preterminadas + confirmación) ── */}
+      {askOpen && askReel && (
+        <div onClick={() => !askSending && setAskOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg, #fff)', width: '100%', maxWidth: 560, maxHeight: '80vh',
+            borderTopLeftRadius: 24, borderTopRightRadius: 24, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1.5px solid var(--border, #e2e8f0)' }}>
+              <strong>Preguntar a la tienda</strong>
+              <button onClick={() => setAskOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer' }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: 18 }}>
+              <p style={{ color: 'var(--text-muted, #6b7280)', fontSize: 13, marginTop: 0, marginBottom: 14, lineHeight: 1.5 }}>
+                Elige una pregunta sobre este reel. Se enviará solo a <strong>{askReel.tienda_nombre}</strong>, nunca a otros usuarios.
+              </p>
+
+              {preguntasPreterminadas(askReel).map((q, i) => {
+                const active = askChoice === q;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => setAskChoice(q)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
+                      padding: '12px 14px', borderRadius: 12, marginBottom: 8, cursor: 'pointer',
+                      border: `1.5px solid ${active ? '#2563EB' : 'var(--border, #e2e8f0)'}`,
+                      background: active ? 'rgba(37,99,235,0.08)' : 'var(--bg-secondary, #F9FAFB)',
+                      fontFamily: 'inherit', fontSize: 13.5, fontWeight: active ? 700 : 500,
+                    }}
+                  >
+                    <span>{active ? '🔵' : '⚪'}</span>
+                    <span>{q}</span>
+                  </button>
+                );
+              })}
+
+              <button
+                onClick={() => setAskChoice(OTRA_PREGUNTA)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
+                  padding: '12px 14px', borderRadius: 12, marginBottom: 8, cursor: 'pointer',
+                  border: `1.5px solid ${askChoice === OTRA_PREGUNTA ? '#2563EB' : 'var(--border, #e2e8f0)'}`,
+                  background: askChoice === OTRA_PREGUNTA ? 'rgba(37,99,235,0.08)' : 'var(--bg-secondary, #F9FAFB)',
+                  fontFamily: 'inherit', fontSize: 13.5, fontWeight: askChoice === OTRA_PREGUNTA ? 700 : 500,
+                }}
+              >
+                <span>{askChoice === OTRA_PREGUNTA ? '🔵' : '⚪'}</span>
+                <span>Escribir otra pregunta</span>
+              </button>
+
+              {askChoice === OTRA_PREGUNTA && (
+                <textarea
+                  value={askFree}
+                  onChange={e => setAskFree(e.target.value)}
+                  placeholder="Escribe tu pregunta sobre este reel..."
+                  style={{ width: '100%', minHeight: 70, marginTop: 4, padding: '10px 14px', borderRadius: 12, border: '1.5px solid var(--border, #e2e8f0)', outline: 'none', fontFamily: 'inherit', fontSize: 13.5, resize: 'vertical', boxSizing: 'border-box' }}
+                />
+              )}
+            </div>
+
+            <div style={{ padding: 16, borderTop: '1.5px solid var(--border, #e2e8f0)' }}>
+              <button
+                onClick={confirmarPregunta}
+                disabled={askSending || !askChoice || (askChoice === OTRA_PREGUNTA && !askFree.trim())}
+                style={{
+                  width: '100%', padding: '13px 0', borderRadius: 99, border: 'none',
+                  background: (!askChoice || (askChoice === OTRA_PREGUNTA && !askFree.trim())) ? '#cbd5e1' : '#2563EB',
+                  color: '#FFF', fontWeight: 800, fontSize: 14,
+                  cursor: (!askChoice || (askChoice === OTRA_PREGUNTA && !askFree.trim())) ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {askSending ? 'Enviando...' : 'Confirmar y enviar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {fabSubirReel}
+      {uploadModal}
 
       {/* Toast */}
       {toast && (
