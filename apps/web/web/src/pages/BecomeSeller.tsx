@@ -4,6 +4,7 @@ import { useGlobal } from '../context/GlobalContext';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { api } from '../api';
+import '../../css/dark.css';
 
 type RolType = 'vendedor' | 'repartidor';
 type Vehiculo = 'bicicleta' | 'moto' | 'carro' | 'pickup';
@@ -117,12 +118,12 @@ export default function BecomeSeller() {
             <svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" width="32" height="32"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
           <h2 style={{ fontWeight: '800', fontSize: '1.5rem', marginBottom: '8px' }}>¡Solicitud enviada!</h2>
-          <p style={{ color: '#6B7280', marginBottom: '28px' }}>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '28px' }}>
             El equipo SVGO revisará tu documentación y te notificará en 24–48 horas.
           </p>
           <button
             onClick={() => navigate('/perfil')}
-            style={{ background: '#4A6D8C', color: '#fff', border: 'none', borderRadius: '12px', padding: '12px 28px', fontWeight: '700', cursor: 'pointer', fontSize: '0.95rem' }}
+            style={{ background: 'var(--blue)', color: '#fff', border: 'none', borderRadius: '12px', padding: '12px 28px', fontWeight: '700', cursor: 'pointer', fontSize: '0.95rem' }}
           >
             Volver a mi perfil
           </button>
@@ -136,12 +137,12 @@ export default function BecomeSeller() {
     <>
       <Header />
       <div style={{ maxWidth: '600px', margin: '0 auto', padding: '32px 20px 60px' }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4A6D8C', fontWeight: '600', fontSize: '0.9rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--blue)', fontWeight: '600', fontSize: '0.9rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '6px' }}>
           ← Volver
         </button>
 
         <h1 style={{ fontWeight: '800', fontSize: '1.6rem', marginBottom: '6px' }}>Solicitar cambio de rol</h1>
-        <p style={{ color: '#6B7280', marginBottom: '28px', fontSize: '0.9rem' }}>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '28px', fontSize: '0.9rem' }}>
           Completa el formulario para solicitar ser Vendedor o Repartidor en SVGO. Tu solicitud será revisada por el equipo en 24–48 horas.
         </p>
 
@@ -154,19 +155,19 @@ export default function BecomeSeller() {
               onClick={() => setRol(r)}
               style={{
                 padding: '18px 12px', borderRadius: '14px', border: '2px solid',
-                borderColor: rol === r ? '#4A6D8C' : '#E2DCEF',
-                background: rol === r ? '#EEF4F9' : 'transparent',
+                borderColor: rol === r ? 'var(--blue)' : 'var(--border)',
+                background: rol === r ? 'rgba(74,109,140,0.12)' : 'transparent',
                 cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'
               }}
             >
-              <div style={{ width: '48px', height: '48px', borderRadius: '24px', background: 'rgba(74,109,140,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4A6D8C' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '24px', background: 'rgba(74,109,140,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--blue)' }}>
                 {r === 'vendedor'
                   ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                   : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
                 }
               </div>
-              <span style={{ fontWeight: '700', fontSize: '0.95rem', color: rol === r ? '#4A6D8C' : 'inherit', textTransform: 'capitalize' }}>{r}</span>
-              <span style={{ fontSize: '0.75rem', color: '#6B7280', textAlign: 'center' }}>
+              <span style={{ fontWeight: '700', fontSize: '0.95rem', color: rol === r ? 'var(--blue)' : 'inherit', textTransform: 'capitalize' }}>{r}</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>
                 {r === 'vendedor' ? 'Publica y vende tus productos' : 'Entrega pedidos y genera ingresos'}
               </span>
             </button>
@@ -182,7 +183,7 @@ export default function BecomeSeller() {
               value={nombre}
               onChange={e => setNombre(e.target.value)}
               placeholder="Como aparece en tu DUI"
-              style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #E2DCEF', borderRadius: '10px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border)', borderRadius: '10px', fontSize: '0.9rem', boxSizing: 'border-box', background: 'var(--white)', color: 'var(--text)' }}
             />
           </div>
 
@@ -194,7 +195,7 @@ export default function BecomeSeller() {
               value={dui}
               onChange={e => setDui(e.target.value.replace(/[^0-9\-]/g, '').slice(0, 10))}
               placeholder="00000000-0"
-              style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #E2DCEF', borderRadius: '10px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border)', borderRadius: '10px', fontSize: '0.9rem', boxSizing: 'border-box', background: 'var(--white)', color: 'var(--text)' }}
             />
           </div>
 
@@ -204,7 +205,7 @@ export default function BecomeSeller() {
             <select
               value={municipio}
               onChange={e => setMunicipio(e.target.value)}
-              style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #E2DCEF', borderRadius: '10px', fontSize: '0.9rem', background: 'inherit', boxSizing: 'border-box' }}
+              style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border)', borderRadius: '10px', fontSize: '0.9rem', background: 'var(--white)', color: 'var(--text)', colorScheme: 'light dark', boxSizing: 'border-box' }}
             >
               <option value="">Selecciona un municipio</option>
               {MUNICIPIOS_SV.map(m => <option key={m} value={m}>{m}</option>)}
@@ -219,7 +220,7 @@ export default function BecomeSeller() {
                 value={nombreNegocio}
                 onChange={e => setNombreNegocio(e.target.value)}
                 placeholder="Ej: Panadería El Sol"
-                style={{ width: '100%', padding: '12px 14px', border: '1.5px solid #E2DCEF', borderRadius: '10px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                style={{ width: '100%', padding: '12px 14px', border: '1.5px solid var(--border)', borderRadius: '10px', fontSize: '0.9rem', boxSizing: 'border-box', background: 'var(--white)', color: 'var(--text)' }}
               />
             </div>
           ) : (
@@ -232,9 +233,9 @@ export default function BecomeSeller() {
                       key={v.id} type="button" onClick={() => setVehiculo(v.id)}
                       style={{
                         padding: '10px 16px', borderRadius: '10px', border: '2px solid',
-                        borderColor: vehiculo === v.id ? '#4A6D8C' : '#E2DCEF',
-                        background: vehiculo === v.id ? '#EEF4F9' : 'transparent',
-                        color: vehiculo === v.id ? '#4A6D8C' : 'inherit',
+                        borderColor: vehiculo === v.id ? 'var(--blue)' : 'var(--border)',
+                        background: vehiculo === v.id ? 'rgba(74,109,140,0.12)' : 'transparent',
+                        color: vehiculo === v.id ? 'var(--blue)' : 'inherit',
                         fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
                       }}
                     >
@@ -248,18 +249,18 @@ export default function BecomeSeller() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div>
                     <input ref={licFrenteRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e, 'lic_frente')} />
-                    <button type="button" onClick={() => licFrenteRef.current?.click()} style={{ width: '100%', aspectRatio: '16/9', border: '2px dashed', borderColor: licFrente ? '#22c55e' : '#E2DCEF', borderRadius: '12px', background: 'transparent', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <button type="button" onClick={() => licFrenteRef.current?.click()} style={{ width: '100%', aspectRatio: '16/9', border: '2px dashed', borderColor: licFrente ? '#22c55e' : 'var(--border)', borderRadius: '12px', background: 'transparent', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {licFrentePreview
                         ? <img src={licFrentePreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                        : <div style={{ textAlign: 'center', color: '#6B7280' }}><div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div><div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Lic. Frente</div></div>}
+                        : <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}><div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div><div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Lic. Frente</div></div>}
                     </button>
                   </div>
                   <div>
                     <input ref={licReversoRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e, 'lic_reverso')} />
-                    <button type="button" onClick={() => licReversoRef.current?.click()} style={{ width: '100%', aspectRatio: '16/9', border: '2px dashed', borderColor: licReverso ? '#22c55e' : '#E2DCEF', borderRadius: '12px', background: 'transparent', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <button type="button" onClick={() => licReversoRef.current?.click()} style={{ width: '100%', aspectRatio: '16/9', border: '2px dashed', borderColor: licReverso ? '#22c55e' : 'var(--border)', borderRadius: '12px', background: 'transparent', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {licReversoPreview
                         ? <img src={licReversoPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                        : <div style={{ textAlign: 'center', color: '#6B7280' }}><div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div><div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Lic. Reverso</div></div>}
+                        : <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}><div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div><div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Lic. Reverso</div></div>}
                     </button>
                   </div>
                 </div>
@@ -279,14 +280,14 @@ export default function BecomeSeller() {
                   onClick={() => frenteRef.current?.click()}
                   style={{
                     width: '100%', aspectRatio: '16/9', border: '2px dashed',
-                    borderColor: duiFrente ? '#22c55e' : '#E2DCEF',
+                    borderColor: duiFrente ? '#22c55e' : 'var(--border)',
                     borderRadius: '12px', background: 'transparent', cursor: 'pointer',
                     overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative'
                   }}
                 >
                   {duiFrentePreview
                     ? <img src={duiFrentePreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                    : <div style={{ textAlign: 'center', color: '#6B7280' }}>
+                    : <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                         <div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div>
                         <div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Frente DUI</div>
                       </div>
@@ -301,14 +302,14 @@ export default function BecomeSeller() {
                   onClick={() => reversoRef.current?.click()}
                   style={{
                     width: '100%', aspectRatio: '16/9', border: '2px dashed',
-                    borderColor: duiReverso ? '#22c55e' : '#E2DCEF',
+                    borderColor: duiReverso ? '#22c55e' : 'var(--border)',
                     borderRadius: '12px', background: 'transparent', cursor: 'pointer',
                     overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}
                 >
                   {duiReversoPreview
                     ? <img src={duiReversoPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                    : <div style={{ textAlign: 'center', color: '#6B7280' }}>
+                    : <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                         <div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div>
                         <div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Reverso DUI</div>
                       </div>
@@ -320,10 +321,17 @@ export default function BecomeSeller() {
 
           <label style={{
             display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '14px 16px',
-            border: `1.5px solid ${aceptaTerminos ? '#4A6D8C' : '#E2DCEF'}`, borderRadius: '10px',
-            marginBottom: '16px', cursor: 'pointer', background: aceptaTerminos ? '#EEF4F9' : 'transparent',
+            border: `1.5px solid ${aceptaTerminos ? 'var(--blue)' : 'var(--border)'}`, borderRadius: '10px',
+            marginBottom: '16px', cursor: 'pointer',
+            background: aceptaTerminos ? 'rgba(74,109,140,0.12)' : 'transparent',
+            color: 'var(--text)',
           }}>
-            <input type="checkbox" checked={aceptaTerminos} onChange={e => setAceptaTerminos(e.target.checked)} style={{ marginTop: '3px', width: '16px', height: '16px', flexShrink: 0 }} />
+            <input
+              type="checkbox"
+              checked={aceptaTerminos}
+              onChange={e => setAceptaTerminos(e.target.checked)}
+              style={{ marginTop: '3px', width: '16px', height: '16px', flexShrink: 0, accentColor: 'var(--blue)' }}
+            />
             <span style={{ fontSize: '0.85rem' }}>
               He leído y acepto los <strong>términos y condiciones</strong> de [SV]Go para socios.
             </span>
@@ -339,7 +347,7 @@ export default function BecomeSeller() {
             type="submit"
             disabled={sending}
             style={{
-              width: '100%', padding: '14px', background: '#4A6D8C', color: '#fff', border: 'none',
+              width: '100%', padding: '14px', background: 'var(--blue)', color: '#fff', border: 'none',
               borderRadius: '12px', fontWeight: '700', fontSize: '1rem', cursor: sending ? 'not-allowed' : 'pointer',
               opacity: sending ? 0.7 : 1
             }}

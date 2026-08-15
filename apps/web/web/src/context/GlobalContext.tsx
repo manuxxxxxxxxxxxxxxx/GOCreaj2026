@@ -210,6 +210,7 @@ export function GlobalProvider({ children }: { children: ReactNode }) {
   };
 
   const addToCart = async (product: Product, qty = 1) => {
+    if (user?.rol === 'admin') return;
     const newCart = [...cart];
     const existing = newCart.find(p => p.id === product.id);
     if (existing) {

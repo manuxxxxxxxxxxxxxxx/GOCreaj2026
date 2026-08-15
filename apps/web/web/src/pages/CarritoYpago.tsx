@@ -77,6 +77,13 @@ export default function CarritoYpago() {
   const [pedidoConfirmado, setPedidoConfirmado] = useState<{ pedidos: number[]; pago_referencia: string | null; pago_estado: string } | null>(null);
 
   useEffect(() => {
+    if (user?.rol === 'admin') {
+      navigate('/', { replace: true });
+      return;
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
     if (!user) return;
     api.get('/direcciones.php?action=listar').then(res => {
       if (res.data.ok) {
@@ -182,6 +189,7 @@ export default function CarritoYpago() {
         departamento: departamentoVal,
         lat: direccionSeleccionada?.lat ?? undefined,
         lng: direccionSeleccionada?.lng ?? undefined,
+        envio_modo: shippingMode === 2 ? 'express' : 'estandar',
       };
       if (paymentMode === 1) {
         if (tarjetaGuardadaId) {

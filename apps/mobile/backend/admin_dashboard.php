@@ -111,6 +111,9 @@ switch ($action) {
         $sets = [];
         $params = [];
         if (isset($data['rol']) && in_array($data['rol'], ['comprador','vendedor','repartidor','admin'])) {
+            if ((int)$data['usuario_id'] === (int)$user['id']) {
+                jout(['ok' => false, 'error' => 'No puedes cambiar tu propio rol. Otro administrador debe hacerlo.'], 403);
+            }
             $sets[] = "rol = ?"; $params[] = $data['rol'];
         }
         if (isset($data['activo'])) {

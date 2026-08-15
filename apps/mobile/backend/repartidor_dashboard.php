@@ -60,7 +60,7 @@ switch ($action) {
              LEFT JOIN tiendas t ON t.id = pt.tienda_id
              WHERE p.repartidor_id IS NULL
                AND p.estado = 'preparacion'
-               AND p.pago_estado = 'pagado'
+               AND p.pago_estado IN ('pagado', 'contraentrega')
                AND NOT EXISTS (
                    SELECT 1 FROM pedido_repartidor_descartes d
                    WHERE d.pedido_id = p.id AND d.repartidor_id = ?

@@ -7,6 +7,11 @@ if (!$user) jout(['ok' => false, 'error' => 'No autenticado'], 401);
 $action = $_GET['action'] ?? 'listar';
 $data = jread();
 
+// Los administradores no pueden comprar en la plataforma.
+if ($user['rol'] === 'admin' && in_array($action, ['agregar', 'checkout'], true)) {
+    jout(['ok' => false, 'error' => 'Las cuentas de administrador no pueden realizar compras'], 403);
+}
+
 switch ($action) {
 
     case 'listar':
@@ -188,6 +193,12 @@ switch ($action) {
             }
         }
 
+        // ── Costo de envío: se recalcula 100% en el servidor según el modo elegido ──
+        $envioModo = ($data['envio_modo'] ?? 'estandar') === 'express' ? 'express' : 'estandar';
+        $costoEnvioTotal = $envioModo === 'express' ? 4.99 : 2.50;
+        $numVendedores = max(1, count($porVendedor));
+        $costoEnvioPorVendedor = round($costoEnvioTotal / $numVendedores, 2);
+
         $pedidoIds = [];
         db()->beginTransaction();
         try {
@@ -197,7 +208,7 @@ switch ($action) {
                 $descuentoVendedor = ($cupon && $subtotalGlobal > 0)
                     ? round($descuentoGlobal * ($subtotal / $subtotalGlobal), 2)
                     : 0;
-                $total = max(0, $subtotal - $descuentoVendedor);
+                $total = max(0, $subtotal - $descuentoVendedor) + $costoEnvioPorVendedor;
                 $ins = db()->prepare(
                     "INSERT INTO pedidos
                      (comprador_id, vendedor_id, total, metodo_pago, direccion_entrega, lat_entrega, lng_entrega, pago_estado, pago_referencia, efectivo_paga_con, municipio_entrega, departamento_entrega, cupon_codigo, descuento_cupon, estado)

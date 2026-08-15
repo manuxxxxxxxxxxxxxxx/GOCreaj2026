@@ -26,15 +26,26 @@ export default class ErrorBoundary extends Component<Props, State> {
           <p style={{ color: '#64748B', maxWidth: 420 }}>
             Ocurrió un error al mostrar esta sección. Intenta recargar la página.
           </p>
-          <button
-            onClick={() => { this.setState({ error: null }); window.location.reload(); }}
-            style={{
-              padding: '10px 20px', borderRadius: 10, border: 'none', cursor: 'pointer',
-              background: '#F59E0B', color: '#fff', fontWeight: 700,
-            }}
-          >
-            Recargar
-          </button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={() => { this.setState({ error: null }); window.location.assign('/'); }}
+              style={{
+                padding: '10px 20px', borderRadius: 10, border: '1.5px solid #E2DCEF', cursor: 'pointer',
+                background: 'transparent', color: 'inherit', fontWeight: 700,
+              }}
+            >
+              ← Volver al inicio
+            </button>
+            <button
+              onClick={() => { this.setState({ error: null }); window.location.reload(); }}
+              style={{
+                padding: '10px 20px', borderRadius: 10, border: 'none', cursor: 'pointer',
+                background: '#F59E0B', color: '#fff', fontWeight: 700,
+              }}
+            >
+              Recargar
+            </button>
+          </div>
         </div>
       );
     }

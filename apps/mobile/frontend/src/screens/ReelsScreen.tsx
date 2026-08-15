@@ -7,6 +7,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Video, ResizeMode } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
+import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing, Radius, Fonts } from '@/theme/colors';
@@ -23,15 +24,19 @@ async function pickVideoB64(): Promise<string | null> {
   if (!granted) { Alert.alert('Permiso requerido', 'Necesitamos acceso a la galería.'); return null; }
   const r = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-    base64: true,
     quality: 0.7,
     videoMaxDuration: 60,
   });
-  if (r.canceled || !r.assets[0].base64) return null;
+  if (r.canceled || !r.assets[0]) return null;
   const uri = r.assets[0].uri ?? '';
+  if (!uri) return null;
+  // El picker de expo-image-picker solo devuelve `base64` para imágenes, nunca para videos.
+  // Hay que leer el archivo del disco con expo-file-system para obtener su contenido base64.
+  const base64 = await new FileSystem.File(uri).base64();
+  if (!base64) return null;
   const ext = uri.split('.').pop()?.toLowerCase() ?? 'mp4';
   const mime = ext === 'mov' ? 'video/quicktime' : ext === 'webm' ? 'video/webm' : 'video/mp4';
-  return `data:${mime};base64,${r.assets[0].base64}`;
+  return `data:${mime};base64,${base64}`;
 }
 
 const { height, width } = Dimensions.get('window');

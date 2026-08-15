@@ -166,7 +166,7 @@ export default function HomeScreen() {
   const cargarProductos = useCallback(async (pageNum: number, muni: string, cat: string | null, append = false) => {
     if (pageNum === 1) setCargando(true); else setLoadingMore(true);
     try {
-      let url = `${Endpoints.productosListar}&page=${pageNum}&limit=20`;
+      let url = `${Endpoints.productosListar}&page=${pageNum}&limit=20&stock_min=10`;
       if (muni) url += `&municipio=${encodeURIComponent(muni)}`;
       if (cat)  url += `&categoria=${cat}`;
       const r = await api<{ ok: boolean; productos?: Producto[]; has_more?: boolean }>(url);

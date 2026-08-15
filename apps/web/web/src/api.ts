@@ -10,7 +10,13 @@ export const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  // El backend siempre responde JSON útil ({ ok:false, error:'...' }) incluso en 4xx/5xx.
+  // Sin esto, axios lanza una excepción para cualquier status fuera de 2xx y el código
+  // de la app (if (res.data.ok) {...} else { mostrar res.data.error }) nunca se ejecuta,
+  // cayendo siempre en el catch genérico ("Error de conexión") aunque el pedido/formulario
+  // haya sido válido y el backend haya respondido con un motivo concreto.
+  validateStatus: () => true,
 });
 
 api.interceptors.request.use((config) => {

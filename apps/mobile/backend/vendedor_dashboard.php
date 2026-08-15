@@ -229,8 +229,21 @@ switch ($action) {
 
     case 'preparar_pedido':
         require_fields($data, ['pedido_id','estado']);
+        if (!in_array($data['estado'], ['preparacion','en_camino'], true)) {
+            jout(['ok' => false, 'error' => 'Estado invalido'], 400);
+        }
+        $pid = (int)$data['pedido_id'];
+        $sel = db()->prepare("SELECT comprador_id FROM pedidos WHERE id = ? AND vendedor_id = ?");
+        $sel->execute([$pid, $user['id']]);
+        $ped = $sel->fetch();
+        if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
+
         $st = db()->prepare("UPDATE pedidos SET estado = ? WHERE id = ? AND vendedor_id = ?");
-        $st->execute([$data['estado'], $data['pedido_id'], $user['id']]);
+        $st->execute([$data['estado'], $pid, $user['id']]);
+
+        // El vendedor confirma el pedido: se notifica al comprador (sistema → comprador).
+        crear_notificacion((int)$ped['comprador_id'], 'pedido', 'Pedido confirmado', "El vendedor confirmó tu pedido #SV-{$pid} y lo está preparando.", $pid);
+
         jout(['ok' => true]);
         break;
 

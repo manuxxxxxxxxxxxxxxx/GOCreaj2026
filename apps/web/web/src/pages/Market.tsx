@@ -125,6 +125,7 @@ export default function Market() {
     const params = new URLSearchParams();
     if (filtroMunicipio) params.set('municipio', filtroMunicipio);
     if (activeCategory !== 'all') params.set('categoria', activeCategory);
+    params.set('stock_min', '10'); // Regla de Norberto: ocultar productos con menos de 10 unidades
     api.get(`/productos.php?action=listar&${params.toString()}`).then(res => {
       if (res.data.ok) setProducts(res.data.productos.map(mapProduct));
     }).catch(console.error);
@@ -253,8 +254,10 @@ export default function Market() {
   };
 
   // Comprar/agregar al carrito requiere sesión — invitado se manda a Login (sección 2 del spec).
+  // Los administradores no pueden comprar en la plataforma.
   const guardedAddToCart = (p: Product, cantidad: number) => {
     if (!user) { navigate('/login'); return false; }
+    if (user.rol === 'admin') return false;
     addToCart(p, cantidad);
     return true;
   };
@@ -262,6 +265,7 @@ export default function Market() {
   const handleBuyNow = () => {
     if (!selectedProduct) return;
     if (!user) { navigate('/login', { state: { from: '/carritoypago' } }); return; }
+    if (user.rol === 'admin') return;
     addToCart(selectedProduct, qty);
     navigate('/carritoypago');
   };

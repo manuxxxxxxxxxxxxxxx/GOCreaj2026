@@ -20,12 +20,15 @@ switch ($action) {
         $cat       = $_GET['categoria']  ?? null;
         $tiendaId  = isset($_GET['tienda_id']) ? (int)$_GET['tienda_id'] : null;
         $con_coords = !empty($_GET['con_coordenadas']);
+        $stockMin  = isset($_GET['stock_min']) ? max(0, (int)$_GET['stock_min']) : null;
         $page      = max(1, (int)($_GET['page'] ?? 1));
         $limit     = min(60, max(1, (int)($_GET['limit'] ?? 20)));
         $offset    = ($page - 1) * $limit;
 
         // Los productos agotados NO se ocultan — se listan igual para que el frontend
         // los muestre sombreados/deshabilitados ("AGOTADO"), solo se ordenan al final.
+        // Excepción: si se pide stock_min (ej. sección "Otros productos" del inicio),
+        // se ocultan por completo los productos por debajo del umbral (Regla de Norberto).
         $q = "SELECT p.*, t.nombre as tienda_nombre, t.municipio, t.lat as tienda_lat, t.lng as tienda_lng, t.vendedor_id,
                      t.calificacion_promedio as tienda_calificacion
               FROM productos p JOIN tiendas t ON t.id = p.tienda_id
@@ -35,6 +38,7 @@ switch ($action) {
         if ($cat)       { $q .= " AND p.categoria = ?"; $params[] = $cat; }
         if ($tiendaId)  { $q .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
         if ($con_coords) { $q .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL"; }
+        if ($stockMin !== null) { $q .= " AND p.stock >= ?"; $params[] = $stockMin; }
         $q .= " ORDER BY (p.stock > 0 AND (p.estado_stock IS NULL OR p.estado_stock <> 'agotado')) DESC, p.created_at DESC LIMIT $limit OFFSET $offset";
         $st = db()->prepare($q);
         $st->execute($params);
@@ -48,6 +52,7 @@ switch ($action) {
         if ($cat)       { $qc .= " AND p.categoria = ?"; $cparams[] = $cat; }
         if ($tiendaId)  { $qc .= " AND p.tienda_id = ?"; $cparams[] = $tiendaId; }
         if ($con_coords) { $qc .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL"; }
+        if ($stockMin !== null) { $qc .= " AND p.stock >= ?"; $cparams[] = $stockMin; }
         $stc = db()->prepare($qc);
         $stc->execute($cparams);
         $total = (int)$stc->fetchColumn();
