@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Clapperboard, Package, Heart, MessageCircle, Bookmark, Mail, CornerDownRight, X, Send, Circle, CircleDot } from 'lucide-react';
 import Header from '../components/Header';
 import { useGlobal } from '../context/GlobalContext';
 import { api, API_URL } from '../api';
@@ -257,7 +258,7 @@ export default function Reels() {
       const res = await api.post('/interacciones.php?action=toggle_guardar', { producto_id: r.id });
       if (res.data.ok) {
         setReels(prev => prev.map(x => x.id === r.id ? { ...x, isSaved: res.data.accion === 'guardar' } : x));
-        showToast(res.data.accion === 'guardar' ? '✓ Guardado' : 'Eliminado de guardados');
+        showToast(res.data.accion === 'guardar' ? 'Guardado' : 'Eliminado de guardados');
       }
     } catch {}
   };
@@ -377,7 +378,7 @@ export default function Reels() {
               <video src={upVideoPreview} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               <>
-                <span style={{ fontSize: 26 }}>🎬</span>
+                <Clapperboard size={26} strokeWidth={1.8} color="var(--text-muted, #6b7280)" />
                 <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted, #6b7280)' }}>Subir video (hasta 60s, MP4/MOV/WebM)</span>
               </>
             )}
@@ -515,7 +516,7 @@ export default function Reels() {
                     style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
                   />
                 ) : (
-                  <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 48 }}>📦</div>
+                  <div style={{ color: 'rgba(255,255,255,0.3)' }}><Package size={48} strokeWidth={1.4} /></div>
                 )}
 
                 {/* Ícono de play cuando está pausado */}
@@ -566,7 +567,7 @@ export default function Reels() {
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', pointerEvents: 'auto' }}>
-                  <div style={{ background: 'rgba(74,109,140,0.9)', color: '#FFF', padding: '5px 14px', borderRadius: 99, fontWeight: 900 }}>
+                  <div style={{ background: 'rgba(37, 99, 235,0.9)', color: '#FFF', padding: '5px 14px', borderRadius: 99, fontWeight: 900 }}>
                     ${r.precio.toFixed(2)}
                   </div>
                   <button
@@ -586,10 +587,10 @@ export default function Reels() {
                 background: 'rgba(0,0,0,0.35)', padding: '12px 8px', borderRadius: 14,
                 border: '1px solid rgba(255,255,255,0.12)',
               }}>
-                <ActionBtn icon="❤️" label={fmtCount(r.likes_count)} active={!!r.isLiked} onClick={() => toggleLike(r)} />
-                <ActionBtn icon="💬" label={fmtCount(r.comentarios_count)} onClick={() => openComments(r)} />
-                <ActionBtn icon="🔖" label={r.isSaved ? 'Guardado' : 'Guardar'} active={!!r.isSaved} onClick={() => toggleSave(r)} />
-                {r.vendedor_id && <ActionBtn icon="✉️" label="Preguntar" onClick={() => abrirPreguntar(r)} />}
+                <ActionBtn icon={<Heart size={24} strokeWidth={2} fill={r.isLiked ? '#EF4444' : 'none'} color={r.isLiked ? '#EF4444' : '#FFF'} />} label={fmtCount(r.likes_count)} active={!!r.isLiked} onClick={() => toggleLike(r)} />
+                <ActionBtn icon={<MessageCircle size={24} strokeWidth={2} />} label={fmtCount(r.comentarios_count)} onClick={() => openComments(r)} />
+                <ActionBtn icon={<Bookmark size={24} strokeWidth={2} fill={r.isSaved ? '#FFF' : 'none'} />} label={r.isSaved ? 'Guardado' : 'Guardar'} active={!!r.isSaved} onClick={() => toggleSave(r)} />
+                {r.vendedor_id && <ActionBtn icon={<Mail size={24} strokeWidth={2} />} label="Preguntar" onClick={() => abrirPreguntar(r)} />}
               </div>
 
               {/* Contador arriba derecha */}
@@ -625,8 +626,8 @@ export default function Reels() {
 
             {replyTo && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', background: 'var(--bg-secondary, #F9FAFB)', borderTop: '1px solid var(--border, #e2e8f0)' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)' }}>↳ Respondiendo a <strong>{replyTo.nombre}</strong></span>
-                <button onClick={() => setReplyTo(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                <span style={{ fontSize: 12, color: 'var(--text-muted, #6b7280)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><CornerDownRight size={12} strokeWidth={2.2} />Respondiendo a <strong>{replyTo.nombre}</strong></span>
+                <button onClick={() => setReplyTo(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', color: 'var(--text-muted, #6b7280)' }}><X size={14} strokeWidth={2.2} /></button>
               </div>
             )}
 
@@ -642,9 +643,9 @@ export default function Reels() {
               <button
                 onClick={sendComment}
                 disabled={!comText.trim()}
-                style={{ width: 42, height: 42, borderRadius: 21, border: 'none', background: comText.trim() ? '#2563EB' : '#cbd5e1', color: '#FFF', cursor: 'pointer', fontSize: 16 }}
+                style={{ width: 42, height: 42, borderRadius: 21, border: 'none', background: comText.trim() ? '#2563EB' : '#cbd5e1', color: '#FFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                ➤
+                <Send size={17} strokeWidth={2.2} />
               </button>
             </div>
           </div>
@@ -682,7 +683,7 @@ export default function Reels() {
                       fontFamily: 'inherit', fontSize: 13.5, fontWeight: active ? 700 : 500,
                     }}
                   >
-                    <span>{active ? '🔵' : '⚪'}</span>
+                    {active ? <CircleDot size={18} strokeWidth={2} color="#2563EB" /> : <Circle size={18} strokeWidth={2} color="var(--text-muted, #94a3b8)" />}
                     <span>{q}</span>
                   </button>
                 );
@@ -698,7 +699,7 @@ export default function Reels() {
                   fontFamily: 'inherit', fontSize: 13.5, fontWeight: askChoice === OTRA_PREGUNTA ? 700 : 500,
                 }}
               >
-                <span>{askChoice === OTRA_PREGUNTA ? '🔵' : '⚪'}</span>
+                {askChoice === OTRA_PREGUNTA ? <CircleDot size={18} strokeWidth={2} color="#2563EB" /> : <Circle size={18} strokeWidth={2} color="var(--text-muted, #94a3b8)" />}
                 <span>Escribir otra pregunta</span>
               </button>
 
@@ -744,7 +745,7 @@ export default function Reels() {
 }
 
 // ─── Action button ───
-function ActionBtn({ icon, label, active, onClick }: { icon: string; label: string; active?: boolean; onClick: () => void }) {
+function ActionBtn({ icon, label, active, onClick }: { icon: ReactNode; label: string; active?: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -781,7 +782,7 @@ function CommentNode({ c, depth = 0, onReply, onLike }: {
           </div>
           <div style={{ display: 'flex', gap: 14, marginTop: 6, marginLeft: 4, alignItems: 'center' }}>
             <button onClick={() => onLike(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: 0, color: c.yo_like ? '#EF4444' : 'var(--text-muted, #6b7280)', fontWeight: 700, fontSize: 11 }}>
-              <span>{c.yo_like ? '❤️' : '🤍'}</span>
+              <Heart size={13} strokeWidth={2.2} fill={c.yo_like ? '#EF4444' : 'none'} />
               <span>{c.likes_count ?? 0}</span>
             </button>
             <button onClick={() => onReply(c)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted, #6b7280)', fontWeight: 700, fontSize: 11 }}>

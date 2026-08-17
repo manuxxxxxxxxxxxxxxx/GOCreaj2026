@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate, useParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
+import { Star, Phone, MessageCircle } from 'lucide-react';
 import Header from '../components/Header';
 import { api, API_URL, SOCKET_URL } from '../api';
 import '../../css/entregas.css';
@@ -244,16 +245,16 @@ export default function Entregas() {
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{pedido.repartidor_nombre}</div>
-                        <div style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>
-                          ⭐ {pedido.repartidor_calificacion_promedio ? Number(pedido.repartidor_calificacion_promedio).toFixed(1) : '—'} ({pedido.repartidor_total_resenas ?? 0}) · {pedido.repartidor_entregas_completadas ?? 0} entregas
+                        <div style={{ fontSize: '0.85rem', color: 'var(--text-light)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Star size={13} strokeWidth={2} fill="#F59E0B" color="#F59E0B" />{pedido.repartidor_calificacion_promedio ? Number(pedido.repartidor_calificacion_promedio).toFixed(1) : '—'} ({pedido.repartidor_total_resenas ?? 0}) · {pedido.repartidor_entregas_completadas ?? 0} entregas
                         </div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
                       {pedido.repartidor_telefono && (
-                        <a href={`tel:${pedido.repartidor_telefono}`} className="btn-ghost" style={{ flex: 1, textAlign: 'center', textDecoration: 'none' }}>📞 Llamar</a>
+                        <a href={`tel:${pedido.repartidor_telefono}`} className="btn-ghost" style={{ flex: 1, textAlign: 'center', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><Phone size={14} strokeWidth={2.2} />Llamar</a>
                       )}
-                      <button className="btn-primary" style={{ flex: 1 }} onClick={() => navigate('/chat')}>💬 Chat</button>
+                      <button className="btn-primary" style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }} onClick={() => navigate('/chat')}><MessageCircle size={14} strokeWidth={2.2} />Chat</button>
                     </div>
                   </div>
                 ) : (

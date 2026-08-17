@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api, Endpoints } from '@/services/api';
-import { Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
 import { ReporteSoporte } from '@/types';
@@ -59,7 +59,7 @@ export default function SupportScreen() {
       const r = await api<RespCrear>(Endpoints.soporteCrear, { body: { asunto, descripcion: desc } });
       if (r.ok) {
         setAsunto(''); setDesc('');
-        Alert.alert('✅ Enviado', 'Tu ticket fue creado. Te responderemos pronto.');
+        Alert.alert('Enviado', 'Tu ticket fue creado. Te responderemos pronto.');
         await cargar();
       } else Alert.alert('Error', r.error ?? 'Fallo');
     } catch { Alert.alert('Sin conexión', 'Verifica tu red'); }
@@ -196,23 +196,23 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1,
   },
   quickIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
-  quickLabel: { fontSize: Fonts.small, fontWeight: '700', textAlign: 'center' },
+  quickLabel: { fontSize: Fonts.small, fontFamily: FontFamily.bodyBold, textAlign: 'center' },
   faqBox: {
     borderRadius: Radius.md, borderWidth: 1.5,
     overflow: 'hidden', marginBottom: Spacing.lg,
     paddingBottom: 2,
   },
-  sectionTitle: { fontSize: Fonts.regular, fontWeight: '800', letterSpacing: -0.2 },
+  sectionTitle: { fontSize: Fonts.regular, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.2 },
   faqItem: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     padding: Spacing.md, borderBottomWidth: 1,
   },
-  faqTxt: { flex: 1, fontWeight: '600', fontSize: Fonts.regular - 1 },
+  faqTxt: { flex: 1, fontFamily: FontFamily.bodySemiBold, fontSize: Fonts.regular - 1 },
   faqAnswer: {
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
     borderBottomWidth: 1,
   },
-  faqAnswerTxt: { fontSize: Fonts.small + 1, fontWeight: '500', lineHeight: 20 },
+  faqAnswerTxt: { fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyRegular, lineHeight: 20 },
   formCard: {
     borderRadius: Radius.md, padding: Spacing.md,
     borderWidth: 1.5, marginBottom: Spacing.lg,
@@ -223,18 +223,18 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.02, shadowRadius: 3, elevation: 1,
   },
   ticketTop: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  ticketAsunto: { flex: 1, fontWeight: '800', fontSize: Fonts.regular, marginRight: 8 },
+  ticketAsunto: { flex: 1, fontFamily: FontFamily.displayExtraBold, fontSize: Fonts.regular, marginRight: 8 },
   estadoBadge: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.pill,
   },
-  estadoTxt: { fontSize: 10, fontWeight: '800' },
-  ticketDesc: { fontSize: Fonts.small + 1, fontWeight: '500', lineHeight: 18 },
+  estadoTxt: { fontSize: 10, fontFamily: FontFamily.bodyExtraBold },
+  ticketDesc: { fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyRegular, lineHeight: 18 },
   respuesta: {
     borderRadius: Radius.sm, padding: Spacing.sm + 2,
     marginTop: Spacing.sm, borderWidth: 1,
   },
   respHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  respLbl: { fontSize: Fonts.small - 1, fontWeight: '800', letterSpacing: 0.3 },
-  respTxt: { fontSize: Fonts.small + 1, fontWeight: '500', lineHeight: 18 },
+  respLbl: { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyExtraBold, letterSpacing: 0.3 },
+  respTxt: { fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyRegular, lineHeight: 18 },
 });

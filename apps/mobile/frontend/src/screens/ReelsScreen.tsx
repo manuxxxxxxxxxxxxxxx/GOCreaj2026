@@ -10,7 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { api, Endpoints, API_URL } from '@/services/api';
@@ -207,7 +207,7 @@ export default function ReelsScreen(): React.JSX.Element {
     const r = await api<CtxResp>(Endpoints.interToggleGuardar, { body: { producto_id: p.id } });
     if (r.ok) {
       Alert.alert(
-        r.accion === 'guardar' ? '✓ Guardado' : 'Eliminado de guardados',
+        r.accion === 'guardar' ? 'Guardado' : 'Eliminado de guardados',
         r.accion === 'guardar' ? 'El reel se añadió a tu lista de guardados.' : '',
         [{ text: 'OK' }],
       );
@@ -320,7 +320,7 @@ export default function ReelsScreen(): React.JSX.Element {
               ) : (
                 <View style={{ alignItems: 'center', gap: 6 }}>
                   <Ionicons name="videocam-outline" size={30} color={colors.accent} />
-                  <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>Subir video (hasta 60s, MP4/MOV)</Text>
+                  <Text style={[styles.pickerHint, { color: colors.muted }]}>Subir video (hasta 60s, MP4/MOV)</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -356,7 +356,7 @@ export default function ReelsScreen(): React.JSX.Element {
               disabled={subiendoReel}
               style={{ backgroundColor: colors.accent, borderRadius: Radius.pill, paddingVertical: 14, alignItems: 'center', opacity: subiendoReel ? 0.6 : 1 }}
             >
-              <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 14 }}>
+              <Text style={styles.pillBtnTxt}>
                 {subiendoReel ? 'Publicando...' : 'Publicar reel'}
               </Text>
             </TouchableOpacity>
@@ -370,25 +370,25 @@ export default function ReelsScreen(): React.JSX.Element {
   if (cargando) return (
     <View style={{ flex: 1, backgroundColor: '#000', justifyContent: 'center', alignItems: 'center' }}>
       <ActivityIndicator size="large" color="#FFF" />
-      <Text style={{ color: '#FFF', marginTop: 12, fontWeight: '600' }}>Cargando reels...</Text>
+      <Text style={styles.loadingTxt}>Cargando reels...</Text>
     </View>
   );
 
   if (reels.length === 0) return (
     <View style={{ flex: 1, backgroundColor: '#0A0A0A', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
       <Ionicons name="videocam-off-outline" size={64} color="#FFF" style={{ opacity: 0.5 }} />
-      <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 18, marginTop: 16, textAlign: 'center' }}>
+      <Text style={styles.emptyTitulo}>
         No hay reels aún
       </Text>
-      <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 19 }}>
+      <Text style={styles.emptySub}>
         Cuando los vendedores publiquen reels aparecerán aquí.
       </Text>
       {usuario?.rol === 'vendedor' && (
         <TouchableOpacity
           onPress={() => setShowUpload(true)}
-          style={{ marginTop: 24, backgroundColor: '#2563EB', paddingHorizontal: 22, paddingVertical: 12, borderRadius: 99 }}
+          style={{ marginTop: 24, backgroundColor: colors.accent, paddingHorizontal: 22, paddingVertical: 12, borderRadius: 99 }}
         >
-          <Text style={{ color: '#FFF', fontWeight: '800' }}>Subir mi primer reel</Text>
+          <Text style={styles.pillBtnTxt}>Subir mi primer reel</Text>
         </TouchableOpacity>
       )}
       {uploadModal}
@@ -448,24 +448,32 @@ export default function ReelsScreen(): React.JSX.Element {
               {/* Gradiente inferior para legibilidad */}
               <View style={styles.gradient} />
 
-              {/* Acciones lado derecho */}
+              {/* Acciones lado derecho — iconografía flotante translúcida, un círculo por acción */}
               <View style={[styles.actions, { bottom: 100 + insets.bottom }]}>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => toggleLike(item)}>
-                  <Ionicons name="heart" size={32} color="#FFF" />
-                  <Text style={styles.actionCount}>{item.likes_count ?? 0}</Text>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => toggleLike(item)} activeOpacity={0.75}>
+                  <View style={styles.actionCircle}>
+                    <Ionicons name="heart" size={25} color="#FFF" />
+                  </View>
+                  <Text style={styles.actionCountNum}>{item.likes_count ?? 0}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => abrirComentarios(item)}>
-                  <Ionicons name="chatbubble" size={28} color="#FFF" />
-                  <Text style={styles.actionCount}>{item.comentarios_count ?? 0}</Text>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => abrirComentarios(item)} activeOpacity={0.75}>
+                  <View style={styles.actionCircle}>
+                    <Ionicons name="chatbubble" size={22} color="#FFF" />
+                  </View>
+                  <Text style={styles.actionCountNum}>{item.comentarios_count ?? 0}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionBtn} onPress={() => toggleGuardar(item)}>
-                  <Ionicons name="bookmark" size={28} color="#FFF" />
-                  <Text style={styles.actionCount}>Guardar</Text>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => toggleGuardar(item)} activeOpacity={0.75}>
+                  <View style={styles.actionCircle}>
+                    <Ionicons name="bookmark" size={22} color="#FFF" />
+                  </View>
+                  <Text style={styles.actionCountLabel}>Guardar</Text>
                 </TouchableOpacity>
                 {item.vendedor_id ? (
-                  <TouchableOpacity style={styles.actionBtn} onPress={() => abrirPreguntar(item)}>
-                    <Ionicons name="send" size={26} color="#FFF" />
-                    <Text style={styles.actionCount}>Preguntar</Text>
+                  <TouchableOpacity style={styles.actionBtn} onPress={() => abrirPreguntar(item)} activeOpacity={0.75}>
+                    <View style={styles.actionCircle}>
+                      <Ionicons name="send" size={20} color="#FFF" />
+                    </View>
+                    <Text style={styles.actionCountLabel}>Preguntar</Text>
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -553,8 +561,8 @@ export default function ReelsScreen(): React.JSX.Element {
             {respondiendo && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: colors.elevated, borderTopWidth: 1, borderTopColor: colors.border }}>
                 <Ionicons name="return-down-forward" size={14} color={colors.accent} />
-                <Text style={{ flex: 1, fontSize: 12, color: colors.muted, fontWeight: '600' }}>
-                  Respondiendo a <Text style={{ color: colors.accent, fontWeight: '900' }}>{respondiendo.nombre}</Text>
+                <Text style={[styles.respondiendoTxt, { color: colors.muted }]}>
+                  Respondiendo a <Text style={[styles.respondiendoNombre, { color: colors.accent }]}>{respondiendo.nombre}</Text>
                 </Text>
                 <TouchableOpacity onPress={() => setRespondiendo(null)}>
                   <Ionicons name="close" size={16} color={colors.muted} />
@@ -594,9 +602,9 @@ export default function ReelsScreen(): React.JSX.Element {
             </View>
 
             <View style={{ padding: Spacing.md, flex: 1 }}>
-              <Text style={{ color: colors.muted, fontSize: 12, marginBottom: 12, lineHeight: 17 }}>
+              <Text style={[styles.preguntarDesc, { color: colors.muted }]}>
                 Elige una pregunta sobre este reel. Se enviará solo a{' '}
-                <Text style={{ fontWeight: '800', color: colors.text }}>{productoPreguntar?.tienda_nombre ?? 'la tienda'}</Text>, nunca a otros usuarios.
+                <Text style={[styles.preguntarDescStrong, { color: colors.text }]}>{productoPreguntar?.tienda_nombre ?? 'la tienda'}</Text>, nunca a otros usuarios.
               </Text>
 
               {productoPreguntar && preguntasPreterminadas(productoPreguntar).map((q, i) => {
@@ -613,7 +621,7 @@ export default function ReelsScreen(): React.JSX.Element {
                     }}
                   >
                     <Ionicons name={activa ? 'radio-button-on' : 'radio-button-off'} size={18} color={activa ? colors.accent : colors.muted} />
-                    <Text style={{ flex: 1, color: colors.text, fontSize: 13, fontWeight: activa ? '700' : '500' }}>{q}</Text>
+                    <Text style={[styles.opcionTxt, { color: colors.text, fontFamily: activa ? FontFamily.bodyBold : FontFamily.bodySemiBold }]}>{q}</Text>
                   </TouchableOpacity>
                 );
               })}
@@ -628,7 +636,7 @@ export default function ReelsScreen(): React.JSX.Element {
                 }}
               >
                 <Ionicons name={preguntaElegida === OTRA_PREGUNTA ? 'radio-button-on' : 'radio-button-off'} size={18} color={preguntaElegida === OTRA_PREGUNTA ? colors.accent : colors.muted} />
-                <Text style={{ flex: 1, color: colors.text, fontSize: 13, fontWeight: preguntaElegida === OTRA_PREGUNTA ? '700' : '500' }}>Escribir otra pregunta</Text>
+                <Text style={[styles.opcionTxt, { color: colors.text, fontFamily: preguntaElegida === OTRA_PREGUNTA ? FontFamily.bodyBold : FontFamily.bodySemiBold }]}>Escribir otra pregunta</Text>
               </TouchableOpacity>
 
               {preguntaElegida === OTRA_PREGUNTA && (
@@ -652,7 +660,7 @@ export default function ReelsScreen(): React.JSX.Element {
                   borderRadius: Radius.pill, paddingVertical: 14, alignItems: 'center',
                 }}
               >
-                <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 14 }}>
+                <Text style={styles.pillBtnTxt}>
                   {enviandoPregunta ? 'Enviando...' : 'Confirmar y enviar'}
                 </Text>
               </TouchableOpacity>
@@ -669,7 +677,7 @@ export default function ReelsScreen(): React.JSX.Element {
           activeOpacity={0.85}
         >
           <Ionicons name="add" size={20} color="#FFF" />
-          <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 12 }}>Subir reel</Text>
+          <Text style={styles.fabTxt}>Subir reel</Text>
         </TouchableOpacity>
       )}
       {uploadModal}
@@ -691,21 +699,21 @@ function CommentItem({ c, colors, depth = 0, onResponder, onLike }: {
         <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.accent, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
           {c.foto_perfil
             ? <Image source={{ uri: imgUri(c.foto_perfil) }} style={{ width: '100%', height: '100%' }} />
-            : <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 12 }}>{c.nombre.charAt(0).toUpperCase()}</Text>
+            : <Text style={styles.commentAvatarLetter}>{c.nombre.charAt(0).toUpperCase()}</Text>
           }
         </View>
         <View style={{ flex: 1 }}>
           <View style={{ backgroundColor: colors.card, borderRadius: 14, padding: 10, borderWidth: 1, borderColor: colors.border }}>
-            <Text style={{ color: colors.text, fontWeight: '800', fontSize: 12 }}>{c.nombre}</Text>
-            <Text style={{ color: colors.text, marginTop: 2, fontSize: 13, lineHeight: 18 }}>{c.comentario}</Text>
+            <Text style={[styles.commentNombre, { color: colors.text }]}>{c.nombre}</Text>
+            <Text style={[styles.commentTexto, { color: colors.text }]}>{c.comentario}</Text>
           </View>
           <View style={{ flexDirection: 'row', gap: 14, marginTop: 6, marginLeft: 4, alignItems: 'center' }}>
             <TouchableOpacity onPress={() => onLike(c.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Ionicons name={c.yo_like ? 'heart' : 'heart-outline'} size={14} color={c.yo_like ? '#EF4444' : colors.muted} />
-              <Text style={{ fontSize: 11, fontWeight: '700', color: c.yo_like ? '#EF4444' : colors.muted }}>{c.likes_count ?? 0}</Text>
+              <Text style={[styles.commentLikeNum, { color: c.yo_like ? '#EF4444' : colors.muted }]}>{c.likes_count ?? 0}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => onResponder(c)}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: colors.muted }}>Responder</Text>
+              <Text style={[styles.commentResponder, { color: colors.muted }]}>Responder</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -727,39 +735,59 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, paddingVertical: 9, borderRadius: Radius.pill,
     shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 6,
   },
+  fabTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: 12 },
+  pillBtnTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: 14 },
+  loadingTxt: { color: '#FFF', marginTop: 12, fontFamily: FontFamily.bodySemiBold },
+  emptyTitulo: { color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: 18, marginTop: 16, textAlign: 'center' },
+  emptySub: { color: 'rgba(255,255,255,0.6)', fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 19, fontFamily: FontFamily.bodyRegular },
+  pickerHint: { fontSize: 12, fontFamily: FontFamily.bodyBold },
   gradient: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.38)' },
   actions: {
     position: 'absolute', right: Spacing.md,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: Radius.md, paddingVertical: Spacing.sm, paddingHorizontal: 8,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center', gap: Spacing.sm,
+    alignItems: 'center', gap: Spacing.md,
   },
-  actionBtn:   { alignItems: 'center', paddingVertical: 4 },
-  actionCount: { color: '#FFF', fontSize: Fonts.small - 1, marginTop: 3, fontWeight: '800', textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  actionBtn:   { alignItems: 'center' },
+  actionCircle: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: 'rgba(0,0,0,0.38)',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+  },
+  actionCountNum:   { color: '#FFF', fontSize: Fonts.small - 1, marginTop: 4, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'], textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  actionCountLabel: { color: '#FFF', fontSize: Fonts.small - 1, marginTop: 4, fontFamily: FontFamily.bodyExtraBold, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
   info: { padding: Spacing.md, paddingRight: 80 },
   tiendaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
   tiendaAvatar: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.25)', justifyContent: 'center', alignItems: 'center', marginRight: 6 },
-  infoTienda: { color: '#FFF', fontWeight: '900', fontSize: Fonts.regular, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  infoTienda: { color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: Fonts.regular, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
   seguirBtn: { marginLeft: 10, paddingHorizontal: 12, paddingVertical: 4, borderRadius: Radius.pill, borderWidth: 1.5, borderColor: '#FFF' },
   seguirBtnActivo: { backgroundColor: 'rgba(255,255,255,0.25)' },
-  seguirTxt: { color: '#FFF', fontWeight: '800', fontSize: Fonts.small - 1 },
-  infoTitulo: { color: '#FFF', fontWeight: '800', fontSize: Fonts.title - 3, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
-  infoDesc:   { color: 'rgba(255,255,255,0.9)', fontSize: Fonts.small + 1, marginTop: 4, lineHeight: 18, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  seguirTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.small - 1 },
+  infoTitulo: { color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: Fonts.title - 3, textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  infoDesc:   { color: 'rgba(255,255,255,0.9)', fontSize: Fonts.small + 1, marginTop: 4, lineHeight: 18, fontFamily: FontFamily.bodyRegular, textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
   infoBottom: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.sm, gap: Spacing.sm },
   precioBox:  { backgroundColor: 'rgba(74,109,140,0.9)', paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.pill },
-  precioTxt:  { color: '#FFF', fontWeight: '900', fontSize: Fonts.small + 1 },
+  precioTxt:  { color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: Fonts.small + 1, fontVariant: ['tabular-nums'] },
   comprarBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 14, paddingVertical: 6, borderRadius: Radius.pill, borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)' },
-  comprarTxt: { color: '#FFF', fontWeight: '700', fontSize: Fonts.small },
+  comprarTxt: { color: '#FFF', fontFamily: FontFamily.bodyBold, fontSize: Fonts.small },
   indexIndicator: { position: 'absolute', right: Spacing.md, backgroundColor: 'rgba(0,0,0,0.4)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.pill },
-  indexTxt: { color: '#FFF', fontSize: Fonts.small - 1, fontWeight: '800' },
+  indexTxt: { color: '#FFF', fontSize: Fonts.small - 1, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] },
   modalRoot: { flex: 1, justifyContent: 'flex-end' },
   modalBox:  { height: '75%', borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg, overflow: 'hidden' },
   modalHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 10 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.md, borderBottomWidth: 1.5 },
-  modalTitle:  { fontWeight: '800', fontSize: Fonts.title - 3 },
-  sinCom: { textAlign: 'center', paddingVertical: Spacing.xl, fontWeight: '600' },
+  modalTitle:  { fontFamily: FontFamily.displayExtraBold, fontSize: Fonts.title - 3 },
+  sinCom: { textAlign: 'center', paddingVertical: Spacing.xl, fontFamily: FontFamily.bodySemiBold },
+  respondiendoTxt: { flex: 1, fontSize: 12, fontFamily: FontFamily.bodySemiBold },
+  respondiendoNombre: { fontFamily: FontFamily.bodyExtraBold },
+  preguntarDesc: { fontSize: 12, marginBottom: 12, lineHeight: 17, fontFamily: FontFamily.bodyRegular },
+  preguntarDescStrong: { fontFamily: FontFamily.bodyExtraBold },
+  opcionTxt: { flex: 1, fontSize: 13 },
+  commentAvatarLetter: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: 12 },
+  commentNombre: { fontFamily: FontFamily.bodyExtraBold, fontSize: 12 },
+  commentTexto: { marginTop: 2, fontSize: 13, lineHeight: 18, fontFamily: FontFamily.bodyRegular },
+  commentLikeNum: { fontSize: 11, fontFamily: FontFamily.displayBold, fontVariant: ['tabular-nums'] },
+  commentResponder: { fontSize: 11, fontFamily: FontFamily.bodyBold },
   comInputRow: { flexDirection: 'row', padding: Spacing.md, borderTopWidth: 1.5, alignItems: 'center', paddingBottom: 30 },
-  comInput: { flex: 1, borderRadius: Radius.pill, paddingHorizontal: Spacing.md, paddingVertical: 10, borderWidth: 1.5, fontWeight: '500' },
+  comInput: { flex: 1, borderRadius: Radius.pill, paddingHorizontal: Spacing.md, paddingVertical: 10, borderWidth: 1.5, fontFamily: FontFamily.bodySemiBold },
   sendBtn:  { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginLeft: Spacing.sm },
 });

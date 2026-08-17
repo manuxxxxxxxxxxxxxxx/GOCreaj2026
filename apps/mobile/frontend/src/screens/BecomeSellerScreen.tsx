@@ -4,10 +4,11 @@ import {
   TouchableOpacity, Image, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { api, Endpoints } from '@/services/api';
-import { Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { RootStackParamList } from '@/types';
@@ -39,13 +40,11 @@ const ROL_INFO = {
     icon: 'storefront-outline' as const,
     title: 'Vendedor',
     desc: 'Publica y vende tus productos a clientes cercanos',
-    emoji: '🏪',
   },
   repartidor: {
     icon: 'bicycle-outline' as const,
     title: 'Repartidor',
     desc: 'Entrega pedidos y gana por cada delivery',
-    emoji: '🚴',
   },
 };
 
@@ -55,11 +54,13 @@ const MUNICIPIOS = [
   'Sonsonate', 'Usulután', 'Cojutepeque', 'La Unión',
 ];
 
-const VEHICULOS: { id: Vehiculo; label: string; emoji: string }[] = [
-  { id: 'bicicleta', label: 'Bicicleta', emoji: '🚲' },
-  { id: 'moto',      label: 'Moto',      emoji: '🏍️' },
-  { id: 'carro',     label: 'Carro',     emoji: '🚗' },
-  { id: 'pickup',    label: 'Pickup',    emoji: '🛻' },
+/* `icon` es puramente decorativo (mapea a Ionicons); el valor enviado al backend
+   sigue siendo `id` vía tipo_vehiculo, sin cambios. */
+const VEHICULOS: { id: Vehiculo; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { id: 'bicicleta', label: 'Bicicleta', icon: 'bicycle-outline' },
+  { id: 'moto',      label: 'Moto',      icon: 'speedometer-outline' },
+  { id: 'carro',     label: 'Carro',     icon: 'car-outline' },
+  { id: 'pickup',    label: 'Pickup',    icon: 'car-sport-outline' },
 ];
 
 function PhotoBox({
@@ -147,7 +148,7 @@ export default function BecomeSellerScreen() {
     setEnviando(false);
 
     if (r.ok) {
-      Alert.alert('Solicitud enviada ✅', 'Tu solicitud está en revisión. El admin te notificará pronto.');
+      Alert.alert('Solicitud enviada', 'Tu solicitud está en revisión. El admin te notificará pronto.');
       await refrescar();
       nav.goBack();
     } else {
@@ -163,40 +164,49 @@ export default function BecomeSellerScreen() {
 
       <ScreenScroll>
         {/* Hero */}
-        <View style={[styles.heroBox, { backgroundColor: c.card, borderColor: c.border }]}>
-          <Text style={styles.heroEmoji}>{info.emoji}</Text>
+        <Animated.View entering={FadeInDown.duration(400).springify()} style={[styles.heroBox, { backgroundColor: c.card, borderColor: c.border }]}>
+          <View style={[styles.heroIconBadge, { backgroundColor: c.accentLight }]}>
+            <Ionicons name={info.icon} size={30} color={c.accent} />
+          </View>
           <View style={{ flex: 1, marginLeft: Spacing.md }}>
             <Text style={[styles.heroTitle, { color: c.text }]}>{info.title}</Text>
             <Text style={[styles.heroDesc, { color: c.muted }]}>{info.desc}</Text>
           </View>
-        </View>
+        </Animated.View>
 
         {/* Selector de rol */}
         <Text style={[styles.label, { color: c.text }]}>¿Cómo quieres unirte?</Text>
         <View style={styles.rolRow}>
-          {(['vendedor', 'repartidor'] as RolSol[]).map(r => {
+          {(['vendedor', 'repartidor'] as RolSol[]).map((r, idx) => {
             const active = rol === r;
             const ri = ROL_INFO[r];
             return (
-              <TouchableOpacity
-                key={r}
-                style={[styles.rolBtn, { borderColor: active ? c.accent : c.border, backgroundColor: active ? c.accent : c.card }]}
-                onPress={() => setRol(r)}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.rolEmoji}>{ri.emoji}</Text>
-                <Ionicons name={ri.icon} size={22} color={active ? '#FFF' : c.accent} />
-                <Text style={[styles.rolTxt, { color: active ? '#FFF' : c.text }]}>{ri.title}</Text>
-                <Text style={[styles.rolSub, { color: active ? 'rgba(255,255,255,0.8)' : c.muted }]}>
-                  {active ? '✓ Seleccionado' : 'Seleccionar'}
-                </Text>
-              </TouchableOpacity>
+              <Animated.View key={r} entering={FadeInDown.delay(80 + idx * 60).duration(400).springify()} style={{ flex: 1 }}>
+                <TouchableOpacity
+                  style={[styles.rolBtn, { borderColor: active ? c.accent : c.border, backgroundColor: active ? c.accent : c.card }]}
+                  onPress={() => setRol(r)}
+                  activeOpacity={0.85}
+                >
+                  {active && (
+                    <View style={styles.rolCheckBadge}>
+                      <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+                    </View>
+                  )}
+                  <View style={[styles.rolIconBadge, { backgroundColor: active ? 'rgba(255,255,255,0.2)' : c.accentLight }]}>
+                    <Ionicons name={ri.icon} size={24} color={active ? '#FFF' : c.accent} />
+                  </View>
+                  <Text style={[styles.rolTxt, { color: active ? '#FFF' : c.text }]}>{ri.title}</Text>
+                  <Text style={[styles.rolSub, { color: active ? 'rgba(255,255,255,0.85)' : c.muted }]}>
+                    {active ? 'Seleccionado' : 'Seleccionar'}
+                  </Text>
+                </TouchableOpacity>
+              </Animated.View>
             );
           })}
         </View>
 
         {/* Pasos */}
-        <View style={[styles.stepsBox, { backgroundColor: c.card, borderColor: c.border }]}>
+        <Animated.View entering={FadeInDown.delay(200).duration(400).springify()} style={[styles.stepsBox, { backgroundColor: c.card, borderColor: c.border }]}>
           <Text style={[styles.stepsTitle, { color: c.text }]}>Proceso de verificación</Text>
           {[
             { num: '1', txt: 'Completa el formulario con tu información' },
@@ -214,7 +224,7 @@ export default function BecomeSellerScreen() {
               <Text style={[styles.stepTxt, { color: c.muted }]}>{s.txt}</Text>
             </View>
           ))}
-        </View>
+        </Animated.View>
 
         {/* ── Datos personales ── */}
         <Text style={[styles.label, { color: c.text }]}>Datos personales</Text>
@@ -305,18 +315,24 @@ export default function BecomeSellerScreen() {
           <>
             <Text style={[styles.label, { color: c.text }]}>Tipo de vehículo</Text>
             <View style={styles.vehiculoRow}>
-              {VEHICULOS.map(v => {
+              {VEHICULOS.map((v, idx) => {
                 const active = vehiculo === v.id;
                 return (
-                  <TouchableOpacity
-                    key={v.id}
-                    style={[styles.vehiculoBtn, { borderColor: active ? c.accent : c.border, backgroundColor: active ? c.accent : c.card }]}
-                    onPress={() => setVehiculo(v.id)}
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.vehiculoEmoji}>{v.emoji}</Text>
-                    <Text style={[styles.vehiculoTxt, { color: active ? '#FFF' : c.text }]}>{v.label}</Text>
-                  </TouchableOpacity>
+                  <Animated.View key={v.id} entering={FadeInDown.delay(idx * 50).duration(350).springify()}>
+                    <TouchableOpacity
+                      style={[styles.vehiculoBtn, { borderColor: active ? c.accent : c.border, backgroundColor: active ? c.accent : c.card }]}
+                      onPress={() => setVehiculo(v.id)}
+                      activeOpacity={0.85}
+                    >
+                      {active && (
+                        <View style={styles.vehiculoCheckBadge}>
+                          <Ionicons name="checkmark-circle" size={14} color="#FFF" />
+                        </View>
+                      )}
+                      <Ionicons name={v.icon} size={24} color={active ? '#FFF' : c.accent} style={{ marginBottom: 4 }} />
+                      <Text style={[styles.vehiculoTxt, { color: active ? '#FFF' : c.text }]}>{v.label}</Text>
+                    </TouchableOpacity>
+                  </Animated.View>
                 );
               })}
             </View>
@@ -346,7 +362,7 @@ export default function BecomeSellerScreen() {
             {aceptaTerminos && <Ionicons name="checkmark" size={14} color="#FFF" />}
           </View>
           <Text style={[styles.termsTxt, { color: c.text }]}>
-            He leído y acepto los <Text style={{ fontWeight: '800', color: c.accent }}>términos y condiciones</Text> de [SV]Go para socios.
+            He leído y acepto los <Text style={{ fontFamily: FontFamily.bodyExtraBold, color: c.accent }}>términos y condiciones</Text> de [SV]Go para socios.
           </Text>
         </TouchableOpacity>
 
@@ -368,29 +384,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1.5, marginBottom: Spacing.lg,
   },
-  heroEmoji: { fontSize: 36 },
-  heroTitle: { fontSize: Fonts.title - 2, fontWeight: '800' },
-  heroDesc:  { fontSize: Fonts.small, fontWeight: '500', marginTop: 2, lineHeight: 18 },
+  heroIconBadge: { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
+  heroTitle: { fontSize: Fonts.title - 2, fontFamily: FontFamily.displayExtraBold },
+  heroDesc:  { fontSize: Fonts.small, fontFamily: FontFamily.bodyRegular, marginTop: 2, lineHeight: 18 },
 
-  label:    { fontSize: Fonts.small - 1, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1, marginBottom: Spacing.sm, marginTop: Spacing.sm },
-  subLabel: { fontSize: Fonts.small, fontWeight: '700', marginBottom: Spacing.sm, marginTop: Spacing.xs },
+  label:    { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyExtraBold, textTransform: 'uppercase', letterSpacing: 1, marginBottom: Spacing.sm, marginTop: Spacing.sm },
+  subLabel: { fontSize: Fonts.small, fontFamily: FontFamily.bodyBold, marginBottom: Spacing.sm, marginTop: Spacing.xs },
 
   rolRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
   rolBtn: {
-    flex: 1, alignItems: 'center', padding: Spacing.md,
+    flex: 1, alignItems: 'center', padding: Spacing.md, minHeight: 128,
     borderRadius: Radius.lg, borderWidth: 2, gap: 4,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2,
   },
-  rolEmoji: { fontSize: 24, marginBottom: 4 },
-  rolTxt:   { fontWeight: '800', fontSize: Fonts.regular, textAlign: 'center' },
-  rolSub:   { fontSize: Fonts.small - 1, fontWeight: '600', textAlign: 'center' },
+  rolIconBadge: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginBottom: 2 },
+  rolCheckBadge: { position: 'absolute', top: 10, right: 10 },
+  rolTxt:   { fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.regular, textAlign: 'center' },
+  rolSub:   { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodySemiBold, textAlign: 'center' },
 
   stepsBox: { borderRadius: Radius.md, padding: Spacing.md, borderWidth: 1.5, marginBottom: Spacing.lg },
-  stepsTitle: { fontWeight: '800', fontSize: Fonts.regular, marginBottom: Spacing.md },
+  stepsTitle: { fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.regular, marginBottom: Spacing.md },
   stepRow:  { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.sm, gap: Spacing.sm },
   stepNum:  { width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center', flexShrink: 0, marginTop: 1 },
-  stepNumTxt: { color: '#FFF', fontWeight: '800', fontSize: Fonts.small - 1 },
-  stepTxt:  { flex: 1, fontSize: Fonts.small + 1, fontWeight: '500', lineHeight: 20 },
+  stepNumTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.small - 1 },
+  stepTxt:  { flex: 1, fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyRegular, lineHeight: 20 },
 
   dualPhoto: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md },
   photoBox: {
@@ -412,20 +429,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
   photoInner: { alignItems: 'center', gap: 4 },
-  photoLabel: { fontWeight: '800', fontSize: Fonts.small },
-  photoSub:   { fontSize: Fonts.small - 1, fontWeight: '500' },
+  photoLabel: { fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.small },
+  photoSub:   { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyRegular },
 
   vehiculoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.md },
   vehiculoBtn: {
-    paddingHorizontal: 14, paddingVertical: 10,
+    paddingHorizontal: 14, paddingVertical: 12, minHeight: 68,
     borderRadius: Radius.md, borderWidth: 2,
-    alignItems: 'center', minWidth: 76,
+    alignItems: 'center', justifyContent: 'center', minWidth: 76,
   },
-  vehiculoEmoji: { fontSize: 22, marginBottom: 2 },
-  vehiculoTxt:   { fontWeight: '700', fontSize: Fonts.small },
+  vehiculoCheckBadge: { position: 'absolute', top: 6, right: 6 },
+  vehiculoTxt:   { fontFamily: FontFamily.bodyBold, fontSize: Fonts.small },
 
-  disclaimer: { textAlign: 'center', fontSize: Fonts.small - 1, marginTop: Spacing.md, lineHeight: 17 },
+  disclaimer: { textAlign: 'center', fontSize: Fonts.small - 1, marginTop: Spacing.md, lineHeight: 17, fontFamily: FontFamily.bodyRegular },
   termsRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1.5, marginTop: Spacing.md },
   checkbox: { width: 20, height: 20, borderRadius: 5, borderWidth: 2, justifyContent: 'center', alignItems: 'center', marginTop: 1 },
-  termsTxt: { flex: 1, fontSize: Fonts.small, lineHeight: 18, fontWeight: '500' },
+  termsTxt: { flex: 1, fontSize: Fonts.small, lineHeight: 18, fontFamily: FontFamily.bodyRegular },
 });

@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
 *, *::before, *::after { 
   box-sizing: border-box; 
   margin: 0; 
@@ -8,14 +6,14 @@
 
 :root {
   /* SVGO Premium Brand Color Palette */
-  --blue: #4A6D8C;           /* Corporate blue */
-  --blue-dark: #355068;      /* Darker shade for contrast */
+  --blue: #2563EB;           /* Corporate blue (evolved) */
+  --blue-dark: #1D4ED8;      /* Darker shade for contrast */
   --blue-light: #eef4f8;     /* Light accent wash */
-  --purple: #4A6D8C;
-  --green: #2ecc71;          /* Soft modern green */
+  --purple: #2563EB;
+  --green: #16A34A;          /* Soft modern green */
   --green-light: #e8fcf0;
-  --red: #e74c3c;
-  --orange: #e67e22;
+  --red: #DC2626;
+  --orange: #EA580C;
   
   --text: #111111;           /* High contrast dark text */
   --text-muted: #5e697a;     /* Soft slate text */
@@ -48,12 +46,12 @@
   width: 38px; 
   height: 38px; 
   border-radius: 12px; 
-  box-shadow: 0 4px 12px rgba(74, 109, 140, 0.25);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
   display: grid; 
   place-items: center; 
   flex-shrink: 0; 
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  font-family: 'Manrope', sans-serif;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .nav-logo:hover .logo-icon {
@@ -211,18 +209,10 @@
   overflow: hidden;
 }
 
-.summary-chip::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; height: 4px;
-  background: linear-gradient(90deg, var(--blue), #769fcd);
-  opacity: 0.8;
-}
-
 .summary-chip:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(74, 109, 140, 0.08);
-  border-color: rgba(74, 109, 140, 0.2);
+  box-shadow: 0 8px 30px rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.2);
 }
 
 .summary-chip-num { 
@@ -276,7 +266,7 @@
   background: var(--blue); 
   border-color: var(--blue); 
   color: var(--white); 
-  box-shadow: 0 4px 14px rgba(74, 109, 140, 0.35);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
 }
 
 /* ══ ORDER CARDS ══ */
@@ -293,7 +283,7 @@
 .order-card:hover { 
   transform: translateY(-4px);
   box-shadow: 0 12px 35px rgba(0, 0, 0, 0.06); 
-  border-color: rgba(74, 109, 140, 0.25);
+  border-color: rgba(37, 99, 235, 0.25);
 }
 
 .order-card-header { 
@@ -409,7 +399,7 @@
   gap: 12px; 
   padding: 14px 28px; 
   background: var(--blue-light); 
-  border-top: 1px solid rgba(74, 109, 140, 0.1); 
+  border-top: 1px solid rgba(37, 99, 235, 0.1); 
   font-size: 0.85rem; 
   color: var(--text-muted); 
   font-weight: 500;
@@ -425,7 +415,7 @@
   height: 32px; 
   border-radius: 50%; 
   background: var(--white);
-  border: 1px solid rgba(74, 109, 140, 0.15);
+  border: 1px solid rgba(37, 99, 235, 0.15);
   display: grid;
   place-items: center;
   font-size: 1rem;
@@ -481,13 +471,13 @@
   background: var(--blue); 
   color: white; 
   border: none; 
-  box-shadow: 0 4px 12px rgba(74, 109, 140, 0.25);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
 .order-action-btn.primary:hover { 
   background: var(--blue-dark); 
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(74, 109, 140, 0.35);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
 }
 
 .order-action-btn.secondary { 
@@ -540,13 +530,13 @@
   font-weight: 700; 
   font-size: 0.9rem; 
   transition: all 0.2s ease; 
-  box-shadow: 0 4px 12px rgba(74, 109, 140, 0.25);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
 .hist-empty a:hover { 
   background: var(--blue-dark); 
   transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(74, 109, 140, 0.35);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
 }
 
 /* ══ RESPONSIVE ══ */

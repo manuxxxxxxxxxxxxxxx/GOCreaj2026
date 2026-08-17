@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import { useGlobal } from "../context/GlobalContext";
 import Header from '../components/Header';
+import { X, MapPin, Map, FileText, Eye, Mic, Copy, Reply, Forward, Trash2, MessageCircle, Video, Phone, Check, CheckCheck, Star, Play, Pause } from 'lucide-react';
 import { api, API_URL, SOCKET_URL } from '../api';
 import '../../css/Chat.css';
 
@@ -149,7 +150,7 @@ function ReplyBar({ target, onCancel }: { target: Message; onCancel: () => void 
         <div style={{ fontSize: 11, color: '#3B82F6', fontWeight: 700, marginBottom: 2 }}>Respondiendo a</div>
         <div style={{ fontSize: 12, color: '#94A3B8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{preview}</div>
       </div>
-      <button onClick={onCancel} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', fontSize: 18, lineHeight: 1, padding: '2px 6px' }}>✕</button>
+      <button onClick={onCancel} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', lineHeight: 1, padding: '2px 6px', display: 'flex' }}><X size={16} strokeWidth={2.2} /></button>
     </div>
   );
 }
@@ -160,17 +161,17 @@ function LocationMsg({ lat, lng, mine, onOpen }: { lat: number | null | undefine
   const [mapErr, setMapErr] = useState(false);
   const numLat = Number(lat);
   const numLng = Number(lng);
-  if (!numLat || !numLng) return <span style={{ fontSize: 14 }}>📍 Ubicación</span>;
+  if (!numLat || !numLng) return <span style={{ fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 4 }}><MapPin size={14} strokeWidth={2.2} />Ubicación</span>;
   const mapUrl  = `https://staticmap.openstreetmap.de/staticmap.php?center=${numLat},${numLng}&zoom=14&size=220x100&markers=${numLat},${numLng},red`;
   return (
     <button onClick={() => onOpen(numLat, numLng)} style={{ display: 'block', border: 'none', background: 'none', padding: 0, textAlign: 'left', cursor: 'pointer' }}>
       <div style={{ borderRadius: 12, overflow: 'hidden', width: 220 }}>
         {!mapErr
           ? <img src={mapUrl} alt="Mapa" style={{ width: 220, height: 100, objectFit: 'cover', display: 'block' }} onError={() => setMapErr(true)} />
-          : <div style={{ width: 220, height: 100, background: '#1E293B', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 36 }}>🗺️</div>
+          : <div style={{ width: 220, height: 100, background: '#1E293B', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8' }}><Map size={32} strokeWidth={1.6} /></div>
         }
         <div style={{ background: mine ? 'rgba(0,0,0,0.25)' : '#1E293B', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 13 }}>📍</span>
+          <MapPin size={13} strokeWidth={2.2} color={mine ? 'rgba(255,255,255,0.8)' : '#94A3B8'} />
           <span style={{ fontSize: 12, color: mine ? 'rgba(255,255,255,0.8)' : '#94A3B8' }}>
             {numLat.toFixed(4)}, {numLng.toFixed(4)} → Ver mapa
           </span>
@@ -217,7 +218,7 @@ function LocationPickerModal({ initialLat, initialLng, onConfirm, onClose }: {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onClose}>
       <div style={{ width: '100%', maxWidth: 720, height: '80vh', background: '#0B0F19', borderRadius: 16, overflow: 'hidden', position: 'relative', boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
         <iframe title="Elegir ubicación" srcDoc={buildPickerHtml(initialLat, initialLng)} style={{ width: '100%', height: '100%', border: 'none' }} />
-        <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, background: '#FFF', border: 'none', borderRadius: 20, width: 36, height: 36, cursor: 'pointer', fontSize: 18 }}>✕</button>
+        <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, background: '#FFF', border: 'none', borderRadius: 20, width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} strokeWidth={2.2} /></button>
         <div style={{ position: 'absolute', bottom: 16, left: 16, right: 16, background: '#111827', borderRadius: 14, padding: 14, display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ color: '#94A3B8', fontSize: 12, flex: 1 }}>Toca el mapa o arrastra el pin para ajustar</span>
           <button
@@ -240,7 +241,7 @@ function MapModal({ lat, lng, onClose }: { lat: number; lng: number; onClose: ()
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onClose}>
       <div style={{ width: '100%', maxWidth: 720, height: '80vh', background: '#0B0F19', borderRadius: 16, overflow: 'hidden', position: 'relative', boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
         <iframe title="Mapa" src={embedUrl} style={{ width: '100%', height: '100%', border: 'none' }} />
-        <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, background: '#FFF', border: 'none', borderRadius: 20, width: 36, height: 36, cursor: 'pointer', fontSize: 18 }}>✕</button>
+        <button onClick={onClose} style={{ position: 'absolute', top: 14, right: 14, background: '#FFF', border: 'none', borderRadius: 20, width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} strokeWidth={2.2} /></button>
         <a href={`https://www.google.com/maps?q=${lat},${lng}`} target="_blank" rel="noreferrer" style={{ position: 'absolute', top: 14, left: 14, background: '#FFF', color: '#0F172A', borderRadius: 20, padding: '8px 14px', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
           Abrir en Google Maps
         </a>
@@ -259,12 +260,12 @@ function PdfMsg({ msg, mine, onOpen }: { msg: Message; mine: boolean; onOpen: (u
       onClick={() => msg.adjunto && onOpen(msg.adjunto, msg.adjunto_nombre)}
       style={{ display: 'flex', alignItems: 'center', gap: 10, border: 'none', background: mine ? 'rgba(255,255,255,0.14)' : 'rgba(148,163,184,0.12)', borderRadius: 12, padding: 8, width: 230, cursor: 'pointer', textAlign: 'left' }}
     >
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: mine ? 'rgba(255,255,255,0.18)' : 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📄</div>
+      <div style={{ width: 40, height: 40, borderRadius: 10, background: mine ? 'rgba(255,255,255,0.18)' : 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: mine ? '#fff' : '#3B82F6', flexShrink: 0 }}><FileText size={18} strokeWidth={2} /></div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: mine ? '#FFF' : 'inherit', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre}</div>
         {!!tamano && <div style={{ fontSize: 10, fontWeight: 600, color: mine ? 'rgba(255,255,255,0.7)' : '#94A3B8', marginTop: 2 }}>{tamano} · PDF</div>}
       </div>
-      <span style={{ fontSize: 16 }}>👁️</span>
+      <Eye size={16} strokeWidth={2} color={mine ? '#fff' : 'inherit'} />
     </button>
   );
 }
@@ -275,7 +276,7 @@ function PdfModal({ url, nombre, onClose }: { url: string; nombre?: string | nul
       <div style={{ width: '100%', maxWidth: 860, height: '86vh', background: '#0B0F19', borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 80px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid #1E293B' }}>
           <span style={{ color: '#F1F5F9', fontWeight: 700, fontSize: 14, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre ?? 'Documento.pdf'}</span>
-          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#FFF', borderRadius: 18, width: 32, height: 32, cursor: 'pointer', fontSize: 16 }}>✕</button>
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#FFF', borderRadius: 18, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} strokeWidth={2.2} /></button>
         </div>
         <iframe title="PDF" src={url} style={{ flex: 1, border: 'none', background: '#FFF' }} />
       </div>
@@ -313,8 +314,8 @@ function AudioMsg({ msg, mine }: { msg: Message; mine: boolean }) {
         onLoadedMetadata={e => { if (isFinite(e.currentTarget.duration)) setTiempo(e.currentTarget.duration); }}
         style={{ display: 'none' }}
       />
-      <button onClick={toggle} style={{ width: 34, height: 34, borderRadius: 17, border: 'none', background: mine ? '#FFF' : '#3B82F6', color: mine ? '#3B82F6' : '#FFF', cursor: 'pointer', fontSize: 13, flexShrink: 0 }}>
-        {playing ? '⏸' : '▶'}
+      <button onClick={toggle} style={{ width: 34, height: 34, borderRadius: 17, border: 'none', background: mine ? '#FFF' : '#3B82F6', color: mine ? '#3B82F6' : '#FFF', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {playing ? <Pause size={14} fill="currentColor" strokeWidth={0} /> : <Play size={14} fill="currentColor" strokeWidth={0} style={{ marginLeft: 2 }} />}
       </button>
       <div style={{ flex: 1 }}>
         <div style={{ height: 4, borderRadius: 2, background: mine ? 'rgba(255,255,255,0.3)' : '#334155', overflow: 'hidden' }}>
@@ -322,7 +323,7 @@ function AudioMsg({ msg, mine }: { msg: Message; mine: boolean }) {
         </div>
         <div style={{ fontSize: 10, fontWeight: 600, color: mine ? 'rgba(255,255,255,0.8)' : '#94A3B8', marginTop: 4 }}>{formatDuration(Math.floor(tiempo))}</div>
       </div>
-      <span style={{ fontSize: 13 }}>🎤</span>
+      <Mic size={14} strokeWidth={2} color={mine ? 'rgba(255,255,255,0.8)' : '#94A3B8'} />
     </div>
   );
 }
@@ -370,17 +371,17 @@ function MessageActionMenu({ msg, mine, x, y, onClose, onCopy, onReply, onForwar
           ))}
         </div>
         {[
-          { label: 'Copiar', icon: '📋', onPress: () => { onCopy(msg); onClose(); } },
-          { label: 'Responder', icon: '↩️', onPress: () => { onReply(msg); onClose(); } },
-          { label: 'Reenviar', icon: '➡️', onPress: () => { onForward(msg); onClose(); } },
-          ...(mine ? [{ label: 'Eliminar', icon: '🗑️', onPress: () => { onDelete(msg); onClose(); } }] : []),
+          { label: 'Copiar', icon: <Copy size={16} strokeWidth={2} />, onPress: () => { onCopy(msg); onClose(); } },
+          { label: 'Responder', icon: <Reply size={16} strokeWidth={2} />, onPress: () => { onReply(msg); onClose(); } },
+          { label: 'Reenviar', icon: <Forward size={16} strokeWidth={2} />, onPress: () => { onForward(msg); onClose(); } },
+          ...(mine ? [{ label: 'Eliminar', icon: <Trash2 size={16} strokeWidth={2} />, onPress: () => { onDelete(msg); onClose(); } }] : []),
         ].map(item => (
           <button
             key={item.label}
             onClick={item.onPress}
             style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', background: 'none', border: 'none', color: item.label === 'Eliminar' ? '#EF4444' : '#F1F5F9', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}
           >
-            <span>{item.icon}</span>{item.label}
+            {item.icon}{item.label}
           </button>
         ))}
       </div>
@@ -442,7 +443,7 @@ function PeoplePickerModal({ title, people, loading, onClose, onSelect }: {
                     {u.en_linea === 1 && <span style={{ width: 7, height: 7, borderRadius: 4, background: '#10B981' }} />}
                   </div>
                 </div>
-                <span style={{ color: '#3B82F6', fontSize: 18 }}>💬</span>
+                <span style={{ color: '#3B82F6', display: 'flex' }}><MessageCircle size={18} strokeWidth={2} /></span>
               </button>
             );
           })}
@@ -642,7 +643,7 @@ function IncomingCallModal({ call, onAccept, onReject }: {
   onReject: () => void;
 }) {
   return (
-    <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, display: 'flex', alignItems: 'center', gap: 14, background: '#121B2D', borderRadius: 18, padding: '12px 16px', boxShadow: '0 16px 48px rgba(0,0,0,0.45)', minWidth: 340, animation: 'callBannerIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275)' }}>
+    <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, display: 'flex', alignItems: 'center', gap: 14, background: '#121B2D', borderRadius: 18, padding: '12px 16px', boxShadow: '0 16px 48px rgba(0,0,0,0.45)', minWidth: 340, animation: 'callBannerIn 0.3s cubic-bezier(0.16,1,0.3,1)' }}>
       <div style={{ width: 46, height: 46, borderRadius: 23, background: '#4A6D8C', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
         {call.foto_perfil
           ? <img src={imgUri(call.foto_perfil)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -651,7 +652,9 @@ function IncomingCallModal({ call, onAccept, onReject }: {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ color: '#F1F5F9', fontWeight: 800, fontSize: 14 }}>{call.nombre}</div>
-        <div style={{ color: '#94A3B8', fontSize: 12, fontWeight: 600 }}>{call.tipo === 'video' ? '📹 Videollamada entrante' : '📞 Llamada entrante'}</div>
+        <div style={{ color: '#94A3B8', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+          {call.tipo === 'video' ? <><Video size={13} strokeWidth={2.2} />Videollamada entrante</> : <><Phone size={13} strokeWidth={2.2} />Llamada entrante</>}
+        </div>
       </div>
       <button onClick={onReject} title="Rechazar" style={{ width: 40, height: 40, borderRadius: 20, background: '#EF4444', display: 'grid', placeItems: 'center', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" width="18" height="18"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1329,7 +1332,7 @@ export default function Chat() {
       {imgFullscreen && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }} onClick={() => setImgFullscreen(null)}>
           <img src={imgFullscreen} alt="" style={{ maxWidth: '92vw', maxHeight: '88vh', borderRadius: 12, objectFit: 'contain' }} />
-          <button style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#FFF', borderRadius: 20, width: 36, height: 36, cursor: 'pointer', fontSize: 18 }} onClick={() => setImgFullscreen(null)}>✕</button>
+          <button style={{ position: 'absolute', top: 20, right: 20, background: 'rgba(255,255,255,0.15)', border: 'none', color: '#FFF', borderRadius: 20, width: 36, height: 36, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setImgFullscreen(null)}><X size={18} strokeWidth={2.2} /></button>
         </div>
       )}
 
@@ -1411,12 +1414,12 @@ export default function Chat() {
           <div style={S.contactList}>
             {contacts.length === 0 && (
               <div style={S.emptyList}>
-                <div style={{ fontSize: 36, marginBottom: 12 }}>💬</div>
-                <div style={{ color: '#F1F5F9', fontWeight: 700, fontSize: 15 }}>
-                  {tab === 'noLeidos' ? 'Todo leído ✓' : tab === 'favoritos' ? 'Sin favoritos' : tab === 'archivados' ? 'Sin archivados' : 'Sin conversaciones'}
+                <div style={{ marginBottom: 12, color: '#475569', display: 'flex', justifyContent: 'center' }}><MessageCircle size={36} strokeWidth={1.6} /></div>
+                <div style={{ color: '#F1F5F9', fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                  {tab === 'noLeidos' ? <><Check size={16} strokeWidth={2.4} />Todo leído</> : tab === 'favoritos' ? 'Sin favoritos' : tab === 'archivados' ? 'Sin archivados' : 'Sin conversaciones'}
                 </div>
                 {tab === 'todos' && (
-                  <button onClick={() => void abrirContactos()} style={{ marginTop: 14, background: 'linear-gradient(135deg,#4f6ef7,#7c3aed)', color: '#FFF', border: 'none', borderRadius: 99, padding: '9px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                  <button onClick={() => void abrirContactos()} style={{ marginTop: 14, background: 'linear-gradient(135deg,#2563EB,#1D4ED8)', color: '#FFF', border: 'none', borderRadius: 99, padding: '9px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                     Ver mis contactos
                   </button>
                 )}
@@ -1446,8 +1449,8 @@ export default function Chat() {
                   </div>
                   <div style={S.contactInfo}>
                     <div style={S.contactTop}>
-                      <span style={{ ...S.contactName, fontWeight: unread > 0 ? 800 : 600 }}>
-                        {c.nombre}{c.favorito ? ' ★' : ''}
+                      <span style={{ ...S.contactName, fontWeight: unread > 0 ? 800 : 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {c.nombre}{c.favorito ? <Star size={12} fill="#F59E0B" color="#F59E0B" /> : null}
                       </span>
                       <span style={{ ...S.contactTime, color: unread > 0 ? '#3B82F6' : '#475569' }}>
                         {c.ultimo_mensaje ? formatTime(c.ultimo_mensaje.created_at) : ''}
@@ -1558,7 +1561,7 @@ export default function Chat() {
                         <ReactionsRow reacciones={m.reacciones ?? []} mine={mine} onPress={emoji => void reaccionar(m, emoji)} />
                         <div style={{ ...S.msgMeta, justifyContent: mine ? 'flex-end' : 'flex-start' }}>
                           <span>{formatTime(m.created_at)}</span>
-                          {mine && <span style={{ color: m.leido ? '#3B82F6' : '#475569', marginLeft: 4 }}>{m.leido ? '✓✓' : '✓'}</span>}
+                          {mine && <span style={{ color: m.leido ? '#3B82F6' : '#475569', marginLeft: 4, display: 'inline-flex' }}>{m.leido ? <CheckCheck size={13} strokeWidth={2.4} /> : <Check size={13} strokeWidth={2.4} />}</span>}
                         </div>
                       </div>
                     </div>
@@ -1572,7 +1575,7 @@ export default function Chat() {
               <div style={S.inputBar}>
                 {recording ? (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <button type="button" onClick={cancelarGrabacion} style={{ ...S.barBtn, background: 'rgba(239,68,68,0.15)', color: '#EF4444' }} title="Cancelar">🗑️</button>
+                    <button type="button" onClick={cancelarGrabacion} style={{ ...S.barBtn, background: 'rgba(239,68,68,0.15)', color: '#EF4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Cancelar"><Trash2 size={16} strokeWidth={2} /></button>
                     <span style={{ width: 9, height: 9, borderRadius: 5, background: '#EF4444' }} />
                     <span style={{ fontWeight: 800, color: (S.textArea.color as string) ?? '#F1F5F9' }}>{formatDuration(recSeconds)}</span>
                     <span style={{ flex: 1, color: '#64748B', fontSize: 13 }}>Grabando nota de voz…</span>
@@ -1669,7 +1672,7 @@ function makeStyles(isDark: boolean): Record<string, React.CSSProperties> {
   const emptyIconBg  = isDark ? '#1E293B' : '#E2E8F0';
 
   return {
-    page:   { display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: pageBg, fontFamily: "'Plus Jakarta Sans', -apple-system, sans-serif" },
+    page:   { display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: pageBg, fontFamily: "'Manrope', -apple-system, sans-serif"},
     layout: { display: 'flex', flex: 1, overflow: 'hidden' },
 
     sidebar:          { width: 320, minWidth: 260, display: 'flex', flexDirection: 'column', background: sidebarBg, borderRight: `1px solid ${sideBorder}` },
@@ -1722,7 +1725,7 @@ function makeStyles(isDark: boolean): Record<string, React.CSSProperties> {
     inputForm: { display: 'flex', alignItems: 'flex-end', gap: 10 },
     barBtn:    { width: 38, height: 38, borderRadius: 10, background: inputBg, color: textMuted, display: 'grid', placeItems: 'center', cursor: 'pointer', flexShrink: 0, transition: 'background 0.15s' },
     textArea:  { flex: 1, background: inputBg, border: `1.5px solid ${inputBorder}`, borderRadius: 12, padding: '9px 14px', color: textPrimary, fontSize: 14, fontWeight: 500, lineHeight: '20px', minHeight: 38, maxHeight: 120, overflow: 'auto' },
-    sendBtn:   { width: 40, height: 40, borderRadius: 12, display: 'grid', placeItems: 'center', flexShrink: 0, transition: 'all 0.2s cubic-bezier(0.175,0.885,0.32,1.275)' },
+    sendBtn:   { width: 40, height: 40, borderRadius: 12, display: 'grid', placeItems: 'center', flexShrink: 0, transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)' },
 
     emptyMain:  { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14 },
     emptyIcon:  { width: 88, height: 88, borderRadius: 44, background: emptyIconBg, display: 'grid', placeItems: 'center' },

@@ -6,7 +6,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
 import { useAuth } from '@/context/AuthContext';
@@ -45,6 +45,23 @@ function img(p?: string | null): string | undefined {
   if (p.startsWith('http') || p.startsWith('data:')) return p;
   const m = p.match(/\/uploads\/(.+)$/);
   return m ? `${API_URL}/uploads/${m[1]}` : `${API_URL}/uploads/${p}`;
+}
+
+/** Encabezado de sección reutilizable: barra de acento + título, opcionalmente con contador numérico (Sora, tabular-nums). */
+function SectionHeader({ title, count, colors }: { title: string; count?: number; colors: ReturnType<typeof useTheme>['colors'] }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionTitleRow}>
+        <View style={[styles.sectionBar, { backgroundColor: colors.accent }]} />
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>{title}</Text>
+      </View>
+      {count != null && (
+        <Text style={[styles.sectionCount, { color: colors.muted }]}>
+          <Text style={styles.sectionCountNum}>{count}</Text> items
+        </Text>
+      )}
+    </View>
+  );
 }
 
 function ProductCard({ item, index, onPress, onAdd, onSave }: {
@@ -91,44 +108,56 @@ function ProductCard({ item, index, onPress, onAdd, onSave }: {
   );
 }
 
-function StoreCard({ s, destacada, onPress }: { s: TiendaNueva; destacada?: boolean; onPress: () => void }) {
+function StoreCard({ s, index, destacada, onPress }: { s: TiendaNueva; index: number; destacada?: boolean; onPress: () => void }) {
   const { colors } = useTheme();
   const cover = img(s.portada ?? s.foto_negocio);
   const logo = img(s.logo ?? s.foto_negocio);
 
+  const fade  = useRef(new Animated.Value(0)).current;
+  const slide = useRef(new Animated.Value(16)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fade,  { toValue: 1, duration: 360, delay: index * 45, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(slide, { toValue: 0, duration: 360, delay: index * 45, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+    ]).start();
+  }, [fade, slide, index]);
+
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.88}
-      style={[styles.storeCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}
-    >
-      <View style={styles.storeCover}>
-        {cover
-          ? <Image source={{ uri: cover }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-          : <View style={[styles.storeCoverPlaceholder, { backgroundColor: colors.accentLight }]} />}
-        {destacada && (
-          <View style={styles.goldBadge}>
-            <Ionicons name="star" size={11} color="#FFF" />
-            <Text style={styles.goldBadgeTxt}>{Number(s.calificacion_promedio ?? 0).toFixed(1)}</Text>
-          </View>
-        )}
-      </View>
-      <View style={{ padding: 12 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {logo
-            ? <Image source={{ uri: logo }} style={styles.storeLogo} />
-            : <View style={[styles.storeLogo, { backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }]}>
-                <Text style={{ color: '#FFF', fontWeight: '900' }}>{s.nombre[0]}</Text>
-              </View>}
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={{ color: colors.text, fontWeight: '800', fontSize: 13 }}>{s.nombre}</Text>
-            <Text numberOfLines={1} style={{ color: colors.muted, fontSize: 11, fontWeight: '600' }}>
-              {s.categoria ?? 'Tienda'} · {s.municipio ?? '—'}
-            </Text>
+    <Animated.View style={{ opacity: fade, transform: [{ translateY: slide }] }}>
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.88}
+        style={[styles.storeCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}
+      >
+        <View style={styles.storeCover}>
+          {cover
+            ? <Image source={{ uri: cover }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            : <View style={[styles.storeCoverPlaceholder, { backgroundColor: colors.accentLight }]} />}
+          {destacada && (
+            <View style={styles.goldBadge}>
+              <Ionicons name="star" size={11} color="#FFF" />
+              <Text style={styles.goldBadgeTxt}>{Number(s.calificacion_promedio ?? 0).toFixed(1)}</Text>
+            </View>
+          )}
+        </View>
+        <View style={{ padding: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {logo
+              ? <Image source={{ uri: logo }} style={styles.storeLogo} />
+              : <View style={[styles.storeLogo, { backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }]}>
+                  <Text style={styles.storeAvatarLetter}>{s.nombre[0]}</Text>
+                </View>}
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={1} style={[styles.storeNombre, { color: colors.text }]}>{s.nombre}</Text>
+              <Text numberOfLines={1} style={[styles.storeMeta, { color: colors.muted }]}>
+                {s.categoria ?? 'Tienda'} · {s.municipio ?? '—'}
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -350,17 +379,15 @@ export default function HomeScreen() {
         {/* ── NUEVAS TIENDAS — carrusel dinámico (consume nuevas_tiendas) ── */}
         {!categoria && nuevas.length > 0 && (
           <View style={{ marginBottom: Spacing.lg }}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t.home.nuevos}</Text>
-            </View>
+            <SectionHeader title={t.home.nuevos} colors={colors} />
             <FlatList
               horizontal
               data={nuevas}
               keyExtractor={s => 'n-' + s.id}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: Spacing.md, gap: Spacing.sm }}
-              renderItem={({ item }) => (
-                <StoreCard s={item} onPress={() => nav.navigate('Explore' as never)} />
+              renderItem={({ item, index }) => (
+                <StoreCard s={item} index={index} onPress={() => nav.navigate('Explore' as never)} />
               )}
             />
           </View>
@@ -369,28 +396,25 @@ export default function HomeScreen() {
         {/* ── TIENDAS DESTACADAS — badge dorado, orden por estrellas ── */}
         {!categoria && destacadas.length > 0 && (
           <View style={{ marginBottom: Spacing.lg }}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t.home.tiendas}</Text>
-            </View>
+            <SectionHeader title={t.home.tiendas} colors={colors} />
             <FlatList
               horizontal
               data={destacadas}
               keyExtractor={s => 'd-' + s.id}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ paddingHorizontal: Spacing.md, gap: Spacing.sm }}
-              renderItem={({ item }) => (
-                <StoreCard s={item} destacada onPress={() => nav.navigate('Explore' as never)} />
+              renderItem={({ item, index }) => (
+                <StoreCard s={item} index={index} destacada onPress={() => nav.navigate('Explore' as never)} />
               )}
             />
           </View>
         )}
 
-        <View style={[styles.sectionHeader, { paddingHorizontal: Spacing.md }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            {categoria ? `${CATS.find(c => c.k === categoria)?.label ?? ''}` : t.home.populares}
-          </Text>
-          <Text style={[styles.sectionCount, { color: colors.muted }]}>{productos.length} items</Text>
-        </View>
+        <SectionHeader
+          title={categoria ? `${CATS.find(c => c.k === categoria)?.label ?? ''}` : t.home.populares}
+          count={productos.length}
+          colors={colors}
+        />
 
         {/* ── GRID DE PRODUCTOS + SKELETONS ── */}
         {cargando ? (
@@ -446,12 +470,12 @@ const styles = StyleSheet.create({
   },
   locRow: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   locIconBg: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
-  entregarEn: { fontSize: 10, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  muniTxt: { fontSize: Fonts.regular, fontWeight: '800', letterSpacing: -0.2 },
+  entregarEn: { fontSize: 10, fontFamily: FontFamily.bodyBold, textTransform: 'uppercase', letterSpacing: 0.5 },
+  muniTxt: { fontSize: Fonts.regular, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.2 },
   iconBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5, position: 'relative' },
   cartDot: { width: 8, height: 8, borderRadius: 4, position: 'absolute', top: 8, right: 8, borderWidth: 1.5, borderColor: '#FFF' },
   notifBadge: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, borderWidth: 2, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
-  notifBadgeTxt: { color: '#FFF', fontSize: 9, fontWeight: '900' },
+  notifBadgeTxt: { color: '#FFF', fontSize: 9, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] },
   searchBar: {
     flexDirection: 'row', alignItems: 'center',
     marginHorizontal: Spacing.md, marginTop: Spacing.md, marginBottom: Spacing.sm,
@@ -459,26 +483,29 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 5, elevation: 2,
   },
   searchIconBg: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.sm },
-  searchTxt: { flex: 1, fontSize: Fonts.regular, fontWeight: '500' },
+  searchTxt: { flex: 1, fontSize: Fonts.regular, fontFamily: FontFamily.bodySemiBold },
   filterBtn: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5 },
   banner: {
-    borderRadius: 20, padding: Spacing.md, height: 130, overflow: 'hidden', justifyContent: 'flex-end',
-    shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 14, elevation: 6,
+    borderRadius: 20, padding: Spacing.md, height: 132, overflow: 'hidden', justifyContent: 'flex-end',
+    shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.22, shadowRadius: 16, elevation: 6,
   },
   bannerContent: { zIndex: 2 },
-  bannerTitulo: { color: '#FFF', fontWeight: '900', fontSize: 17, letterSpacing: -0.3 },
-  bannerSub: { color: 'rgba(255,255,255,0.92)', fontSize: 12, fontWeight: '600', marginTop: 4 },
-  bannerOrb: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.10)', right: -30, top: -30 },
+  bannerTitulo: { color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: 17, letterSpacing: -0.3 },
+  bannerSub: { color: 'rgba(255,255,255,0.92)', fontSize: 12, fontFamily: FontFamily.bodySemiBold, marginTop: 4 },
+  bannerOrb: { position: 'absolute', width: 150, height: 150, borderRadius: 75, backgroundColor: 'rgba(255,255,255,0.13)', right: -30, top: -30 },
   chip: {
     flexDirection: 'row', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 10,
     borderRadius: Radius.pill, borderWidth: 1.5,
     shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2,
   },
-  chipTxt: { fontSize: 13, fontWeight: '800' },
+  chipTxt: { fontSize: 13, fontFamily: FontFamily.bodyExtraBold },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, paddingHorizontal: Spacing.md },
-  sectionTitle: { fontSize: 18, fontWeight: '900', letterSpacing: -0.5 },
-  sectionCount: { fontSize: 12, fontWeight: '700' },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center' },
+  sectionBar: { width: 4, height: 16, borderRadius: 2, marginRight: 8 },
+  sectionTitle: { fontSize: 18, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.5 },
+  sectionCount: { fontSize: 12, fontFamily: FontFamily.bodyBold },
+  sectionCountNum: { fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] },
   storeCard: {
     width: 200, borderRadius: 20, borderWidth: 1, overflow: 'hidden',
     shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.08, shadowRadius: 14, elevation: 4,
@@ -492,12 +519,15 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.25, shadowRadius: 5, elevation: 4,
   },
-  goldBadgeTxt: { color: '#FFF', fontWeight: '900', fontSize: 11 },
+  goldBadgeTxt: { color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: 11, fontVariant: ['tabular-nums'] },
   storeLogo: { width: 34, height: 34, borderRadius: 17 },
+  storeAvatarLetter: { color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: 15 },
+  storeNombre: { fontFamily: FontFamily.displayExtraBold, fontSize: 13 },
+  storeMeta: { fontFamily: FontFamily.bodySemiBold, fontSize: 11 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: Spacing.md, gap: Spacing.sm },
   gridCell: { width: CARD_W },
   emptyBlock: { width: '100%', alignItems: 'center', paddingVertical: Spacing.xl },
-  emptyTxt: { marginTop: Spacing.sm, fontWeight: '600', fontSize: Fonts.regular },
+  emptyTxt: { marginTop: Spacing.sm, fontFamily: FontFamily.bodySemiBold, fontSize: Fonts.regular },
   card: {
     borderRadius: 18, borderWidth: 1, overflow: 'hidden',
     shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.08, shadowRadius: 10, elevation: 3,
@@ -510,10 +540,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.40)', justifyContent: 'center', alignItems: 'center',
   },
   cardBody: { padding: Spacing.sm + 4 },
-  nombre: { fontWeight: '800', fontSize: 14, letterSpacing: -0.2 },
-  tienda: { fontSize: 11, marginTop: 2, fontWeight: '600' },
+  nombre: { fontFamily: FontFamily.displayExtraBold, fontSize: 14, letterSpacing: -0.2 },
+  tienda: { fontSize: 11, marginTop: 2, fontFamily: FontFamily.bodySemiBold },
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
-  precio: { fontWeight: '900', fontSize: 15 },
+  precio: { fontFamily: FontFamily.displayExtraBold, fontSize: 15, fontVariant: ['tabular-nums'] },
   addBtn: {
     width: 30, height: 30, borderRadius: 15,
     justifyContent: 'center', alignItems: 'center',

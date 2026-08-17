@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useGlobal } from '../context/GlobalContext';
+import { Bike, Gauge, Car, Truck, Camera, type LucideIcon } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { api } from '../api';
@@ -9,11 +10,11 @@ import '../../css/dark.css';
 type RolType = 'vendedor' | 'repartidor';
 type Vehiculo = 'bicicleta' | 'moto' | 'carro' | 'pickup';
 
-const VEHICULOS: { id: Vehiculo; label: string; emoji: string }[] = [
-  { id: 'bicicleta', label: 'Bicicleta', emoji: '🚲' },
-  { id: 'moto',      label: 'Moto',      emoji: '🏍️' },
-  { id: 'carro',     label: 'Carro',     emoji: '🚗' },
-  { id: 'pickup',    label: 'Pickup',    emoji: '🛻' },
+const VEHICULOS: { id: Vehiculo; label: string; icon: LucideIcon }[] = [
+  { id: 'bicicleta', label: 'Bicicleta', icon: Bike },
+  { id: 'moto',      label: 'Moto',      icon: Gauge },
+  { id: 'carro',     label: 'Carro',     icon: Car },
+  { id: 'pickup',    label: 'Pickup',    icon: Truck },
 ];
 
 const MUNICIPIOS_SV = [
@@ -156,11 +157,11 @@ export default function BecomeSeller() {
               style={{
                 padding: '18px 12px', borderRadius: '14px', border: '2px solid',
                 borderColor: rol === r ? 'var(--blue)' : 'var(--border)',
-                background: rol === r ? 'rgba(74,109,140,0.12)' : 'transparent',
+                background: rol === r ? 'rgba(37, 99, 235,0.12)' : 'transparent',
                 cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'
               }}
             >
-              <div style={{ width: '48px', height: '48px', borderRadius: '24px', background: 'rgba(74,109,140,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--blue)' }}>
+              <div style={{ width: '48px', height: '48px', borderRadius: '24px', background: 'rgba(37, 99, 235,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--blue)' }}>
                 {r === 'vendedor'
                   ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                   : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="24" height="24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
@@ -234,12 +235,13 @@ export default function BecomeSeller() {
                       style={{
                         padding: '10px 16px', borderRadius: '10px', border: '2px solid',
                         borderColor: vehiculo === v.id ? 'var(--blue)' : 'var(--border)',
-                        background: vehiculo === v.id ? 'rgba(74,109,140,0.12)' : 'transparent',
+                        background: vehiculo === v.id ? 'rgba(37, 99, 235,0.12)' : 'transparent',
                         color: vehiculo === v.id ? 'var(--blue)' : 'inherit',
                         fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer',
+                        display: 'inline-flex', alignItems: 'center', gap: '7px',
                       }}
                     >
-                      {v.emoji} {v.label}
+                      <v.icon size={16} strokeWidth={2} />{v.label}
                     </button>
                   ))}
                 </div>
@@ -252,7 +254,7 @@ export default function BecomeSeller() {
                     <button type="button" onClick={() => licFrenteRef.current?.click()} style={{ width: '100%', aspectRatio: '16/9', border: '2px dashed', borderColor: licFrente ? '#22c55e' : 'var(--border)', borderRadius: '12px', background: 'transparent', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {licFrentePreview
                         ? <img src={licFrentePreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                        : <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}><div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div><div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Lic. Frente</div></div>}
+                        : <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}><div style={{ marginBottom: '4px', display: 'flex', justifyContent: 'center' }}><Camera size={26} strokeWidth={1.6} /></div><div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Lic. Frente</div></div>}
                     </button>
                   </div>
                   <div>
@@ -260,7 +262,7 @@ export default function BecomeSeller() {
                     <button type="button" onClick={() => licReversoRef.current?.click()} style={{ width: '100%', aspectRatio: '16/9', border: '2px dashed', borderColor: licReverso ? '#22c55e' : 'var(--border)', borderRadius: '12px', background: 'transparent', cursor: 'pointer', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {licReversoPreview
                         ? <img src={licReversoPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                        : <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}><div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div><div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Lic. Reverso</div></div>}
+                        : <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}><div style={{ marginBottom: '4px', display: 'flex', justifyContent: 'center' }}><Camera size={26} strokeWidth={1.6} /></div><div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Lic. Reverso</div></div>}
                     </button>
                   </div>
                 </div>
@@ -288,7 +290,7 @@ export default function BecomeSeller() {
                   {duiFrentePreview
                     ? <img src={duiFrentePreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
                     : <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                        <div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div>
+                        <div style={{ marginBottom: '4px', display: 'flex', justifyContent: 'center' }}><Camera size={26} strokeWidth={1.6} /></div>
                         <div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Frente DUI</div>
                       </div>
                   }
@@ -310,7 +312,7 @@ export default function BecomeSeller() {
                   {duiReversoPreview
                     ? <img src={duiReversoPreview} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
                     : <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                        <div style={{ fontSize: '1.8rem', marginBottom: '4px' }}>📷</div>
+                        <div style={{ marginBottom: '4px', display: 'flex', justifyContent: 'center' }}><Camera size={26} strokeWidth={1.6} /></div>
                         <div style={{ fontSize: '0.75rem', fontWeight: '600' }}>Reverso DUI</div>
                       </div>
                   }
@@ -323,7 +325,7 @@ export default function BecomeSeller() {
             display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '14px 16px',
             border: `1.5px solid ${aceptaTerminos ? 'var(--blue)' : 'var(--border)'}`, borderRadius: '10px',
             marginBottom: '16px', cursor: 'pointer',
-            background: aceptaTerminos ? 'rgba(74,109,140,0.12)' : 'transparent',
+            background: aceptaTerminos ? 'rgba(37, 99, 235,0.12)' : 'transparent',
             color: 'var(--text)',
           }}>
             <input

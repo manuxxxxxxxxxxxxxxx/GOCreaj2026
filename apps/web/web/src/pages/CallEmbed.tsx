@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { Mic, MicOff, RotateCw, Volume2, PhoneOff } from 'lucide-react';
 import { API_URL, SOCKET_URL } from '../api';
 
 const ICE_SERVERS = [
@@ -224,18 +225,18 @@ export default function CallEmbed() {
         </div>
 
         <div style={S.controls}>
-          <button onClick={toggleMute} style={{ ...S.ctrlBtn, background: muted ? '#EF4444' : 'rgba(255,255,255,0.1)' }} title="Micrófono">
-            {muted ? '🔇' : '🎙️'}
+          <button onClick={toggleMute} style={{ ...S.ctrlBtn, background: muted ? '#EF4444' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Micrófono">
+            {muted ? <MicOff size={20} strokeWidth={2} /> : <Mic size={20} strokeWidth={2} />}
           </button>
           {tipo === 'video' && (
-            <button onClick={() => void toggleCamera()} style={{ ...S.ctrlBtn, background: 'rgba(255,255,255,0.1)' }} title="Cambiar cámara">
-              🔄
+            <button onClick={() => void toggleCamera()} style={{ ...S.ctrlBtn, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Cambiar cámara">
+              <RotateCw size={20} strokeWidth={2} />
             </button>
           )}
-          <button onClick={() => void toggleSpeaker()} style={{ ...S.ctrlBtn, background: speakerOn ? '#3B82F6' : 'rgba(255,255,255,0.1)' }} title="Altavoz">
-            🔊
+          <button onClick={() => void toggleSpeaker()} style={{ ...S.ctrlBtn, background: speakerOn ? '#3B82F6' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Altavoz">
+            <Volume2 size={20} strokeWidth={2} />
           </button>
-          <button onClick={() => endCall(true)} style={S.hangupBtn} title="Colgar">📞</button>
+          <button onClick={() => endCall(true)} style={{ ...S.hangupBtn, display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Colgar"><PhoneOff size={20} strokeWidth={2} /></button>
         </div>
       </div>
     </div>

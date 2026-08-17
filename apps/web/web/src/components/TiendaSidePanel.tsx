@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useGlobal } from '../context/GlobalContext';
 import { useNavigate } from 'react-router-dom';
+import { X, Star } from 'lucide-react';
 import { api, API_URL } from '../api';
 
-const ACCENT = '#4A6D8C';
+const ACCENT = '#2563EB';
 
 interface TiendaDetalle {
   id: number;
@@ -96,9 +97,9 @@ export default function TiendaSidePanel({ tiendaId, onClose, onSelectProduct }: 
               )}
               <button
                 onClick={onClose}
-                style={{ position: 'absolute', top: 14, right: 14, width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 18 }}
+                style={{ position: 'absolute', top: 14, right: 14, width: 34, height: 34, borderRadius: '50%', background: 'rgba(0,0,0,0.45)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                ✕
+                <X size={17} strokeWidth={2.2} />
               </button>
             </div>
 
@@ -135,7 +136,7 @@ export default function TiendaSidePanel({ tiendaId, onClose, onSelectProduct }: 
 
               <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: '0.82rem', color: 'var(--text-muted, #6B7280)' }}>
                 {tienda.calificacion_promedio ? (
-                  <span>★ {Number(tienda.calificacion_promedio).toFixed(1)} ({tienda.total_resenas ?? 0})</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Star size={13} strokeWidth={2} fill="#F59E0B" color="#F59E0B" />{Number(tienda.calificacion_promedio).toFixed(1)} ({tienda.total_resenas ?? 0})</span>
                 ) : null}
                 <span>{seguidores} seguidores</span>
               </div>

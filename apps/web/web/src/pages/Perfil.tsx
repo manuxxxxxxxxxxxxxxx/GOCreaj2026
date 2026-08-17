@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useGlobal } from '../context/GlobalContext';
 import { useNavigate } from 'react-router-dom';
+import { Star, X } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { api } from '../api';
@@ -13,7 +14,7 @@ const LANGS = [{ code: 'es', label: 'Español' }, { code: 'en', label: 'English'
 type Tab = 'likes' | 'guardados' | 'compartidos';
 
 const ACCENT = '#4A6D8C';
-const ACCENT_LIGHT = 'rgba(74,109,140,0.1)';
+const ACCENT_LIGHT = 'rgba(37, 99, 235,0.1)';
 
 export default function Perfil() {
   const { i18n } = useTranslation();
@@ -443,13 +444,9 @@ export default function Perfil() {
             borderRadius: '20px', padding: '4px 14px', marginTop: '8px',
             display: 'flex', alignItems: 'center', gap: '5px',
           }}>
-            {isAdmin && (
-              <svg viewBox="0 0 24 24" fill="none" stroke="#FBB f24" strokeWidth="2" width="12" height="12" style={{ color: '#FBB f24' }}>
-                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="#FBB f24" stroke="none"/>
-              </svg>
-            )}
+            {isAdmin && <Star size={12} strokeWidth={0} fill="#FBBF24" color="#FBBF24" />}
             <span style={{ color: isAdmin ? '#FDE68A' : '#fff', fontSize: '0.72rem', fontWeight: '800', letterSpacing: '1px' }}>
-              {isAdmin && '★ '}{roleName}
+              {roleName}
             </span>
           </div>
 
@@ -689,7 +686,7 @@ export default function Perfil() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '1.25rem', fontWeight: '800', letterSpacing: '-0.3px' }}>Métodos de pago</h3>
-              <button onClick={() => setShowMetodosPago(false)} style={{ background: 'var(--bg-secondary, #F9FAFB)', border: 'none', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer' }}>✕</button>
+              <button onClick={() => setShowMetodosPago(false)} style={{ background: 'var(--bg-secondary, #F9FAFB)', border: 'none', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} strokeWidth={2.2} /></button>
             </div>
 
             {cargandoMetodos ? (
@@ -770,7 +767,7 @@ export default function Perfil() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ fontSize: '1.25rem', fontWeight: '800', letterSpacing: '-0.3px' }}>Privacidad y seguridad</h3>
-              <button onClick={() => setModalPrivacidad(false)} style={{ background: 'var(--bg-secondary, #F9FAFB)', border: 'none', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer' }}>✕</button>
+              <button onClick={() => setModalPrivacidad(false)} style={{ background: 'var(--bg-secondary, #F9FAFB)', border: 'none', borderRadius: '8px', width: '32px', height: '32px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} strokeWidth={2.2} /></button>
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>

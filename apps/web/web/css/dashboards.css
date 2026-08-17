@@ -1,5 +1,4 @@
 /* ══ DASHBOARDS PREMIUM STYLING SYSTEM (SVGO) ══ */
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 /* Dashboard Container Wrappers */
 .dash-page, .dash-wrap {
@@ -84,7 +83,7 @@
   background: white;
   border-radius: 50%;
   box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .toggle-pill.active .pill-thumb {
@@ -114,15 +113,7 @@
 
 .stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(74, 109, 140, 0.08);
-}
-
-.stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0; height: 4px;
-  background: var(--blue);
-  opacity: 0.8;
+  box-shadow: 0 8px 30px rgba(37, 99, 235, 0.08);
 }
 
 .stat-card-icon, .stat-icon-wrap {
@@ -229,7 +220,7 @@
 }
 
 .panel-card:hover, .dash-card:hover {
-  border-color: rgba(74, 109, 140, 0.2);
+  border-color: rgba(37, 99, 235, 0.2);
 }
 
 .panel-header, .dash-card-title {
@@ -376,7 +367,7 @@
 .btn-primary {
   background: var(--blue);
   color: white;
-  box-shadow: 0 4px 12px rgba(74, 109, 140, 0.25);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
 .btn-primary:hover {
@@ -447,7 +438,7 @@
 }
 
 .products-table tr:hover td {
-  background: rgba(74, 109, 140, 0.015);
+  background: rgba(37, 99, 235, 0.015);
 }
 
 /* Modals */

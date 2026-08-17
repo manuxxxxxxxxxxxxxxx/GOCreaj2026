@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
+import { User, Croissant, Carrot, UtensilsCrossed, Bike, Store, MapPin, Clock, SearchX, Star } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import TiendaSidePanel from '../components/TiendaSidePanel';
@@ -331,48 +332,48 @@ export default function Market() {
         <div className="quick-actions-container">
           <div className="quick-card-grid">
             
-            <div className="quick-card" onClick={() => navigate('/perfil')}>
-              <div className="quick-card-icon" style={{ background: '#eff6ff', color: '#3b82f6' }}>👤</div>
+            <div className="quick-card rise-in" style={{ animationDelay: '0.02s' }} onClick={() => navigate('/perfil')}>
+              <div className="quick-card-icon" style={{ background: '#eff6ff', color: 'var(--blue)' }}><User size={22} strokeWidth={2} /></div>
               <div className="quick-card-info">
                 <h3>Mi Cuenta</h3>
                 <p>Gestiona tu perfil y dirección</p>
               </div>
             </div>
 
-            <div className="quick-card" onClick={() => { setActiveCategory('panaderia'); window.scrollTo({top: 800, behavior: 'smooth'}); }}>
-              <div className="quick-card-icon" style={{ background: '#fef3c7', color: '#d97706' }}>🥖</div>
+            <div className="quick-card rise-in" style={{ animationDelay: '0.06s' }} onClick={() => { setActiveCategory('panaderia'); window.scrollTo({top: 800, behavior: 'smooth'}); }}>
+              <div className="quick-card-icon" style={{ background: '#fef3c7', color: '#d97706' }}><Croissant size={22} strokeWidth={2} /></div>
               <div className="quick-card-info">
                 <h3>Panadería</h3>
                 <p>Pan artesanal y repostería</p>
               </div>
             </div>
 
-            <div className="quick-card" onClick={() => { setActiveCategory('verduras'); window.scrollTo({top: 800, behavior: 'smooth'}); }}>
-              <div className="quick-card-icon" style={{ background: '#dcfce7', color: '#16a34a' }}>🥦</div>
+            <div className="quick-card rise-in" style={{ animationDelay: '0.10s' }} onClick={() => { setActiveCategory('verduras'); window.scrollTo({top: 800, behavior: 'smooth'}); }}>
+              <div className="quick-card-icon" style={{ background: '#dcfce7', color: '#16a34a' }}><Carrot size={22} strokeWidth={2} /></div>
               <div className="quick-card-info">
                 <h3>Huertos Locales</h3>
                 <p>Verduras y cosechas orgánicas</p>
               </div>
             </div>
 
-            <div className="quick-card" onClick={() => { setActiveCategory('comida'); window.scrollTo({top: 800, behavior: 'smooth'}); }}>
-              <div className="quick-card-icon" style={{ background: '#f3e8ff', color: '#9333ea' }}>🍽️</div>
+            <div className="quick-card rise-in" style={{ animationDelay: '0.14s' }} onClick={() => { setActiveCategory('comida'); window.scrollTo({top: 800, behavior: 'smooth'}); }}>
+              <div className="quick-card-icon" style={{ background: '#f3e8ff', color: '#9333ea' }}><UtensilsCrossed size={22} strokeWidth={2} /></div>
               <div className="quick-card-info">
                 <h3>Comida</h3>
                 <p>Platillos preparados y comida rápida</p>
               </div>
             </div>
 
-            <div className="quick-card" onClick={() => navigate('/historial')}>
-              <div className="quick-card-icon" style={{ background: '#ffe4e6', color: '#e11d48' }}>🛵</div>
+            <div className="quick-card rise-in" style={{ animationDelay: '0.18s' }} onClick={() => navigate('/historial')}>
+              <div className="quick-card-icon" style={{ background: '#ffe4e6', color: '#e11d48' }}><Bike size={22} strokeWidth={2} /></div>
               <div className="quick-card-info">
                 <h3>Mis Compras</h3>
                 <p>Monitorea y revisa pedidos</p>
               </div>
             </div>
 
-            <div className="quick-card highlight" onClick={() => navigate('/login')}>
-              <div className="quick-card-icon" style={{ background: '#e0f2fe', color: '#0284c7' }}>🏪</div>
+            <div className="quick-card highlight rise-in" style={{ animationDelay: '0.22s' }} onClick={() => navigate('/login')}>
+              <div className="quick-card-icon" style={{ background: '#e0f2fe', color: '#0284c7' }}><Store size={22} strokeWidth={2} /></div>
               <div className="quick-card-info">
                 <h3>Vende con SVGO</h3>
                 <p>Publica productos gratis hoy</p>
@@ -428,8 +429,8 @@ export default function Market() {
 
           {/* Elegant grid cards */}
           <div className="products-grid">
-            {filtered.map(p => (
-              <div key={p.id} className="product-card" onClick={() => { setSelectedProduct(p); setActiveThumbIndex(0); setQty(1); window.scrollTo(0,0); }}>
+            {filtered.map((p, idx) => (
+              <div key={p.id} className="product-card rise-in" style={{ animationDelay: `${(idx % 8) * 0.04}s` }} onClick={() => { setSelectedProduct(p); setActiveThumbIndex(0); setQty(1); window.scrollTo(0,0); }}>
                 <div className="pc-img" style={{ position: 'relative' }}>
                   <img src={p.img} alt={p.name} loading="lazy" />
                   {p.discount && <span className="disc-badge">{p.discount} OFF</span>}
@@ -468,7 +469,7 @@ export default function Market() {
                 </div>
 
                 <div className="pc-body">
-                  <span className="pc-shipping-tag">Envío Rápido 🛵</span>
+                  <span className="pc-shipping-tag"><Bike size={12} strokeWidth={2.4} style={{ verticalAlign: '-2px', marginRight: 4 }} />Envío Rápido</span>
                   <div className="pc-name">{p.name}</div>
                   <div
                     className="pc-seller"
@@ -480,13 +481,13 @@ export default function Market() {
                   </div>
 
                   <div className="pc-meta">
-                    <span className="star">★</span>
+                    <span className="star" style={{ display: 'inline-flex' }}><Star size={13} strokeWidth={2} fill="currentColor" /></span>
                     <span className="rating-val">{p.rating}</span>
                     <span className="reviews">({p.reviews} opiniones)</span>
                   </div>
 
                   <div className="pc-location-info">
-                    📍 {p.dist} · Prep: {p.prep}
+                    <MapPin size={12} strokeWidth={2.2} style={{ verticalAlign: '-2px', marginRight: 3 }} />{p.dist} · Prep: {p.prep}
                   </div>
 
                   <div className="pc-footer">
@@ -505,7 +506,7 @@ export default function Market() {
 
           {filtered.length === 0 && (
             <div className="no-products-found">
-              <span className="no-prod-emoji">🔍</span>
+              <span className="no-prod-emoji"><SearchX size={40} strokeWidth={1.6} /></span>
               <h3>No se encontraron productos</h3>
               <p>Intenta ajustar tus criterios de búsqueda o seleccionar otra categoría.</p>
             </div>
@@ -581,7 +582,7 @@ export default function Market() {
               {/* Right Column: Buying card panel */}
               <div className="pd-right-column">
                 <div className="pd-panel">
-                  <span className="pd-shipping-top-badge">Envío Rápido de Inmediato 🛵</span>
+                  <span className="pd-shipping-top-badge"><Bike size={13} strokeWidth={2.2} style={{ verticalAlign: '-2px', marginRight: 5 }} />Envío Rápido de Inmediato</span>
                   
                   <div className="pd-badges" style={{ marginTop: '10px' }}>
                     {selectedProduct.discount && <span className="pd-badge badge-disc">{selectedProduct.discount} OFF</span>}
@@ -599,14 +600,14 @@ export default function Market() {
                   </div>
 
                   <div className="pd-rating">
-                    <span className="stars">★ {selectedProduct.rating}</span>
+                    <span className="stars" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Star size={14} strokeWidth={2} fill="currentColor" />{selectedProduct.rating}</span>
                     <span>({selectedProduct.reviews} opiniones)</span>
                     <span className="sold-count">· {selectedProduct.sold} vendidos</span>
                   </div>
 
                   <div className="pd-location-row">
-                    <span>📍 A {selectedProduct.dist} de ti</span>
-                    <span>⏱️ Prep: {selectedProduct.prep}</span>
+                    <span><MapPin size={13} strokeWidth={2.2} style={{ verticalAlign: '-2px', marginRight: 4 }} />A {selectedProduct.dist} de ti</span>
+                    <span><Clock size={13} strokeWidth={2.2} style={{ verticalAlign: '-2px', marginRight: 4 }} />Prep: {selectedProduct.prep}</span>
                   </div>
 
                   <hr className="pd-divider" />

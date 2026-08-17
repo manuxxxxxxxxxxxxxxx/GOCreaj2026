@@ -5,6 +5,7 @@ import { useNavigation } from '@react-navigation/native';
 import { api, Endpoints, API_URL } from '@/services/api';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
+import { FontFamily } from '@/theme/colors';
 
 interface Repartidor {
   id: number;
@@ -57,7 +58,7 @@ export default function RepartidorAsignadoCard({ pedidoId, mostrarUbicacion = tr
     return (
       <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
         <Ionicons name="bicycle-outline" size={20} color={colors.muted} />
-        <Text style={{ color: colors.muted, fontWeight: '700', fontSize: 13 }}>{t.seller.sinRepartidor}</Text>
+        <Text style={{ color: colors.muted, fontFamily: FontFamily.bodyBold, fontSize: 13 }}>{t.seller.sinRepartidor}</Text>
       </View>
     );
   }
@@ -69,20 +70,20 @@ export default function RepartidorAsignadoCard({ pedidoId, mostrarUbicacion = tr
       {fotoUri
         ? <Image source={{ uri: fotoUri }} style={styles.avatar} />
         : <View style={[styles.avatar, { backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }]}>
-            <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 18 }}>{r.nombre[0]}</Text>
+            <Text style={{ color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: 18 }}>{r.nombre[0]}</Text>
           </View>}
 
       <View style={{ flex: 1 }}>
-        <Text style={{ color: colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>
+        <Text style={{ color: colors.muted, fontSize: 10, fontFamily: FontFamily.bodyBold, letterSpacing: 0.5, textTransform: 'uppercase' }}>
           {t.seller.repartidorAsignado}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-          <Text style={{ color: colors.text, fontWeight: '900', fontSize: 15 }}>{r.nombre}</Text>
-          {r.en_linea === 1 && <View style={styles.onlineDot} />}
+          <Text style={{ color: colors.text, fontFamily: FontFamily.bodyExtraBold, fontSize: 15 }}>{r.nombre}</Text>
+          {r.en_linea === 1 && <View style={[styles.onlineDot, { backgroundColor: colors.success }]} />}
         </View>
         {(r.tipo_vehiculo) && (
-          <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '600', marginTop: 2 }}>
-            {t.seller.vehiculo}: <Text style={{ color: colors.text, fontWeight: '700' }}>{r.tipo_vehiculo}</Text>
+          <Text style={{ color: colors.muted, fontSize: 11, fontFamily: FontFamily.bodySemiBold, marginTop: 2 }}>
+            {t.seller.vehiculo}: <Text style={{ color: colors.text, fontFamily: FontFamily.bodyBold }}>{r.tipo_vehiculo}</Text>
           </Text>
         )}
       </View>
@@ -120,11 +121,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   avatar: { width: 48, height: 48, borderRadius: 24 },
-  onlineDot: { width: 9, height: 9, borderRadius: 4.5, backgroundColor: '#16A34A', borderWidth: 1.5, borderColor: '#FFF' },
+  onlineDot: { width: 9, height: 9, borderRadius: 4.5, borderWidth: 1.5, borderColor: '#FFF' },
   chatBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: 22,
     shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.30, shadowRadius: 8, elevation: 5,
   },
-  chatTxt: { color: '#FFF', fontWeight: '900', fontSize: 13 },
+  chatTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: 13 },
 });

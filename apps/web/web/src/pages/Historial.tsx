@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
+import { Package, Bike, MessageCircle, X, MapPin, ShoppingBag } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { api } from '../api';
@@ -141,7 +142,7 @@ export default function Historial() {
         <div id="orders-list">
           {filteredOrders.length === 0 ? (
             <div className="hist-empty">
-              <div className="hist-empty-icon">📦</div>
+              <div className="hist-empty-icon"><Package size={40} strokeWidth={1.6} /></div>
               <h3>Sin pedidos</h3>
               <p>No tienes ningún pedido en esta categoría actualmente.</p>
             </div>
@@ -173,7 +174,7 @@ export default function Historial() {
 
                 {o.repartidor_nombre && (
                   <div className="order-driver">
-                    <span className="driver-avatar-mini">🛵</span>
+                    <span className="driver-avatar-mini"><Bike size={16} strokeWidth={2} /></span>
                     <span>Repartidor asignado: <strong>{o.repartidor_nombre}</strong></span>
                   </div>
                 )}
@@ -192,14 +193,14 @@ export default function Historial() {
                     Total pagado: <span>${parseFloat(o.total).toFixed(2)}</span>
                   </div>
                   <div className="order-actions">
-                    <button className="order-action-btn secondary" onClick={() => navigate('/chat')}>💬 Mensaje</button>
+                    <button className="order-action-btn secondary" onClick={() => navigate('/chat')}><MessageCircle size={14} strokeWidth={2.2} />Mensaje</button>
                     {o.estado === 'pendiente_confirmacion' && minutosDesde(o.created_at) >= APROBACION_LIMITE_MIN && (
-                      <button className="order-action-btn secondary" onClick={() => cancelarPedido(o.id)}>✕ Cancelar</button>
+                      <button className="order-action-btn secondary" onClick={() => cancelarPedido(o.id)}><X size={14} strokeWidth={2.2} />Cancelar</button>
                     )}
                     {(o.estado === 'en_camino' || (o.estado === 'preparacion' && o.repartidor_id)) ? (
-                      <button className="order-action-btn primary" onClick={() => navigate(`/entregas/${o.id}`)}>📍 Rastrear</button>
+                      <button className="order-action-btn primary" onClick={() => navigate(`/entregas/${o.id}`)}><MapPin size={14} strokeWidth={2.2} />Rastrear</button>
                     ) : o.estado === 'entregado' || o.estado === 'cancelado' || o.estado === 'rechazado_repartidor' ? (
-                      <button className="order-action-btn primary" onClick={() => navigate('/')}>🛍️ Pedir de nuevo</button>
+                      <button className="order-action-btn primary" onClick={() => navigate('/')}><ShoppingBag size={14} strokeWidth={2.2} />Pedir de nuevo</button>
                     ) : null}
                   </div>
                 </div>

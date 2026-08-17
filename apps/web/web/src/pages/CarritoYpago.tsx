@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useGlobal } from "../context/GlobalContext";
 import { useNavigate } from 'react-router-dom';
+import { Trash2, CheckCircle2, X, Banknote } from 'lucide-react';
 import Header from '../components/Header';
 import { api } from '../api';
 import '../../css/carritoypago.css';
@@ -335,7 +336,7 @@ export default function CarritoYpago() {
                             <button className="qty-btn" onClick={() => handleQty(p.id, 1)}>+</button>
                           </div>
                           <div className="prod-price">${(p.price * (p.qty || 1)).toFixed(2)}</div>
-                          <button className="trash-btn" onClick={() => handleRemove(p.id)}>🗑</button>
+                          <button className="trash-btn" onClick={() => handleRemove(p.id)}><Trash2 size={16} strokeWidth={2} /></button>
                         </div>
                       </div>
                     ))
@@ -410,8 +411,8 @@ export default function CarritoYpago() {
                 <div className="card-title"><span className="card-title-text">Cupón de descuento</span></div>
                 {cuponAplicado ? (
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#DCFCE7', borderRadius: '10px', border: '1px solid #86EFAC' }}>
-                    <span style={{ fontWeight: 700, color: '#166534' }}>✓ {cuponAplicado.codigo} aplicado — ahorras ${cuponAplicado.descuento.toFixed(2)}</span>
-                    <button className="trash-btn" onClick={quitarCupon}>✕</button>
+                    <span style={{ fontWeight: 700, color: '#166534', display: 'flex', alignItems: 'center', gap: 6 }}><CheckCircle2 size={16} strokeWidth={2.2} />{cuponAplicado.codigo} aplicado — ahorras ${cuponAplicado.descuento.toFixed(2)}</span>
+                    <button className="trash-btn" onClick={quitarCupon}><X size={16} strokeWidth={2.2} /></button>
                   </div>
                 ) : (
                   <div style={{ display: 'flex', gap: '10px' }}>
@@ -586,7 +587,7 @@ export default function CarritoYpago() {
                     <div className="rt">Pago contra entrega</div>
                     <div className="rs">Paga en efectivo al recibir tu pedido</div>
                   </div>
-                  <span style={{ fontSize: '1.2rem', marginLeft: 'auto' }}>💵</span>
+                  <span style={{ marginLeft: 'auto', color: 'var(--success)' }}><Banknote size={20} strokeWidth={1.8} /></span>
                 </div>
 
                 {paymentMode === 2 && (
@@ -716,6 +717,7 @@ export default function CarritoYpago() {
         {/* ── STEP 3: SUCCESS ── */}
         <section className={`panel ${step === 3 ? 'active' : ''}`}>
           <div className="card success-card">
+            <div className="success-icon"><CheckCircle2 size={36} strokeWidth={2.2} /></div>
             <h2 className="success-title">¡Pedido confirmado!</h2>
             <p className="success-sub">Tu pedido llegará en {shippingMode === 1 ? '30-45 minutos' : '15-20 minutos'}.</p>
             <div className="order-num-box">

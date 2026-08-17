@@ -1,7 +1,8 @@
 import React, { useRef } from 'react';
 import { TouchableOpacity, Text, StyleSheet, ActivityIndicator, ViewStyle, StyleProp, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
+import { useTheme } from '@/context/ThemeContext';
 
 interface Props {
   label: string;
@@ -17,6 +18,7 @@ interface Props {
 export default function Button({
   label, onPress, variant = 'primary', loading = false, disabled = false, icon, style, full = true
 }: Props) {
+  const { colors } = useTheme();
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const isPrimary = variant === 'primary';
@@ -24,14 +26,14 @@ export default function Button({
   const isGhost = variant === 'ghost';
   const isDanger = variant === 'danger';
 
-  const bg = isPrimary ? Colors.accent
-            : isDanger ? Colors.danger
-            : isSecondary ? Colors.contrast
+  const bg = isPrimary ? colors.accent
+            : isDanger ? colors.danger
+            : isSecondary ? colors.contrast
             : 'transparent';
-  const color = isPrimary || isDanger ? Colors.contrast
-              : isSecondary ? Colors.text
-              : Colors.accent;
-  const borderColor = isSecondary ? Colors.border : isGhost ? Colors.accent : bg;
+  const color = isPrimary || isDanger ? colors.contrast
+              : isSecondary ? colors.text
+              : colors.accent;
+  const borderColor = isSecondary ? colors.border : isGhost ? colors.accent : bg;
 
   const hasShadow = (variant === 'primary' || variant === 'danger') && !disabled && !loading;
 
@@ -102,7 +104,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: Fonts.regular,
-    fontWeight: '600',
+    fontFamily: FontFamily.bodyBold,
     letterSpacing: 0.3
   }
 });

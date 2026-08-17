@@ -41,8 +41,8 @@
 
 .stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 30px rgba(74, 109, 140, 0.08);
-  border-color: rgba(74, 109, 140, 0.25);
+  box-shadow: 0 8px 30px rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.25);
 }
 
 .stat-icon {
@@ -94,7 +94,7 @@
 }
 
 .card:hover {
-  border-color: rgba(74, 109, 140, 0.2);
+  border-color: rgba(37, 99, 235, 0.2);
 }
 
 .card h2 {

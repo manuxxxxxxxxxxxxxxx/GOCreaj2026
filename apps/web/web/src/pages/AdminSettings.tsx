@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, Bell, Shield, Globe, Database, Palette, ChevronRight } from 'lucide-react';
+import { Save, Bell, Shield, Globe, Database, Palette, ChevronRight, AlertTriangle } from 'lucide-react';
 import './Dashboard.css';
 
 interface SettingSection {
@@ -99,8 +99,8 @@ export default function AdminSettings() {
               <Toggle value={maintenanceMode} onChange={setMaintenanceMode} />
             </InputRow>
             {maintenanceMode && (
-              <div style={{ padding: '12px 16px', borderRadius: 10, background: '#fef3c7', border: '1.5px solid #fbbf24', fontSize: '0.85rem', color: '#92400e', fontWeight: 600 }}>
-                ⚠️ Modo mantenimiento activado. Los usuarios no podrán acceder a la plataforma.
+              <div style={{ padding: '12px 16px', borderRadius: 10, background: '#fef3c7', border: '1.5px solid #fbbf24', fontSize: '0.85rem', color: '#92400e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertTriangle size={16} strokeWidth={2.2} />Modo mantenimiento activado. Los usuarios no podrán acceder a la plataforma.
               </div>
             )}
           </>

@@ -11,6 +11,8 @@ export interface ColorPalette {
   accent: string;
   accentLight: string;
   accentDark: string;
+  ctaAccent: string;
+  ctaAccentLight: string;
   contrast: string;
   border: string;
   borderLight: string;
@@ -35,6 +37,8 @@ export const darkColors: ColorPalette = {
   accent:        '#3B82F6',
   accentLight:   'rgba(59,130,246,0.14)',
   accentDark:    '#1D4ED8',
+  ctaAccent:     '#FB923C',
+  ctaAccentLight:'rgba(251,146,60,0.16)',
   contrast:      '#FFFFFF',
   border:        '#1E293B',
   borderLight:   '#2D3D55',
@@ -59,6 +63,8 @@ export const lightColors: ColorPalette = {
   accent:        '#2563EB',
   accentLight:   'rgba(37,99,235,0.10)',
   accentDark:    '#1D4ED8',
+  ctaAccent:     '#EA580C',
+  ctaAccentLight:'rgba(234,88,12,0.12)',
   contrast:      '#000000',
   border:        '#E2E8F0',
   borderLight:   '#CBD5E1',

@@ -1,13 +1,13 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --blue: #4f6ef7;
-  --blue-dark: #3a57d7;
-  --purple: #7c3aed;
+  --blue: #2563EB;
+  --blue-dark: #1D4ED8;
+  --purple: #2563EB;
   --pink: #e040a0;
-  --green: #22c55e;
-  --orange: #f97316;
-  --red: #ef4444;
+  --green: #16A34A;
+  --orange: #EA580C;
+  --red: #DC2626;
   --text: #111827;
   --text-muted: #6b7280;
   --border: #e5e7eb;
@@ -31,7 +31,7 @@
 }
 .logo-icon {
   width: 34px; height: 34px; border-radius: 10px;
-  background: linear-gradient(135deg, #4f6ef7, #8b3cf7);
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
   display: grid; place-items: center; flex-shrink: 0;
 }
 .logo-icon svg { width: 18px; height: 18px; fill: white; }
@@ -603,7 +603,7 @@
   border-radius: 18px 18px 0 0;
   display: flex;
   flex-direction: column;
-  animation: slideUp .25s cubic-bezier(.34,1.4,.64,1);
+  animation: slideUp .25s cubic-bezier(0.16, 1, 0.3, 1);
   margin-bottom: 0;
   color: var(--text);
 }
@@ -649,7 +649,7 @@
 .comment-avatar {
   width: 36px; height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #4f6ef7, #8b3cf7);
+  background: linear-gradient(135deg, #2563EB, #1D4ED8);
   display: grid; place-items: center;
   color: white; font-weight: 700; font-size: 0.85rem;
   flex-shrink: 0;
@@ -733,7 +733,7 @@
   width: 100%;
   max-width: 460px;
   border-radius: 18px 18px 0 0;
-  animation: slideUp .25s cubic-bezier(.34,1.4,.64,1);
+  animation: slideUp .25s cubic-bezier(0.16, 1, 0.3, 1);
   color: var(--text);
 }
 .share-header {
@@ -780,7 +780,7 @@
   display: flex; align-items: center; gap: 10px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
   transform: translateY(80px); opacity: 0;
-  transition: all .3s cubic-bezier(.34,1.56,.64,1);
+  transition: all .3s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
 }
 .toast.show { transform: translateY(0); opacity: 1; }

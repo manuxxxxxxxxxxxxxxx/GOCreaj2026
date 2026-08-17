@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Star, MapPin, Bike } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { useGlobal } from '../context/GlobalContext';
@@ -206,7 +207,7 @@ export default function RepartidorDashboard() {
         icon: L.divIcon({
           className: '', iconSize: [30, 30], iconAnchor: [15, 15],
           html: `<div style="background:${activo ? '#16A34A' : '#2563EB'};color:#fff;width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.4);border:2px solid #fff;">
-                  <span style="transform:rotate(45deg);font-size:13px;">🏪</span></div>`,
+                  <svg style="transform:rotate(45deg)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"/><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"/><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"/></svg></div>`,
         }),
       })
         .addTo(mapObj.current)
@@ -437,7 +438,7 @@ export default function RepartidorDashboard() {
             </div>
             <div className="stat-label">Calificación</div>
             <div className="stat-value">{perfil?.repartidor_calificacion_promedio ? Number(perfil.repartidor_calificacion_promedio).toFixed(1) : '—'}</div>
-            <div className="stat-sub">★ {perfil?.repartidor_total_resenas ?? 0} reseñas</div>
+            <div className="stat-sub" style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Star size={11} strokeWidth={2} fill="currentColor" />{perfil?.repartidor_total_resenas ?? 0} reseñas</div>
           </div>
           <div className="stat-card">
             <div className="stat-card-icon orange">
@@ -499,7 +500,7 @@ export default function RepartidorDashboard() {
                       </button>
                       {o.status === 'active' && (
                         <button onClick={() => navigate(`/entregas/${o.id}`)} style={{ padding: '6px 12px', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '4px', background: 'transparent', border: '1.5px solid var(--border, #E2E8F0)', borderRadius: 10, color: 'var(--text)', cursor: 'pointer', fontWeight: 700 }}>
-                          📍 Ver ubicación
+                          <MapPin size={13} strokeWidth={2.2} />Ver ubicación
                         </button>
                       )}
                       {o.status === 'picking_up' ? (
@@ -654,8 +655,8 @@ export default function RepartidorDashboard() {
               <div style={{ flex: 1, minWidth: 220 }}>
                 <div style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text)' }}>{perfil?.nombre}</div>
                 <div style={{ display: 'flex', gap: '14px', marginTop: '6px', flexWrap: 'wrap', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  <span>★ {perfil?.repartidor_calificacion_promedio ? Number(perfil.repartidor_calificacion_promedio).toFixed(1) : '—'} ({perfil?.repartidor_total_resenas ?? 0})</span>
-                  <span>🚴 {perfil?.entregas_completadas ?? 0} entregas completadas</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Star size={13} strokeWidth={2} fill="#F59E0B" color="#F59E0B" />{perfil?.repartidor_calificacion_promedio ? Number(perfil.repartidor_calificacion_promedio).toFixed(1) : '—'} ({perfil?.repartidor_total_resenas ?? 0})</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Bike size={13} strokeWidth={2.2} />{perfil?.entregas_completadas ?? 0} entregas completadas</span>
                 </div>
 
                 {!editandoBio ? (
@@ -701,7 +702,9 @@ export default function RepartidorDashboard() {
                     <div key={r.id} style={{ padding: '10px 14px', background: 'var(--bg)', borderRadius: '10px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <strong style={{ fontSize: '0.85rem', color: 'var(--text)' }}>{r.comprador_nombre}</strong>
-                        <span style={{ color: '#F59E0B', fontWeight: 700, fontSize: '0.85rem' }}>{'★'.repeat(r.estrellas)}</span>
+                        <span style={{ display: 'flex', gap: 2, color: '#F59E0B' }}>
+                          {Array.from({ length: r.estrellas }).map((_, i) => <Star key={i} size={13} strokeWidth={0} fill="#F59E0B" />)}
+                        </span>
                       </div>
                       {r.comentario && <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{r.comentario}</p>}
                     </div>

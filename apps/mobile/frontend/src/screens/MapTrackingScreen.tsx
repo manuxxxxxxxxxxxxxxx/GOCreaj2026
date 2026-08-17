@@ -8,7 +8,7 @@ import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, Endpoints } from '@/services/api';
-import { Colors, Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
 import { Pedido, RootStackParamList } from '@/types';
@@ -142,13 +142,24 @@ export default function MapTrackingScreen() {
     return (
       <View style={[styles.loader, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.accent} />
-        <Text style={[styles.loaderTxt, { color: colors.text }]}>{t.tracking.cargando}</Text>
+        <Text style={[styles.loaderTxt, { color: colors.text, fontFamily: FontFamily.bodySemiBold }]}>{t.tracking.cargando}</Text>
       </View>
     );
   }
 
   const etapaActual = etapaDesdeEstado(pedido.estado);
   const etapaIdx    = ETAPA_ORDEN.indexOf(etapaActual);
+
+  // Color semántico por etapa: preparando/enCamino = accent (azul, normal),
+  // enRuta = ctaAccent (naranja, el mismo tono del pin en vivo — la entrega está "caliente"),
+  // entregado = success. Da continuidad visual entre el pill de estado, el stepper y el mapa.
+  const ETAPA_COLORS: Record<Etapa, string> = {
+    preparando: colors.accent,
+    enCamino:   colors.accent,
+    enRuta:     colors.ctaAccent,
+    entregado:  colors.success,
+  };
+  const etapaColor = ETAPA_COLORS[etapaActual];
 
   const tiendaLat = pedido.tienda_lat ?? 13.6929;
   const tiendaLng = pedido.tienda_lng ?? -89.2182;
@@ -162,7 +173,7 @@ export default function MapTrackingScreen() {
     : [{ latitude: tiendaLat, longitude: tiendaLng }, { latitude: clienteLat, longitude: clienteLng }];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <MapView
         provider={PROVIDER_DEFAULT}
         style={styles.map}
@@ -173,12 +184,12 @@ export default function MapTrackingScreen() {
           longitudeDelta: Math.abs(tiendaLng - clienteLng) + 0.05,
         }}
       >
-        <Marker coordinate={{ latitude: tiendaLat, longitude: tiendaLng }} pinColor={Colors.accent} title="Tienda" />
-        <Marker coordinate={{ latitude: clienteLat, longitude: clienteLng }} pinColor={Colors.success} title="Entrega" />
+        <Marker coordinate={{ latitude: tiendaLat, longitude: tiendaLng }} pinColor={colors.accent} title="Tienda" />
+        <Marker coordinate={{ latitude: clienteLat, longitude: clienteLng }} pinColor={colors.success} title="Entrega" />
         {repLat && repLng
-          ? <Marker coordinate={{ latitude: repLat, longitude: repLng }} pinColor={Colors.warning} title="Repartidor" />
+          ? <Marker coordinate={{ latitude: repLat, longitude: repLng }} pinColor={colors.ctaAccent} title="Repartidor" />
           : null}
-        <Polyline coordinates={ruta} strokeColor={Colors.accent} strokeWidth={4} lineDashPattern={[1]} />
+        <Polyline coordinates={ruta} strokeColor={colors.accent} strokeWidth={4} lineDashPattern={[1]} />
       </MapView>
 
       {/* Top HUD */}
@@ -196,28 +207,40 @@ export default function MapTrackingScreen() {
       <View style={[styles.panel, { backgroundColor: colors.card, paddingBottom: insets.bottom + 16 }]}>
         <View style={[styles.panelHandle, { backgroundColor: colors.border }]} />
 
+        {/* Pill de estado — mismo lenguaje visual (fondo tintado 15% + ícono + color semántico)
+            que las tarjetas de pedidos en PedidosScreen/DriverScreen, para lectura rápida. */}
+        <View style={{ flexDirection: 'row', marginBottom: Spacing.md }}>
+          <View style={[styles.statusPill, { backgroundColor: `${etapaColor}26` }]}>
+            <Ionicons name={ETAPA_ICONS[etapaActual]} size={13} color={etapaColor} />
+            <Text style={[styles.statusPillTxt, { color: etapaColor }]}>{t.tracking.etapas[etapaActual]}</Text>
+          </View>
+        </View>
+
         {/* Ficha flotante del repartidor asignado — foto, nombre, calificación, entregas */}
         {usuario?.rol !== 'repartidor' && pedido.repartidor_nombre && (
           <View style={[styles.driverCard, { backgroundColor: colors.accentLight, borderColor: `${colors.accent}30` }]}>
             {pedido.repartidor_foto
               ? <Image source={{ uri: resolveMediaUrl(pedido.repartidor_foto) }} style={styles.driverAvatar} />
               : <View style={[styles.driverAvatar, { backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }]}>
-                  <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 18 }}>{pedido.repartidor_nombre[0]}</Text>
+                  <Text style={{ color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: 18 }}>{pedido.repartidor_nombre[0]}</Text>
                 </View>
             }
             <View style={{ flex: 1 }}>
-              <Text style={{ color: colors.muted, fontSize: 10, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+              <Text style={{ color: colors.muted, fontSize: 10, fontFamily: FontFamily.bodyExtraBold, textTransform: 'uppercase', letterSpacing: 0.4 }}>
                 Tu repartidor
               </Text>
-              <Text style={{ color: colors.text, fontWeight: '900', fontSize: 15 }} numberOfLines={1}>{pedido.repartidor_nombre}</Text>
+              <Text style={{ color: colors.text, fontFamily: FontFamily.bodyExtraBold, fontSize: 15 }} numberOfLines={1}>{pedido.repartidor_nombre}</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
                 {!!pedido.repartidor_calificacion_promedio && (
-                  <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>
-                    ★ {Number(pedido.repartidor_calificacion_promedio).toFixed(1)}
-                    <Text style={{ color: colors.muted, fontWeight: '600' }}> ({pedido.repartidor_total_resenas ?? 0})</Text>
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <Ionicons name="star" size={12} color={colors.warning} />
+                    <Text style={{ color: colors.text, fontFamily: FontFamily.displayBold, fontSize: 12, fontVariant: ['tabular-nums'] }}>
+                      {Number(pedido.repartidor_calificacion_promedio).toFixed(1)}
+                    </Text>
+                    <Text style={{ color: colors.muted, fontFamily: FontFamily.bodySemiBold, fontSize: 12 }}> ({pedido.repartidor_total_resenas ?? 0})</Text>
+                  </View>
                 )}
-                <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '600' }}>
+                <Text style={{ color: colors.muted, fontFamily: FontFamily.bodySemiBold, fontSize: 12 }}>
                   {pedido.repartidor_entregas_completadas ?? 0} entregas
                 </Text>
               </View>
@@ -261,19 +284,26 @@ export default function MapTrackingScreen() {
           {ETAPA_ORDEN.map((etapa, i) => {
             const done = i <= etapaIdx;
             const active = i === etapaIdx;
+            const stepColor = ETAPA_COLORS[etapa];
             return (
               <React.Fragment key={etapa}>
                 <View style={styles.stageItem}>
                   <View style={[
                     styles.stageCircle,
                     {
-                      backgroundColor: done ? colors.accent : colors.background,
-                      borderColor: done ? colors.accent : colors.border,
+                      backgroundColor: done ? stepColor : colors.background,
+                      borderColor: done ? stepColor : colors.border,
                     },
                   ]}>
                     <Ionicons name={ETAPA_ICONS[etapa]} size={14} color={done ? '#FFF' : colors.muted} />
                   </View>
-                  <Text style={[styles.stageLbl, { color: active ? colors.accent : colors.muted, fontWeight: active ? '700' : '500' }]} numberOfLines={2}>
+                  <Text
+                    style={[
+                      styles.stageLbl,
+                      { color: active ? stepColor : colors.muted, fontFamily: active ? FontFamily.bodyBold : FontFamily.bodyRegular },
+                    ]}
+                    numberOfLines={2}
+                  >
                     {t.tracking.etapas[etapa]}
                   </Text>
                 </View>
@@ -313,7 +343,7 @@ export default function MapTrackingScreen() {
               <View style={styles.addrRow}>
                 <Ionicons name={row.icon as any} size={16} color={row.color} style={{ marginRight: Spacing.sm }} />
                 <Text style={[styles.addrTxt, { color: colors.text }]} numberOfLines={1}>
-                  <Text style={{ fontWeight: '700' }}>{row.label}</Text>{row.value}
+                  <Text style={{ fontFamily: FontFamily.bodyBold }}>{row.label}</Text>{row.value}
                 </Text>
               </View>
               {i < arr.length - 1 && <View style={[styles.addrDiv, { backgroundColor: colors.border }]} />}
@@ -326,9 +356,9 @@ export default function MapTrackingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loaderTxt: { marginTop: Spacing.md, fontWeight: '600' },
+  loaderTxt: { marginTop: Spacing.md },
   map: { flex: 1 },
   topBar: {
     position: 'absolute', left: 16, right: 16,
@@ -338,7 +368,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 5,
   },
   topBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', borderWidth: 1 },
-  topTitle: { fontWeight: '800', fontSize: Fonts.regular + 1 },
+  topTitle: { fontFamily: FontFamily.displayBold, fontSize: Fonts.regular + 1, fontVariant: ['tabular-nums'] },
   panel: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     borderTopLeftRadius: Radius.lg, borderTopRightRadius: Radius.lg,
@@ -346,6 +376,8 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: -6 }, shadowOpacity: 0.06, shadowRadius: 12, elevation: 10,
   },
   panelHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.md },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  statusPillTxt: { fontFamily: FontFamily.bodyExtraBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 },
   driverCard: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
     borderRadius: Radius.md, padding: Spacing.sm,
@@ -361,8 +393,8 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md, padding: Spacing.sm,
     borderWidth: 1, marginBottom: Spacing.md,
   },
-  countdownTxt: { flex: 1, fontSize: Fonts.small + 1, fontWeight: '500', lineHeight: 18 },
-  countdownBold: { fontWeight: '900' },
+  countdownTxt: { flex: 1, fontFamily: FontFamily.bodyRegular, fontSize: Fonts.small + 1, lineHeight: 18 },
+  countdownBold: { fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] },
   stageRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.md },
   stageItem: { alignItems: 'center', width: 60 },
   stageCircle: {
@@ -378,10 +410,10 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md, borderWidth: 1,
   },
   infoIconBg: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  infoLbl: { fontSize: 9, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.2 },
-  infoVal: { fontWeight: '800', fontSize: Fonts.small, marginTop: 2 },
+  infoLbl: { fontFamily: FontFamily.bodyBold, fontSize: 9, textTransform: 'uppercase', letterSpacing: 0.2 },
+  infoVal: { fontFamily: FontFamily.displayBold, fontSize: Fonts.small, marginTop: 2, fontVariant: ['tabular-nums'] },
   addrCard: { borderRadius: Radius.md, padding: Spacing.md, borderWidth: 1 },
   addrRow: { flexDirection: 'row', alignItems: 'center' },
-  addrTxt: { flex: 1, fontSize: Fonts.small + 1, fontWeight: '500' },
+  addrTxt: { flex: 1, fontFamily: FontFamily.bodyRegular, fontSize: Fonts.small + 1 },
   addrDiv: { height: 1, marginVertical: 8 },
 });

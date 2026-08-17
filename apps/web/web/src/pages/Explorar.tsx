@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useGlobal } from '../context/GlobalContext';
+import { SearchX } from 'lucide-react';
 import Header from '../components/Header';
 import TiendaSidePanel from '../components/TiendaSidePanel';
 import { api } from '../api';
@@ -760,7 +761,7 @@ export default function Explorar() {
               textAlign: 'center', padding: '80px 20px',
               color: muted, fontSize: 16,
             }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>🔍</div>
+              <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'center', color: 'var(--text-muted, #94a3b8)' }}><SearchX size={44} strokeWidth={1.5} /></div>
               <div style={{ fontWeight: 700, marginBottom: 8, color: text }}>Sin resultados</div>
               <div>No encontramos productos{q ? ` para "${q}"` : ''}. Prueba con otro término.</div>
             </div>

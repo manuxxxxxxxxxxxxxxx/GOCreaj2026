@@ -2,11 +2,14 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image,
   Modal, TextInput, Alert, RefreshControl, ActivityIndicator, Dimensions,
+  LayoutAnimation, Platform, UIManager,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { api, Endpoints, API_URL } from '@/services/api';
-import { Colors, Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
+import { useTheme, ColorPalette } from '@/context/ThemeContext';
 import { SolicitudRol, ReporteSoporte, Pedido, UsuarioAdmin } from '@/types';
 import Button from '@/components/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -14,6 +17,14 @@ import { useNavigation, CommonActions } from '@react-navigation/native';
 import AdminArbolControl from '@/components/AdminArbolControl';
 
 const { width: W } = Dimensions.get('window');
+
+// Texto siempre blanco sobre superficies sólidas de color (header, badges rellenos) —
+// coherente con ambos temas ya que esas superficies mantienen saturación en light y dark.
+const ON_COLOR = '#FFFFFF';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 type Tab = 'arbol' | 'solicitudes' | 'usuarios' | 'pedidos' | 'soporte';
 type SolFiltro = 'pendiente' | 'aprobado' | 'rechazado' | 'todos';
@@ -45,52 +56,113 @@ function imgUri(path?: string | null): string | undefined {
   return `${API_URL}/uploads/${path}`;
 }
 
-function rolColor(rol: string): string {
+function rolColor(rol: string, colors: ColorPalette): string {
   switch (rol) {
     case 'admin':      return '#7C3AED';
-    case 'vendedor':   return Colors.accent;
-    case 'repartidor': return '#D97706';
-    default:           return Colors.muted;
+    case 'vendedor':   return colors.accent;
+    case 'repartidor': return colors.warning;
+    default:           return colors.muted;
   }
 }
 
-function estadoColor(estado: string): string {
-  switch (estado) {
-    case 'preparacion': return Colors.warning;
-    case 'en_camino':   return '#2563EB';
-    case 'entregado':   return Colors.success;
-    default:            return Colors.danger;
+function rolIcon(rol: string): keyof typeof Ionicons.glyphMap {
+  switch (rol) {
+    case 'admin':      return 'shield-checkmark';
+    case 'vendedor':   return 'storefront';
+    case 'repartidor': return 'bicycle';
+    default:           return 'person';
   }
+}
+
+function estadoColor(estado: string, colors: ColorPalette): string {
+  switch (estado) {
+    case 'preparacion': return colors.warning;
+    case 'en_camino':   return colors.accent;
+    case 'entregado':   return colors.success;
+    default:            return colors.danger;
+  }
+}
+
+function estadoIcon(estado: string): keyof typeof Ionicons.glyphMap {
+  switch (estado) {
+    case 'preparacion': return 'time-outline';
+    case 'en_camino':   return 'bicycle-outline';
+    case 'entregado':   return 'checkmark-circle';
+    default:            return 'close-circle';
+  }
+}
+
+function solicitudIcon(estado: string): keyof typeof Ionicons.glyphMap {
+  switch (estado) {
+    case 'aprobado':  return 'checkmark-circle';
+    case 'rechazado': return 'close-circle';
+    default:          return 'time-outline';
+  }
+}
+
+function soporteColor(estado: string, colors: ColorPalette): string {
+  switch (estado) {
+    case 'abierto':    return colors.warning;
+    case 'en_proceso': return colors.accent;
+    default:           return colors.success;
+  }
+}
+
+function soporteIcon(estado: string): keyof typeof Ionicons.glyphMap {
+  switch (estado) {
+    case 'abierto':    return 'alert-circle-outline';
+    case 'en_proceso': return 'sync-outline';
+    default:           return 'checkmark-circle';
+  }
+}
+
+/** Status pill: fondo tintado ~15% del color semántico + ícono + texto en color pleno (patrón DESIGN.md). */
+function StatusPill({ icon, label, color, big }: {
+  icon: keyof typeof Ionicons.glyphMap; label: string; color: string; big?: boolean;
+}) {
+  return (
+    <View style={[styles.pill, { backgroundColor: `${color}26` }, big && styles.pillBig]}>
+      <Ionicons name={icon} size={big ? 14 : 12} color={color} />
+      <Text style={[styles.pillTxt, { color }, big && { fontSize: 13 }]}>{label}</Text>
+    </View>
+  );
 }
 
 function Chip({
   label, active, onPress, color,
 }: { label: string; active: boolean; onPress: () => void; color?: string }) {
+  const { colors } = useTheme();
   return (
     <TouchableOpacity
-      style={[styles.chip, active && { backgroundColor: color ?? Colors.accent, borderColor: color ?? Colors.accent }]}
+      style={[
+        styles.chip,
+        { backgroundColor: colors.card, borderColor: colors.border },
+        active && { backgroundColor: color ?? colors.accent, borderColor: color ?? colors.accent },
+      ]}
       onPress={onPress}
+      activeOpacity={0.8}
     >
-      <Text style={[styles.chipTxt, active && { color: Colors.contrast }]}>{label}</Text>
+      <Text style={[styles.chipTxt, { color: colors.muted }, active && { color: ON_COLOR }]}>{label}</Text>
     </TouchableOpacity>
   );
 }
 
 function Avatar({ src, nombre, size = 42 }: { src?: string | null; nombre: string; size?: number }) {
+  const { colors } = useTheme();
   const [err, setErr] = useState(false);
   const uri = imgUri(src);
   if (uri && !err) {
     return (
       <Image
         source={{ uri }}
-        style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: Colors.border }}
+        style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: colors.border }}
         onError={() => setErr(true)}
       />
     );
   }
   return (
-    <View style={[styles.avatarFallback, { width: size, height: size, borderRadius: size / 2 }]}>
-      <Text style={{ color: Colors.contrast, fontWeight: '800', fontSize: size * 0.38 }}>
+    <View style={[styles.avatarFallback, { width: size, height: size, borderRadius: size / 2, backgroundColor: colors.accent }]}>
+      <Text style={{ color: ON_COLOR, fontFamily: FontFamily.displayExtraBold, fontSize: size * 0.38 }}>
         {nombre.charAt(0).toUpperCase()}
       </Text>
     </View>
@@ -99,6 +171,7 @@ function Avatar({ src, nombre, size = 42 }: { src?: string | null; nombre: strin
 
 export default function AdminScreen() {
   const { cerrarSesion, usuario, refrescar } = useAuth();
+  const { colors } = useTheme();
   // Refrescar rol al abrir
   useEffect(() => { void refrescar(); }, []);
   const navigation = useNavigation<any>();
@@ -248,88 +321,118 @@ export default function AdminScreen() {
     } else Alert.alert('Error', r.error ?? 'Falló');
   }
 
+  function cambiarTab(t: Tab): void {
+    if (Platform.OS !== 'web') LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setTab(t);
+  }
+
   // ── Render helpers ──────────────────────────────────────────────────────────
-  function renderSolicitud(s: SolicitudRol) {
+  function renderSolicitud(s: SolicitudRol, index: number) {
     return (
-      <TouchableOpacity key={s.id} style={styles.card} onPress={() => { setVerSol(s); setNotas(''); }}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.cardTitle}>{s.nombre_completo}</Text>
-          <Text style={styles.cardSub}>
-            {s.rol_solicitado === 'vendedor' ? '🏪' : '🛵'} Quiere ser {s.rol_solicitado}
-            {s.nombre_negocio ? ` · ${s.nombre_negocio}` : ''}
-          </Text>
-          <Text style={styles.cardSub}>DUI {s.dui_numero}</Text>
-        </View>
-        <View style={{ alignItems: 'flex-end', gap: 6 }}>
-          <View style={[styles.badge, { backgroundColor: s.estado === 'pendiente' ? Colors.warning : s.estado === 'aprobado' ? Colors.success : Colors.danger }]}>
-            <Text style={styles.badgeTxt}>{s.estado.toUpperCase()}</Text>
+      <Animated.View key={s.id} entering={FadeInDown.delay(index * 40).springify()}>
+        <TouchableOpacity
+          style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => { setVerSol(s); setNotas(''); }}
+          activeOpacity={0.8}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>{s.nombre_completo}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+              <Ionicons name={s.rol_solicitado === 'vendedor' ? 'storefront-outline' : 'bicycle-outline'} size={13} color={colors.muted} />
+              <Text style={[styles.cardSub, { color: colors.muted, marginTop: 0 }]}>
+                Quiere ser {s.rol_solicitado}{s.nombre_negocio ? ` · ${s.nombre_negocio}` : ''}
+              </Text>
+            </View>
+            <Text style={[styles.cardSub, { color: colors.muted }]}>DUI {s.dui_numero}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.muted} />
-        </View>
-      </TouchableOpacity>
+          <View style={{ alignItems: 'flex-end', gap: 6 }}>
+            <StatusPill
+              icon={solicitudIcon(s.estado)}
+              label={s.estado.toUpperCase()}
+              color={s.estado === 'pendiente' ? colors.warning : s.estado === 'aprobado' ? colors.success : colors.danger}
+            />
+            <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
     );
   }
 
-  function renderUsuario(u: UsuarioAdmin) {
+  function renderUsuario(u: UsuarioAdmin, index: number) {
     return (
-      <TouchableOpacity key={u.id} style={styles.card} onPress={() => setVerUsuario(u)}>
-        <Avatar src={u.foto_perfil} nombre={u.nombre} size={46} />
-        <View style={{ flex: 1, marginLeft: Spacing.sm }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={styles.cardTitle} numberOfLines={1}>{u.nombre}</Text>
-            {!u.activo && <Ionicons name="ban" size={14} color={Colors.danger} />}
+      <Animated.View key={u.id} entering={FadeInDown.delay(index * 40).springify()}>
+        <TouchableOpacity
+          style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => setVerUsuario(u)}
+          activeOpacity={0.8}
+        >
+          <Avatar src={u.foto_perfil} nombre={u.nombre} size={46} />
+          <View style={{ flex: 1, marginLeft: Spacing.sm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>{u.nombre}</Text>
+              {!u.activo && <Ionicons name="ban" size={14} color={colors.danger} />}
+            </View>
+            <Text style={[styles.cardSub, { color: colors.muted }]} numberOfLines={1}>{u.username ? `@${u.username}` : u.email ?? u.telefono ?? '-'}</Text>
           </View>
-          <Text style={styles.cardSub} numberOfLines={1}>{u.username ? `@${u.username}` : u.email ?? u.telefono ?? '-'}</Text>
-        </View>
-        <View style={[styles.badge, { backgroundColor: rolColor(u.rol) }]}>
-          <Text style={styles.badgeTxt}>{u.rol.toUpperCase()}</Text>
-        </View>
-      </TouchableOpacity>
+          <View style={[styles.badge, { backgroundColor: rolColor(u.rol, colors), flexDirection: 'row', alignItems: 'center', gap: 4 }]}>
+            <Ionicons name={rolIcon(u.rol)} size={11} color={ON_COLOR} />
+            <Text style={[styles.badgeTxt, { color: ON_COLOR }]}>{u.rol.toUpperCase()}</Text>
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
     );
   }
 
-  function renderPedido(p: Pedido) {
+  function renderPedido(p: Pedido, index: number) {
     return (
-      <TouchableOpacity key={p.id} style={styles.card} onPress={() => setVerPedido(p)}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.cardTitle}>#SV-{p.id} · ${Number(p.total).toFixed(2)}</Text>
-          <Text style={styles.cardSub}>{p.comprador_nombre ?? '-'} → {p.vendedor_nombre ?? '-'}</Text>
-          {p.items && p.items.length > 0 && (
-            <Text style={styles.cardSub}>{p.items.length} ítem{p.items.length !== 1 ? 's' : ''}</Text>
-          )}
-        </View>
-        <View style={{ alignItems: 'flex-end', gap: 6 }}>
-          <View style={[styles.badge, { backgroundColor: estadoColor(p.estado) }]}>
-            <Text style={styles.badgeTxt}>{p.estado.replace('_', ' ').toUpperCase()}</Text>
+      <Animated.View key={p.id} entering={FadeInDown.delay(index * 40).springify()}>
+        <TouchableOpacity
+          style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => setVerPedido(p)}
+          activeOpacity={0.8}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>#SV-{p.id} · ${Number(p.total).toFixed(2)}</Text>
+            <Text style={[styles.cardSub, { color: colors.muted }]}>{p.comprador_nombre ?? '-'} → {p.vendedor_nombre ?? '-'}</Text>
+            {p.items && p.items.length > 0 && (
+              <Text style={[styles.cardSub, { color: colors.muted }]}>{p.items.length} ítem{p.items.length !== 1 ? 's' : ''}</Text>
+            )}
           </View>
-          <Ionicons name="chevron-forward" size={20} color={Colors.muted} />
-        </View>
-      </TouchableOpacity>
+          <View style={{ alignItems: 'flex-end', gap: 6 }}>
+            <StatusPill icon={estadoIcon(p.estado)} label={p.estado.replace('_', ' ').toUpperCase()} color={estadoColor(p.estado, colors)} />
+            <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+          </View>
+        </TouchableOpacity>
+      </Animated.View>
     );
   }
 
-  function renderReporte(r: ReporteSoporte) {
+  function renderReporte(r: ReporteSoporte, index: number) {
     return (
-      <TouchableOpacity key={r.id} style={styles.card} onPress={() => { setVerRep(r); setRespuesta(''); }}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.cardTitle} numberOfLines={1}>{r.asunto}</Text>
-          <Text style={styles.cardSub} numberOfLines={2}>{r.descripcion}</Text>
-          <Text style={styles.cardSub}>{r.usuario_nombre ?? '-'}</Text>
-        </View>
-        <View style={[styles.badge, { backgroundColor: r.estado === 'abierto' ? Colors.warning : r.estado === 'en_proceso' ? '#2563EB' : Colors.success }]}>
-          <Text style={styles.badgeTxt}>{r.estado.toUpperCase()}</Text>
-        </View>
-      </TouchableOpacity>
+      <Animated.View key={r.id} entering={FadeInDown.delay(index * 40).springify()}>
+        <TouchableOpacity
+          style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => { setVerRep(r); setRespuesta(''); }}
+          activeOpacity={0.8}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>{r.asunto}</Text>
+            <Text style={[styles.cardSub, { color: colors.muted }]} numberOfLines={2}>{r.descripcion}</Text>
+            <Text style={[styles.cardSub, { color: colors.muted }]}>{r.usuario_nombre ?? '-'}</Text>
+          </View>
+          <StatusPill icon={soporteIcon(r.estado)} label={r.estado.toUpperCase()} color={soporteColor(r.estado, colors)} />
+        </TouchableOpacity>
+      </Animated.View>
     );
   }
 
   // ── Main render ──────────────────────────────────────────────────────────────
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* ── Header ── */}
-      <View style={[styles.header, { paddingTop: insets.top + 14 }]}>
+      <View style={[styles.header, { backgroundColor: colors.accent, paddingTop: insets.top + 14 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-          <Ionicons name="shield-checkmark" size={22} color={Colors.contrast} />
+          <Ionicons name="shield-checkmark" size={22} color={ON_COLOR} />
           <View>
             <Text style={styles.headerTitle}>Panel Admin</Text>
             <Text style={styles.headerSub}>{usuario?.nombre}</Text>
@@ -349,35 +452,55 @@ export default function AdminScreen() {
             style={styles.logoutBtn}
             activeOpacity={0.85}
           >
-            <Ionicons name="arrow-back-circle-outline" size={22} color={Colors.contrast} />
+            <Ionicons name="arrow-back-circle-outline" size={22} color={ON_COLOR} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => { void refrescar(); Alert.alert('✓', 'Rol refrescado'); }} style={styles.logoutBtn}>
-            <Ionicons name="refresh-outline" size={22} color={Colors.contrast} />
+          <TouchableOpacity onPress={() => { void refrescar(); Alert.alert('Listo', 'Rol refrescado'); }} style={styles.logoutBtn}>
+            <Ionicons name="refresh-outline" size={22} color={ON_COLOR} />
           </TouchableOpacity>
           <TouchableOpacity onPress={cerrarSesion} style={styles.logoutBtn}>
-            <Ionicons name="log-out-outline" size={22} color={Colors.contrast} />
+            <Ionicons name="log-out-outline" size={22} color={ON_COLOR} />
           </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView refreshControl={<RefreshControl refreshing={cargando} onRefresh={cargar} tintColor={Colors.accent} />}>
-        {/* ── Stats ── */}
+      <ScrollView refreshControl={<RefreshControl refreshing={cargando} onRefresh={cargar} tintColor={colors.accent} />}>
+        {/* ── Stats: KPI tiles (ícono+label → número Sora tabular) ── */}
         {stats && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statsRow}>
-            <StatCard icon="people" label="Usuarios"   value={stats.usuarios} />
-            <StatCard icon="storefront" label="Vendedores" value={stats.vendedores} color="#2563EB" />
-            <StatCard icon="bicycle"   label="Repartidores" value={stats.repartidores} color="#D97706" />
-            <StatCard icon="cart"      label="Pedidos hoy" value={stats.pedidos_hoy} color={Colors.success} />
-            <StatCard icon="alert-circle" label="Pendientes" value={stats.solicitudes_pendientes} color={Colors.danger} />
-            <StatCard icon="headset"   label="Soporte" value={stats.soporte_abiertos} color={Colors.warning} />
+            <Animated.View entering={FadeInDown.delay(0).springify()}>
+              <StatCard icon="people" label="Usuarios" value={stats.usuarios} />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(40).springify()}>
+              <StatCard icon="storefront" label="Vendedores" value={stats.vendedores} color={colors.accent} />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(80).springify()}>
+              <StatCard icon="bicycle" label="Repartidores" value={stats.repartidores} color={colors.warning} />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(120).springify()}>
+              <StatCard icon="cart" label="Pedidos hoy" value={stats.pedidos_hoy} color={colors.success} />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(160).springify()}>
+              <StatCard icon="alert-circle" label="Pendientes" value={stats.solicitudes_pendientes} color={colors.ctaAccent} />
+            </Animated.View>
+            <Animated.View entering={FadeInDown.delay(200).springify()}>
+              <StatCard icon="headset" label="Soporte" value={stats.soporte_abiertos} color={colors.warning} />
+            </Animated.View>
           </ScrollView>
         )}
 
         {/* ── Tabs ── */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsRow}>
           {(['arbol', 'solicitudes', 'usuarios', 'pedidos', 'soporte'] as Tab[]).map(t => (
-            <TouchableOpacity key={t} style={[styles.tabPill, tab === t && styles.tabPillAct]} onPress={() => setTab(t)}>
-              <Text style={[styles.tabPillTxt, tab === t && styles.tabPillTxtAct]}>{t.toUpperCase()}</Text>
+            <TouchableOpacity
+              key={t}
+              style={[
+                styles.tabPill,
+                { backgroundColor: colors.card, borderColor: colors.border },
+                tab === t && { backgroundColor: colors.accent, borderColor: colors.accent },
+              ]}
+              onPress={() => cambiarTab(t)}
+            >
+              <Text style={[styles.tabPillTxt, { color: colors.muted }, tab === t && { color: ON_COLOR }]}>{t.toUpperCase()}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -394,37 +517,37 @@ export default function AdminScreen() {
               ))}
             </ScrollView>
             {solicitudes.length === 0 && !cargando
-              ? <Text style={styles.vacio}>Sin solicitudes {solFiltro !== 'todos' ? solFiltro + 's' : ''}</Text>
-              : solicitudes.map(renderSolicitud)}
+              ? <Text style={[styles.vacio, { color: colors.muted }]}>Sin solicitudes {solFiltro !== 'todos' ? solFiltro + 's' : ''}</Text>
+              : solicitudes.map((s, i) => renderSolicitud(s, i))}
           </>
         )}
 
         {/* ── Usuarios ── */}
         {tab === 'usuarios' && (
           <>
-            <View style={styles.searchBox}>
-              <Ionicons name="search" size={18} color={Colors.muted} style={{ marginRight: 8 }} />
+            <View style={[styles.searchBox, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Ionicons name="search" size={18} color={colors.muted} style={{ marginRight: 8 }} />
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { color: colors.text }]}
                 value={busqueda}
                 onChangeText={setBusqueda}
                 placeholder="Buscar por nombre, email o @username..."
-                placeholderTextColor={Colors.muted}
+                placeholderTextColor={colors.muted}
               />
               {busqueda.length > 0 && (
                 <TouchableOpacity onPress={() => setBusqueda('')}>
-                  <Ionicons name="close-circle" size={18} color={Colors.muted} />
+                  <Ionicons name="close-circle" size={18} color={colors.muted} />
                 </TouchableOpacity>
               )}
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               {(['todos', 'comprador', 'vendedor', 'repartidor', 'admin'] as RolFiltro[]).map(f => (
-                <Chip key={f} label={f.charAt(0).toUpperCase() + f.slice(1)} active={rolFiltro === f} onPress={() => setRolFiltro(f)} color={rolColor(f)} />
+                <Chip key={f} label={f.charAt(0).toUpperCase() + f.slice(1)} active={rolFiltro === f} onPress={() => setRolFiltro(f)} color={rolColor(f, colors)} />
               ))}
             </ScrollView>
             {usuarios.length === 0 && !cargando
-              ? <Text style={styles.vacio}>Sin usuarios</Text>
-              : usuarios.map(renderUsuario)}
+              ? <Text style={[styles.vacio, { color: colors.muted }]}>Sin usuarios</Text>
+              : usuarios.map((u, i) => renderUsuario(u, i))}
           </>
         )}
 
@@ -432,17 +555,17 @@ export default function AdminScreen() {
         {tab === 'pedidos' && (
           <>
             <View style={styles.pollingRow}>
-              <Ionicons name="sync" size={14} color={Colors.success} />
-              <Text style={styles.pollingTxt}>Actualizando cada 10s</Text>
+              <Ionicons name="sync" size={14} color={colors.success} />
+              <Text style={[styles.pollingTxt, { color: colors.success }]}>Actualizando cada 10s</Text>
             </View>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
               {(['todos', 'preparacion', 'en_camino', 'entregado', 'cancelado'] as EstadoFiltro[]).map(f => (
-                <Chip key={f} label={f === 'todos' ? 'Todos' : f.replace('_', ' ')} active={estadoFiltro === f} onPress={() => setEstadoFiltro(f)} color={f !== 'todos' ? estadoColor(f) : undefined} />
+                <Chip key={f} label={f === 'todos' ? 'Todos' : f.replace('_', ' ')} active={estadoFiltro === f} onPress={() => setEstadoFiltro(f)} color={f !== 'todos' ? estadoColor(f, colors) : undefined} />
               ))}
             </ScrollView>
             {pedidos.length === 0 && !cargando
-              ? <Text style={styles.vacio}>Sin pedidos</Text>
-              : pedidos.map(renderPedido)}
+              ? <Text style={[styles.vacio, { color: colors.muted }]}>Sin pedidos</Text>
+              : pedidos.map((p, i) => renderPedido(p, i))}
           </>
         )}
 
@@ -450,19 +573,19 @@ export default function AdminScreen() {
         {tab === 'soporte' && (
           <>
             {reportes.length === 0 && !cargando
-              ? <Text style={styles.vacio}>Sin tickets de soporte</Text>
-              : reportes.map(renderReporte)}
+              ? <Text style={[styles.vacio, { color: colors.muted }]}>Sin tickets de soporte</Text>
+              : reportes.map((r, i) => renderReporte(r, i))}
           </>
         )}
 
-        {cargando && <ActivityIndicator color={Colors.accent} style={{ marginVertical: Spacing.md }} />}
+        {cargando && <ActivityIndicator color={colors.accent} style={{ marginVertical: Spacing.md }} />}
         <View style={{ height: Spacing.xl * 2 }} />
       </ScrollView>
 
       {/* ── MODAL: Solicitud ── */}
       <Modal visible={!!verSol} animationType="slide" onRequestClose={() => setVerSol(null)}>
         {verSol ? (
-          <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+          <ScrollView style={[styles.modal, { backgroundColor: colors.background }]} contentContainerStyle={styles.modalContent}>
             <ModalHeader title={verSol.nombre_completo} onClose={() => setVerSol(null)} />
 
             <KV label="Solicita" value={verSol.rol_solicitado} />
@@ -513,11 +636,11 @@ export default function AdminScreen() {
               <>
                 <SectionLabel>Notas (opcional)</SectionLabel>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
                   value={notas}
                   onChangeText={setNotas}
                   placeholder="Motivo del rechazo o comentario..."
-                  placeholderTextColor={Colors.muted}
+                  placeholderTextColor={colors.muted}
                   multiline
                 />
                 <Button label="Aprobar" icon="checkmark-circle-outline" onPress={() => resolver('aprobado')} />
@@ -526,7 +649,15 @@ export default function AdminScreen() {
               </>
             ) : (
               <>
-                <KV label="Estado" value={verSol.estado.toUpperCase()} />
+                <SectionLabel>Estado</SectionLabel>
+                <View style={{ alignSelf: 'flex-start', marginBottom: Spacing.sm }}>
+                  <StatusPill
+                    icon={solicitudIcon(verSol.estado)}
+                    label={verSol.estado.toUpperCase()}
+                    color={verSol.estado === 'aprobado' ? colors.success : colors.danger}
+                    big
+                  />
+                </View>
                 {verSol.notas_admin ? <KV label="Notas admin" value={verSol.notas_admin} /> : null}
               </>
             )}
@@ -537,7 +668,7 @@ export default function AdminScreen() {
       {/* ── MODAL: Usuario ── */}
       <Modal visible={!!verUsuario} animationType="slide" onRequestClose={() => setVerUsuario(null)}>
         {verUsuario ? (
-          <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+          <ScrollView style={[styles.modal, { backgroundColor: colors.background }]} contentContainerStyle={styles.modalContent}>
             <ModalHeader title="Detalle de usuario" onClose={() => setVerUsuario(null)} />
 
             <View style={{ alignItems: 'center', marginBottom: Spacing.md }}>
@@ -553,22 +684,23 @@ export default function AdminScreen() {
 
             {/* Rol badge */}
             <View style={{ marginTop: Spacing.sm, marginBottom: Spacing.md }}>
-              <Text style={styles.modalSectionTitle}>ROL ACTUAL</Text>
-              <View style={[styles.badge, { backgroundColor: rolColor(verUsuario.rol), alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 6 }]}>
-                <Text style={[styles.badgeTxt, { fontSize: 12 }]}>{verUsuario.rol.toUpperCase()}</Text>
+              <Text style={[styles.modalSectionTitle, { color: colors.muted }]}>ROL ACTUAL</Text>
+              <View style={[styles.badge, { backgroundColor: rolColor(verUsuario.rol, colors), alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                <Ionicons name={rolIcon(verUsuario.rol)} size={13} color={ON_COLOR} />
+                <Text style={[styles.badgeTxt, { fontSize: 12, color: ON_COLOR }]}>{verUsuario.rol.toUpperCase()}</Text>
               </View>
             </View>
 
             {/* Cambiar rol */}
-            <Text style={styles.modalSectionTitle}>CAMBIAR ROL</Text>
+            <Text style={[styles.modalSectionTitle, { color: colors.muted }]}>CAMBIAR ROL</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.md }}>
               {['comprador', 'vendedor', 'repartidor', 'admin'].filter(r => r !== verUsuario.rol).map(r => (
                 <TouchableOpacity
                   key={r}
-                  style={[styles.rolBtn, { borderColor: rolColor(r) }]}
+                  style={[styles.rolBtn, { borderColor: rolColor(r, colors) }]}
                   onPress={() => cambiarRol(verUsuario, r)}
                 >
-                  <Text style={[styles.rolBtnTxt, { color: rolColor(r) }]}>{r}</Text>
+                  <Text style={[styles.rolBtnTxt, { color: rolColor(r, colors) }]}>{r}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -587,11 +719,11 @@ export default function AdminScreen() {
       {/* ── MODAL: Pedido ── */}
       <Modal visible={!!verPedido} animationType="slide" onRequestClose={() => setVerPedido(null)}>
         {verPedido ? (
-          <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+          <ScrollView style={[styles.modal, { backgroundColor: colors.background }]} contentContainerStyle={styles.modalContent}>
             <ModalHeader title={`Pedido #SV-${verPedido.id}`} onClose={() => setVerPedido(null)} />
 
-            <View style={[styles.badge, { backgroundColor: estadoColor(verPedido.estado), alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 6, marginBottom: Spacing.md }]}>
-              <Text style={[styles.badgeTxt, { fontSize: 12 }]}>{verPedido.estado.replace('_', ' ').toUpperCase()}</Text>
+            <View style={{ alignSelf: 'flex-start', marginBottom: Spacing.md }}>
+              <StatusPill icon={estadoIcon(verPedido.estado)} label={verPedido.estado.replace('_', ' ').toUpperCase()} color={estadoColor(verPedido.estado, colors)} big />
             </View>
 
             <KV label="Total"      value={`$${Number(verPedido.total).toFixed(2)}`} />
@@ -604,39 +736,39 @@ export default function AdminScreen() {
             {/* Items */}
             {verPedido.items && verPedido.items.length > 0 && (
               <>
-                <Text style={[styles.modalSectionTitle, { marginTop: Spacing.md }]}>PRODUCTOS</Text>
+                <Text style={[styles.modalSectionTitle, { color: colors.muted, marginTop: Spacing.md }]}>PRODUCTOS</Text>
                 {verPedido.items.map(item => (
                   <View key={item.id} style={styles.itemRow}>
                     {item.imagen ? (
-                      <Image source={{ uri: imgUri(item.imagen) }} style={styles.itemImg} />
+                      <Image source={{ uri: imgUri(item.imagen) }} style={[styles.itemImg, { backgroundColor: colors.border }]} />
                     ) : (
-                      <View style={[styles.itemImg, { backgroundColor: Colors.border, alignItems: 'center', justifyContent: 'center' }]}>
-                        <Ionicons name="image-outline" size={20} color={Colors.muted} />
+                      <View style={[styles.itemImg, { backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' }]}>
+                        <Ionicons name="image-outline" size={20} color={colors.muted} />
                       </View>
                     )}
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.cardTitle} numberOfLines={1}>{item.nombre ?? 'Producto'}</Text>
-                      <Text style={styles.cardSub}>x{item.cantidad} · ${Number(item.precio_unitario).toFixed(2)} c/u</Text>
+                      <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={1}>{item.nombre ?? 'Producto'}</Text>
+                      <Text style={[styles.cardSub, { color: colors.muted }]}>x{item.cantidad} · ${Number(item.precio_unitario).toFixed(2)} c/u</Text>
                     </View>
-                    <Text style={styles.itemTotal}>${(item.cantidad * item.precio_unitario).toFixed(2)}</Text>
+                    <Text style={[styles.itemTotal, { color: colors.text }]}>${(item.cantidad * item.precio_unitario).toFixed(2)}</Text>
                   </View>
                 ))}
               </>
             )}
 
             {/* Cambiar estado */}
-            <Text style={[styles.modalSectionTitle, { marginTop: Spacing.lg }]}>CAMBIAR ESTADO</Text>
+            <Text style={[styles.modalSectionTitle, { color: colors.muted, marginTop: Spacing.lg }]}>CAMBIAR ESTADO</Text>
             <View style={{ gap: Spacing.sm }}>
               {['preparacion', 'en_camino', 'entregado', 'cancelado']
                 .filter(e => e !== verPedido.estado)
                 .map(e => (
                   <TouchableOpacity
                     key={e}
-                    style={[styles.estadoBtn, { borderColor: estadoColor(e) }]}
+                    style={[styles.estadoBtn, { borderColor: estadoColor(e, colors) }]}
                     onPress={() => cambiarEstadoPedido(verPedido.id, e)}
                   >
-                    <View style={[styles.estadoDot, { backgroundColor: estadoColor(e) }]} />
-                    <Text style={[styles.estadoBtnTxt, { color: estadoColor(e) }]}>
+                    <Ionicons name={estadoIcon(e)} size={16} color={estadoColor(e, colors)} />
+                    <Text style={[styles.estadoBtnTxt, { color: estadoColor(e, colors) }]}>
                       {e.replace('_', ' ').toUpperCase()}
                     </Text>
                   </TouchableOpacity>
@@ -649,25 +781,25 @@ export default function AdminScreen() {
       {/* ── MODAL: Soporte ── */}
       <Modal visible={!!verRep} animationType="slide" onRequestClose={() => setVerRep(null)}>
         {verRep ? (
-          <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
+          <ScrollView style={[styles.modal, { backgroundColor: colors.background }]} contentContainerStyle={styles.modalContent}>
             <ModalHeader title={verRep.asunto} onClose={() => setVerRep(null)} />
             <KV label="De"      value={verRep.usuario_nombre ?? '-'} />
             <KV label="Estado"  value={verRep.estado} />
-            <Text style={styles.modalBody}>{verRep.descripcion}</Text>
+            <Text style={[styles.modalBody, { color: colors.text }]}>{verRep.descripcion}</Text>
             {verRep.respuesta_admin ? (
-              <View style={styles.respuestaPrevia}>
-                <Text style={styles.respuestaPreviaTxt}>Respuesta anterior: {verRep.respuesta_admin}</Text>
+              <View style={[styles.respuestaPrevia, { backgroundColor: colors.border }]}>
+                <Text style={[styles.respuestaPreviaTxt, { color: colors.muted }]}>Respuesta anterior: {verRep.respuesta_admin}</Text>
               </View>
             ) : null}
             {verRep.estado !== 'cerrado' && (
               <>
                 <SectionLabel>Tu respuesta</SectionLabel>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: colors.card, borderColor: colors.border, color: colors.text }]}
                   value={respuesta}
                   onChangeText={setRespuesta}
                   placeholder="Escribe tu respuesta..."
-                  placeholderTextColor={Colors.muted}
+                  placeholderTextColor={colors.muted}
                   multiline
                 />
                 <Button label="Responder y cerrar" icon="send-outline" onPress={responderSoporte} />
@@ -684,57 +816,64 @@ export default function AdminScreen() {
 function StatCard({ icon, label, value, color }: {
   icon: keyof typeof Ionicons.glyphMap; label: string; value: number | string; color?: string;
 }) {
+  const { colors } = useTheme();
+  const c = color ?? colors.accent;
   return (
-    <View style={styles.statCard}>
-      <Ionicons name={icon} size={20} color={color ?? Colors.accent} />
-      <Text style={[styles.statNum, { color: color ?? Colors.accent }]}>{value}</Text>
-      <Text style={styles.statLbl}>{label}</Text>
+    <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      <View style={styles.statTop}>
+        <Ionicons name={icon} size={15} color={c} />
+        <Text style={[styles.statLbl, { color: colors.muted }]} numberOfLines={1}>{label}</Text>
+      </View>
+      <Text style={[styles.statNum, { color: c }]}>{value}</Text>
     </View>
   );
 }
 
 function ModalHeader({ title, onClose }: { title: string; onClose: () => void }) {
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.modalHead, { paddingTop: insets.top + 8 }]}>
-      <Text style={styles.modalTitle} numberOfLines={2}>{title}</Text>
+      <Text style={[styles.modalTitle, { color: colors.text }]} numberOfLines={2}>{title}</Text>
       <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-        <Ionicons name="close" size={22} color={Colors.text} />
+        <Ionicons name="close" size={22} color={colors.text} />
       </TouchableOpacity>
     </View>
   );
 }
 
 function KV({ label, value }: { label: string; value: string }) {
+  const { colors } = useTheme();
   return (
     <View style={styles.kvRow}>
-      <Text style={styles.kvLabel}>{label}</Text>
-      <Text style={styles.kvValue}>{value}</Text>
+      <Text style={[styles.kvLabel, { color: colors.muted }]}>{label}</Text>
+      <Text style={[styles.kvValue, { color: colors.text }]}>{value}</Text>
     </View>
   );
 }
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.sectionLabel}>{children}</Text>;
+  const { colors } = useTheme();
+  return <Text style={[styles.sectionLabel, { color: colors.text }]}>{children}</Text>;
 }
 
 function Photo({ uri }: { uri?: string }) {
+  const { colors } = useTheme();
   if (!uri) {
     return (
-      <View style={[styles.photo, { alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.border }]}>
-        <Ionicons name="image-outline" size={36} color={Colors.muted} />
-        <Text style={{ color: Colors.muted, marginTop: 4, fontSize: Fonts.small }}>Sin imagen</Text>
+      <View style={[styles.photo, { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.border, borderColor: colors.border }]}>
+        <Ionicons name="image-outline" size={36} color={colors.muted} />
+        <Text style={{ color: colors.muted, marginTop: 4, fontSize: Fonts.small, fontFamily: FontFamily.bodyRegular }}>Sin imagen</Text>
       </View>
     );
   }
-  return <Image source={{ uri }} style={styles.photo} resizeMode="contain" />;
+  return <Image source={{ uri }} style={[styles.photo, { borderColor: colors.border }]} resizeMode="contain" />;
 }
 
-// ── Styles ──────────────────────────────────────────────────────────────────
+// ── Styles (solo layout/tipografía — el color se aplica inline vía useTheme) ─
 const styles = StyleSheet.create({
-  container:  { flex: 1, backgroundColor: Colors.background },
+  container:  { flex: 1 },
   header: {
-    backgroundColor: Colors.accent,
     paddingBottom: Spacing.md,
     paddingHorizontal: Spacing.md,
     flexDirection: 'row',
@@ -742,113 +881,107 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4, elevation: 5,
   },
-  headerTitle: { color: Colors.contrast, fontSize: Fonts.title - 2, fontWeight: '800', letterSpacing: -0.2 },
-  headerSub:   { color: Colors.contrast, opacity: 0.85, fontSize: Fonts.small, fontWeight: '600', marginTop: 2 },
-  logoutBtn:   { padding: 8 },
+  headerTitle: { color: ON_COLOR, fontSize: Fonts.title - 2, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.2 },
+  headerSub:   { color: ON_COLOR, opacity: 0.85, fontSize: Fonts.small, fontFamily: FontFamily.bodySemiBold, marginTop: 2 },
+  logoutBtn:   { padding: 8, minWidth: 38, minHeight: 38, alignItems: 'center', justifyContent: 'center' },
 
   statsRow:    { paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, gap: Spacing.sm },
   statCard: {
-    backgroundColor: Colors.card,
     borderRadius: Radius.md,
     padding: Spacing.md,
-    alignItems: 'center',
-    width: 88,
+    width: 108,
+    minHeight: 78,
     borderWidth: 1.5,
-    borderColor: Colors.border,
-    gap: 4,
+    justifyContent: 'space-between',
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1,
   },
-  statNum:     { fontSize: Fonts.title, fontWeight: '900', letterSpacing: -0.5 },
-  statLbl:     { color: Colors.muted, fontSize: 9, fontWeight: '700', textTransform: 'uppercase', textAlign: 'center' },
+  statTop:     { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 8 },
+  statNum:     { fontSize: Fonts.heading - 4, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
+  statLbl:     { flex: 1, fontSize: 9.5, fontFamily: FontFamily.bodyBold, textTransform: 'uppercase', letterSpacing: 0.4 },
 
   tabsRow:     { paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm, gap: Spacing.sm },
-  tabPill:     { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: Colors.card, borderWidth: 1.5, borderColor: Colors.border },
-  tabPillAct:  { backgroundColor: Colors.accent, borderColor: Colors.accent },
-  tabPillTxt:  { color: Colors.muted, fontWeight: '700', fontSize: Fonts.small },
-  tabPillTxtAct: { color: Colors.contrast },
+  tabPill:     { paddingHorizontal: 16, paddingVertical: 10, borderRadius: Radius.pill, borderWidth: 1.5, minHeight: 40, justifyContent: 'center' },
+  tabPillTxt:  { fontFamily: FontFamily.bodyBold, fontSize: Fonts.small, letterSpacing: 0.3 },
 
   filterRow:   { paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm, gap: Spacing.sm },
-  chip:        { paddingHorizontal: 14, paddingVertical: 6, borderRadius: Radius.pill, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.card },
-  chipTxt:     { color: Colors.muted, fontWeight: '700', fontSize: Fonts.small },
+  chip:        { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1.5, minHeight: 36, justifyContent: 'center' },
+  chipTxt:     { fontFamily: FontFamily.bodyBold, fontSize: Fonts.small },
 
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.card,
     borderRadius: Radius.md,
     borderWidth: 1.5,
-    borderColor: Colors.border,
     paddingHorizontal: Spacing.md,
     marginHorizontal: Spacing.md,
     marginBottom: Spacing.sm,
-    height: 44,
+    height: 46,
   },
-  searchInput: { flex: 1, color: Colors.text, fontSize: Fonts.regular, fontWeight: '500' },
+  searchInput: { flex: 1, fontSize: Fonts.regular, fontFamily: FontFamily.bodyRegular },
 
   pollingRow:  { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing.md, paddingBottom: 4 },
-  pollingTxt:  { color: Colors.success, fontSize: Fonts.small, fontWeight: '600' },
+  pollingTxt:  { fontSize: Fonts.small, fontFamily: FontFamily.bodySemiBold },
 
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.card,
     marginHorizontal: Spacing.md,
     marginBottom: Spacing.sm,
     padding: Spacing.md,
     borderRadius: Radius.md,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    minHeight: 44,
     shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2, elevation: 1,
   },
-  cardTitle:   { color: Colors.text, fontWeight: '800', fontSize: Fonts.regular, letterSpacing: -0.2 },
-  cardSub:     { color: Colors.muted, fontSize: Fonts.small + 1, marginTop: 2, fontWeight: '500' },
+  cardTitle:   { fontFamily: FontFamily.displayBold, fontSize: Fonts.regular, letterSpacing: -0.2, fontVariant: ['tabular-nums'] },
+  cardSub:     { fontSize: Fonts.small + 1, marginTop: 2, fontFamily: FontFamily.bodyRegular },
 
   badge:       { paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.pill },
-  badgeTxt:    { color: Colors.contrast, fontSize: 9, fontWeight: '800', letterSpacing: 0.3 },
+  badgeTxt:    { fontSize: 9, fontFamily: FontFamily.bodyExtraBold, letterSpacing: 0.3 },
 
-  avatarFallback: { backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' },
-  vacio:       { textAlign: 'center', color: Colors.muted, padding: Spacing.lg, fontWeight: '600' },
+  pill:        { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: Radius.pill },
+  pillBig:     { paddingHorizontal: 14, paddingVertical: 6 },
+  pillTxt:     { fontSize: 10, fontFamily: FontFamily.bodyExtraBold, letterSpacing: 0.3 },
 
-  modal:       { flex: 1, backgroundColor: Colors.background },
+  avatarFallback: { alignItems: 'center', justifyContent: 'center' },
+  vacio:       { textAlign: 'center', padding: Spacing.lg, fontFamily: FontFamily.bodySemiBold },
+
+  modal:       { flex: 1 },
   modalContent: { padding: Spacing.md, paddingBottom: Spacing.xl * 2 },
   modalHead:   { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.md, gap: Spacing.sm },
-  modalTitle:  { flex: 1, fontSize: Fonts.title - 2, fontWeight: '800', color: Colors.text, letterSpacing: -0.2 },
-  closeBtn:    { padding: 4 },
-  modalSectionTitle: { color: Colors.muted, fontSize: 10, fontWeight: '800', letterSpacing: 0.5, marginBottom: 8, marginTop: 4 },
-  modalBody:   { color: Colors.text, fontSize: Fonts.regular, lineHeight: 22, marginVertical: Spacing.sm, fontWeight: '500' },
+  modalTitle:  { flex: 1, fontSize: Fonts.title - 2, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.2 },
+  closeBtn:    { padding: 4, minWidth: 32, minHeight: 32, alignItems: 'center', justifyContent: 'center' },
+  modalSectionTitle: { fontSize: 10, fontFamily: FontFamily.bodyExtraBold, letterSpacing: 0.5, marginBottom: 8, marginTop: 4 },
+  modalBody:   { fontSize: Fonts.regular, lineHeight: 22, marginVertical: Spacing.sm, fontFamily: FontFamily.bodyRegular },
 
   kvRow:       { flexDirection: 'row', marginBottom: 8, gap: Spacing.sm, alignItems: 'flex-start' },
-  kvLabel:     { color: Colors.muted, fontWeight: '700', fontSize: Fonts.small + 1, minWidth: 90 },
-  kvValue:     { color: Colors.text, fontWeight: '600', fontSize: Fonts.small + 1, flex: 1 },
+  kvLabel:     { fontFamily: FontFamily.bodyBold, fontSize: Fonts.small + 1, minWidth: 90 },
+  kvValue:     { fontFamily: FontFamily.bodySemiBold, fontSize: Fonts.small + 1, flex: 1, fontVariant: ['tabular-nums'] },
 
-  sectionLabel: { color: Colors.text, fontWeight: '800', marginTop: Spacing.md, marginBottom: 6, fontSize: Fonts.regular - 1 },
-  photo:       { width: '100%', height: 200, borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.border, marginBottom: Spacing.sm },
+  sectionLabel: { fontFamily: FontFamily.bodyExtraBold, marginTop: Spacing.md, marginBottom: 6, fontSize: Fonts.regular - 1 },
+  photo:       { width: '100%', height: 200, borderRadius: Radius.md, borderWidth: 1.5, marginBottom: Spacing.sm },
 
   input: {
-    backgroundColor: Colors.card,
     borderRadius: Radius.md,
     borderWidth: 1.5,
-    borderColor: Colors.border,
     padding: Spacing.md,
-    color: Colors.text,
     minHeight: 90,
     marginBottom: Spacing.sm,
     textAlignVertical: 'top',
     fontSize: Fonts.regular,
-    fontWeight: '500',
+    fontFamily: FontFamily.bodyRegular,
   },
 
-  rolBtn:      { borderWidth: 1.5, borderRadius: Radius.pill, paddingHorizontal: 16, paddingVertical: 8 },
-  rolBtnTxt:   { fontWeight: '700', fontSize: Fonts.small + 1 },
+  rolBtn:      { borderWidth: 1.5, borderRadius: Radius.pill, paddingHorizontal: 16, paddingVertical: 10, minHeight: 40, justifyContent: 'center' },
+  rolBtnTxt:   { fontFamily: FontFamily.bodyBold, fontSize: Fonts.small + 1 },
 
   itemRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
-  itemImg:     { width: 54, height: 54, borderRadius: Radius.sm, backgroundColor: Colors.border },
-  itemTotal:   { color: Colors.text, fontWeight: '800', fontSize: Fonts.regular },
+  itemImg:     { width: 54, height: 54, borderRadius: Radius.sm },
+  itemTotal:   { fontFamily: FontFamily.displayBold, fontSize: Fonts.regular, fontVariant: ['tabular-nums'] },
 
-  estadoBtn:   { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 12 },
-  estadoDot:   { width: 10, height: 10, borderRadius: 5 },
-  estadoBtnTxt: { fontWeight: '800', fontSize: Fonts.small + 1 },
+  estadoBtn:   { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1.5, borderRadius: Radius.md, paddingHorizontal: 16, paddingVertical: 12, minHeight: 44 },
+  estadoBtnTxt: { fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.small + 1 },
 
-  respuestaPrevia: { backgroundColor: Colors.border, borderRadius: Radius.sm, padding: Spacing.sm, marginVertical: Spacing.sm },
-  respuestaPreviaTxt: { color: Colors.muted, fontStyle: 'italic', fontSize: Fonts.small + 1 },
+  respuestaPrevia: { borderRadius: Radius.sm, padding: Spacing.sm, marginVertical: Spacing.sm },
+  respuestaPreviaTxt: { fontStyle: 'italic', fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyRegular },
 });

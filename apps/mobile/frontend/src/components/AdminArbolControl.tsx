@@ -4,9 +4,11 @@ import {
   Alert, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { api, Endpoints, API_URL, traducirError } from '@/services/api';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
+import { FontFamily } from '@/theme/colors';
 
 interface UserNode {
   id: number; nombre: string; username?: string; email?: string;
@@ -128,10 +130,10 @@ export default function AdminArbolControl() {
   };
 
   const tabs: Array<{ key: typeof grupo; label: string; icon: keyof typeof Ionicons.glyphMap; count: number; color: string }> = [
-    { key: 'vendedores',   label: 'Vendedores',   icon: 'storefront-outline', count: data?.vendedores.length ?? 0,   color: '#2563EB' },
-    { key: 'repartidores', label: 'Repartidores', icon: 'bicycle-outline',    count: data?.repartidores.length ?? 0, color: '#D97706' },
+    { key: 'vendedores',   label: 'Vendedores',   icon: 'storefront-outline', count: data?.vendedores.length ?? 0,   color: colors.accent },
+    { key: 'repartidores', label: 'Repartidores', icon: 'bicycle-outline',    count: data?.repartidores.length ?? 0, color: colors.warning },
     { key: 'compradores',  label: 'Compradores',  icon: 'people-outline',     count: data?.compradores.length ?? 0,  color: '#6366F1' },
-    { key: 'productos',    label: t.admin.productos, icon: 'cube-outline',    count: data?.productos.length ?? 0,    color: '#16A34A' },
+    { key: 'productos',    label: t.admin.productos, icon: 'cube-outline',    count: data?.productos.length ?? 0,    color: colors.success },
     { key: 'reels',        label: t.admin.reels,  icon: 'film-outline',       count: data?.reels.length ?? 0,        color: '#EC4899' },
   ];
 
@@ -177,110 +179,120 @@ export default function AdminArbolControl() {
       {/* Listas */}
       {data && (grupo === 'vendedores' || grupo === 'repartidores' || grupo === 'compradores') && (
         <View style={{ gap: 10 }}>
-          {data[grupo].map(u => (
-            <View key={u.id} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                {img(u.foto_perfil)
-                  ? <Image source={{ uri: img(u.foto_perfil) }} style={styles.avatar} />
-                  : <View style={[styles.avatar, { backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center' }]}>
-                      <Text style={{ color: colors.accent, fontWeight: '800' }}>{u.nombre[0]}</Text>
-                    </View>}
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15 }}>{u.nombre}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>{u.email ?? u.username ?? '—'}</Text>
-                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
-                    <View style={[styles.statePill, { backgroundColor: u.activo ? '#DCFCE7' : '#FEE2E2' }]}>
-                      <Text style={{ color: u.activo ? '#15803D' : '#B91C1C', fontWeight: '800', fontSize: 11 }}>
-                        {u.activo ? 'ACTIVO' : 'SUSPENDIDO'}
-                      </Text>
-                    </View>
-                    {u.en_linea === 1 && (
-                      <View style={[styles.statePill, { backgroundColor: '#DBEAFE' }]}>
-                        <Text style={{ color: '#1D4ED8', fontWeight: '800', fontSize: 11 }}>EN LÍNEA</Text>
+          {data[grupo].map((u, index) => (
+            <Animated.View key={u.id} entering={FadeInDown.delay(index * 40).springify()}>
+              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  {img(u.foto_perfil)
+                    ? <Image source={{ uri: img(u.foto_perfil) }} style={styles.avatar} />
+                    : <View style={[styles.avatar, { backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center' }]}>
+                        <Text style={{ color: colors.accent, fontFamily: FontFamily.displayExtraBold }}>{u.nombre[0]}</Text>
+                      </View>}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.userNombre, { color: colors.text }]}>{u.nombre}</Text>
+                    <Text style={[styles.userSub, { color: colors.muted }]}>{u.email ?? u.username ?? '—'}</Text>
+                    <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
+                      <View style={[styles.statePill, { backgroundColor: u.activo ? `${colors.success}26` : `${colors.danger}26` }]}>
+                        <Ionicons name={u.activo ? 'checkmark-circle' : 'close-circle'} size={11} color={u.activo ? colors.success : colors.danger} />
+                        <Text style={[styles.statePillTxt, { color: u.activo ? colors.success : colors.danger }]}>
+                          {u.activo ? 'ACTIVO' : 'SUSPENDIDO'}
+                        </Text>
                       </View>
-                    )}
+                      {u.en_linea === 1 && (
+                        <View style={[styles.statePill, { backgroundColor: `${colors.accent}26` }]}>
+                          <Ionicons name="radio-button-on" size={9} color={colors.accent} />
+                          <Text style={[styles.statePillTxt, { color: colors.accent }]}>EN LÍNEA</Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
+                  <TouchableOpacity
+                    onPress={() => banear(u.id, u.activo)}
+                    style={[styles.actionBtn, { backgroundColor: u.activo ? colors.danger : colors.success }]}
+                  >
+                    <Ionicons name={u.activo ? 'ban-outline' : 'checkmark-circle-outline'} size={16} color="#FFF" />
+                    <Text style={styles.actionTxt}>{u.activo ? t.admin.banear : t.admin.desbanear}</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  onPress={() => banear(u.id, u.activo)}
-                  style={[styles.actionBtn, { backgroundColor: u.activo ? colors.danger : colors.success }]}
-                >
-                  <Ionicons name={u.activo ? 'ban-outline' : 'checkmark-circle-outline'} size={16} color="#FFF" />
-                  <Text style={styles.actionTxt}>{u.activo ? t.admin.banear : t.admin.desbanear}</Text>
-                </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
           ))}
           {data[grupo].length === 0 && (
-            <Text style={{ color: colors.muted, textAlign: 'center', padding: 30 }}>—</Text>
+            <Text style={{ color: colors.muted, textAlign: 'center', padding: 30, fontFamily: FontFamily.bodyRegular }}>—</Text>
           )}
         </View>
       )}
 
       {data && grupo === 'productos' && (
         <View style={{ gap: 10 }}>
-          {data.productos.map(p => (
-            <View key={p.id} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                {img(p.imagen)
-                  ? <Image source={{ uri: img(p.imagen) }} style={styles.thumb} />
-                  : <View style={[styles.thumb, { backgroundColor: colors.accentLight }]} />}
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontWeight: '800' }} numberOfLines={1}>{p.nombre}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>{p.tienda_nombre} · {p.vendedor_nombre}</Text>
-                  <Text style={{ color: colors.accent, fontWeight: '900', marginTop: 2 }}>US$ {Number(p.precio).toFixed(2)} · stock {p.stock}</Text>
-                  {p.activo === 0 && (
-                    <View style={[styles.statePill, { backgroundColor: '#FEE2E2', alignSelf: 'flex-start', marginTop: 4 }]}>
-                      <Text style={{ color: '#B91C1C', fontWeight: '800', fontSize: 11 }}>SUSPENDIDO</Text>
-                    </View>
+          {data.productos.map((p, index) => (
+            <Animated.View key={p.id} entering={FadeInDown.delay(index * 40).springify()}>
+              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  {img(p.imagen)
+                    ? <Image source={{ uri: img(p.imagen) }} style={styles.thumb} />
+                    : <View style={[styles.thumb, { backgroundColor: colors.accentLight }]} />}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.userNombre, { color: colors.text }]} numberOfLines={1}>{p.nombre}</Text>
+                    <Text style={[styles.userSub, { color: colors.muted }]}>{p.tienda_nombre} · {p.vendedor_nombre}</Text>
+                    <Text style={[styles.precioStock, { color: colors.accent }]}>US$ {Number(p.precio).toFixed(2)} · stock {p.stock}</Text>
+                    {p.activo === 0 && (
+                      <View style={[styles.statePill, { backgroundColor: `${colors.danger}26`, alignSelf: 'flex-start', marginTop: 4 }]}>
+                        <Ionicons name="close-circle" size={11} color={colors.danger} />
+                        <Text style={[styles.statePillTxt, { color: colors.danger }]}>SUSPENDIDO</Text>
+                      </View>
+                    )}
+                  </View>
+                  {p.activo === 1 && (
+                    <TouchableOpacity
+                      onPress={() => eliminarProducto(p.id)}
+                      style={[styles.actionBtn, { backgroundColor: colors.danger }]}
+                    >
+                      <Ionicons name="trash-outline" size={16} color="#FFF" />
+                      <Text style={styles.actionTxt}>{t.admin.eliminar}</Text>
+                    </TouchableOpacity>
                   )}
                 </View>
-                {p.activo === 1 && (
-                  <TouchableOpacity
-                    onPress={() => eliminarProducto(p.id)}
-                    style={[styles.actionBtn, { backgroundColor: colors.danger }]}
-                  >
-                    <Ionicons name="trash-outline" size={16} color="#FFF" />
-                    <Text style={styles.actionTxt}>{t.admin.eliminar}</Text>
-                  </TouchableOpacity>
-                )}
               </View>
-            </View>
+            </Animated.View>
           ))}
         </View>
       )}
 
       {data && grupo === 'reels' && (
         <View style={{ gap: 10 }}>
-          {data.reels.map(r => (
-            <View key={r.id} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                {img(r.imagen)
-                  ? <Image source={{ uri: img(r.imagen) }} style={styles.thumb} />
-                  : <View style={[styles.thumb, { backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center' }]}>
-                      <Ionicons name="film-outline" size={26} color={colors.accent} />
-                    </View>}
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontWeight: '800' }} numberOfLines={1}>{r.nombre}</Text>
-                  <Text style={{ color: colors.muted, fontSize: 12 }}>{r.tienda_nombre} · {r.vendedor_nombre}</Text>
-                  {r.reportes > 0 && (
-                    <View style={[styles.statePill, { backgroundColor: '#FEF3C7', alignSelf: 'flex-start', marginTop: 4 }]}>
-                      <Text style={{ color: '#92400E', fontWeight: '800', fontSize: 11 }}>{r.reportes} reporte(s)</Text>
-                    </View>
-                  )}
+          {data.reels.map((r, index) => (
+            <Animated.View key={r.id} entering={FadeInDown.delay(index * 40).springify()}>
+              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  {img(r.imagen)
+                    ? <Image source={{ uri: img(r.imagen) }} style={styles.thumb} />
+                    : <View style={[styles.thumb, { backgroundColor: colors.accentLight, alignItems: 'center', justifyContent: 'center' }]}>
+                        <Ionicons name="film-outline" size={26} color={colors.accent} />
+                      </View>}
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.userNombre, { color: colors.text }]} numberOfLines={1}>{r.nombre}</Text>
+                    <Text style={[styles.userSub, { color: colors.muted }]}>{r.tienda_nombre} · {r.vendedor_nombre}</Text>
+                    {r.reportes > 0 && (
+                      <View style={[styles.statePill, { backgroundColor: `${colors.warning}26`, alignSelf: 'flex-start', marginTop: 4 }]}>
+                        <Ionicons name="flag" size={11} color={colors.warning} />
+                        <Text style={[styles.statePillTxt, { color: colors.warning }]}>{r.reportes} reporte(s)</Text>
+                      </View>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => eliminarReel(r.id)}
+                    style={[styles.actionBtn, { backgroundColor: colors.danger }]}
+                  >
+                    <Ionicons name="trash-outline" size={16} color="#FFF" />
+                    <Text style={styles.actionTxt}>{t.admin.eliminar}</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  onPress={() => eliminarReel(r.id)}
-                  style={[styles.actionBtn, { backgroundColor: colors.danger }]}
-                >
-                  <Ionicons name="trash-outline" size={16} color="#FFF" />
-                  <Text style={styles.actionTxt}>{t.admin.eliminar}</Text>
-                </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
           ))}
           {data.reels.length === 0 && (
-            <Text style={{ color: colors.muted, textAlign: 'center', padding: 30 }}>—</Text>
+            <Text style={{ color: colors.muted, textAlign: 'center', padding: 30, fontFamily: FontFamily.bodyRegular }}>—</Text>
           )}
         </View>
       )}
@@ -289,25 +301,31 @@ export default function AdminArbolControl() {
 }
 
 const styles = StyleSheet.create({
-  title: { fontSize: 22, fontWeight: '900', letterSpacing: -0.5 },
-  sub: { fontSize: 13, marginTop: 2 },
+  title: { fontSize: 22, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.5 },
+  sub: { fontSize: 13, marginTop: 2, fontFamily: FontFamily.bodyRegular },
   tab: {
     flexDirection: 'row', alignItems: 'center', gap: 7,
     paddingHorizontal: 14, paddingVertical: 10, borderRadius: 22, borderWidth: 1.5,
+    minHeight: 44,
   },
-  tabTxt: { fontWeight: '800', fontSize: 13 },
+  tabTxt: { fontFamily: FontFamily.bodyExtraBold, fontSize: 13 },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 },
-  badgeTxt: { fontWeight: '900', fontSize: 11 },
+  badgeTxt: { fontFamily: FontFamily.displayExtraBold, fontSize: 11, fontVariant: ['tabular-nums'] },
   card: {
     borderRadius: 18, padding: 12, borderWidth: 1,
     shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 2,
   },
   avatar: { width: 48, height: 48, borderRadius: 24 },
   thumb: { width: 60, height: 60, borderRadius: 14 },
-  statePill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  userNombre: { fontFamily: FontFamily.displayBold, fontSize: 15 },
+  userSub: { fontFamily: FontFamily.bodyRegular, fontSize: 12, marginTop: 1 },
+  precioStock: { fontFamily: FontFamily.displayExtraBold, marginTop: 2, fontSize: 13, fontVariant: ['tabular-nums'] },
+  statePill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  statePillTxt: { fontFamily: FontFamily.bodyExtraBold, fontSize: 11 },
   actionBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: 12, paddingVertical: 9, borderRadius: 22, alignSelf: 'center',
+    minHeight: 44,
   },
-  actionTxt: { color: '#FFF', fontWeight: '800', fontSize: 12 },
+  actionTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: 12 },
 });

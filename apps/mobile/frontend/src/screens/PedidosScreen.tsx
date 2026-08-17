@@ -4,9 +4,10 @@ import {
   Image, ActivityIndicator, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useFocusEffect, useNavigation, NavigationProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { api, Endpoints, API_URL } from '@/services/api';
@@ -15,15 +16,6 @@ import GuestGate from '@/components/GuestGate';
 import RatingModal from '@/components/RatingModal';
 
 const APROBACION_LIMITE_MIN = 10;
-
-const ESTADO_CFG: Record<EstadoPedido, { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
-  pendiente_confirmacion: { label: 'Pendiente de aprobación', color: '#D97706', icon: 'time-outline' },
-  preparacion:            { label: 'Preparando',              color: '#2563EB', icon: 'restaurant-outline' },
-  en_camino:              { label: 'En camino',                color: '#7C3AED', icon: 'bicycle-outline' },
-  entregado:              { label: 'Entregado',                color: '#16A34A', icon: 'checkmark-circle-outline' },
-  cancelado:              { label: 'Cancelado',                color: '#EF4444', icon: 'close-circle-outline' },
-  rechazado_repartidor:   { label: 'Rechazado',                color: '#EF4444', icon: 'ban-outline' },
-};
 
 const FILTROS: { key: 'todos' | EstadoPedido; label: string }[] = [
   { key: 'todos', label: 'Todos' },
@@ -81,6 +73,19 @@ export default function PedidosScreen() {
     );
   }
 
+  // Estado -> status-pill (fondo tintado ~15% + ícono + color semántico). 'en_camino' usa
+  // ctaAccent (naranja) a propósito: es el mismo estado que en el mapa de tracking en vivo
+  // pinta el marcador del repartidor, así que la lista y el mapa narran el mismo momento
+  // con el mismo color ("la entrega está en vivo ahora mismo").
+  const ESTADO_CFG: Record<EstadoPedido, { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
+    pendiente_confirmacion: { label: 'Pendiente de aprobación', color: colors.warning,   icon: 'time-outline' },
+    preparacion:            { label: 'Preparando',              color: colors.accent,    icon: 'restaurant-outline' },
+    en_camino:              { label: 'En camino',                color: colors.ctaAccent, icon: 'bicycle-outline' },
+    entregado:              { label: 'Entregado',                color: colors.success,  icon: 'checkmark-circle-outline' },
+    cancelado:              { label: 'Cancelado',                color: colors.danger,   icon: 'close-circle-outline' },
+    rechazado_repartidor:   { label: 'Rechazado',                color: colors.danger,   icon: 'ban-outline' },
+  };
+
   const cancelarPedido = (p: Pedido) => {
     Alert.alert('¿Cancelar pedido?', 'La tienda no aprobó a tiempo. Se reembolsará el total a tu billetera.', [
       { text: 'No', style: 'cancel' },
@@ -120,7 +125,7 @@ export default function PedidosScreen() {
                 onPress={() => setFiltro(item.key)}
                 style={[styles.chip, { backgroundColor: activo ? colors.accent : colors.elevated, borderColor: activo ? colors.accent : colors.border }]}
               >
-                <Text style={{ color: activo ? '#FFF' : colors.muted, fontWeight: '700', fontSize: 12 }}>{item.label}</Text>
+                <Text style={{ color: activo ? '#FFF' : colors.muted, fontFamily: FontFamily.bodyBold, fontSize: 12 }}>{item.label}</Text>
               </TouchableOpacity>
             );
           }}
@@ -134,7 +139,7 @@ export default function PedidosScreen() {
           <Ionicons name="cloud-offline-outline" size={44} color={colors.muted} />
           <Text style={[styles.emptyTxt, { color: colors.muted }]}>No se pudieron cargar tus pedidos.</Text>
           <TouchableOpacity onPress={cargar} style={[styles.retryBtn, { backgroundColor: colors.accent }]}>
-            <Text style={{ color: '#FFF', fontWeight: '700' }}>Reintentar</Text>
+            <Text style={{ color: '#FFF', fontFamily: FontFamily.bodyBold }}>Reintentar</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -152,13 +157,16 @@ export default function PedidosScreen() {
               </Text>
             </View>
           }
-          renderItem={({ item: p }) => {
+          renderItem={({ item: p, index }) => {
             const cfg = ESTADO_CFG[p.estado] ?? ESTADO_CFG.preparacion;
             return (
-              <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <Animated.View
+                entering={FadeInDown.delay(index * 40).springify()}
+                style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
                 <View style={styles.cardTop}>
                   <Text style={[styles.pedidoId, { color: colors.text }]}>Pedido #{p.id}</Text>
-                  <View style={[styles.badge, { backgroundColor: `${cfg.color}20` }]}>
+                  <View style={[styles.badge, { backgroundColor: `${cfg.color}26` }]}>
                     <Ionicons name={cfg.icon} size={12} color={cfg.color} />
                     <Text style={[styles.badgeTxt, { color: cfg.color }]}>{cfg.label}</Text>
                   </View>
@@ -189,10 +197,15 @@ export default function PedidosScreen() {
                 {p.repartidor_id && (
                   <View style={[styles.driverRow, { borderTopColor: colors.border }]}>
                     <Ionicons name="bicycle" size={16} color={colors.accent} />
-                    <Text style={[styles.driverTxt, { color: colors.text }]}>
-                      {p.repartidor_nombre}
-                      {p.repartidor_calificacion_promedio ? ` · ★ ${Number(p.repartidor_calificacion_promedio).toFixed(1)}` : ''}
-                    </Text>
+                    <Text style={[styles.driverTxt, { color: colors.text }]} numberOfLines={1}>{p.repartidor_nombre}</Text>
+                    {!!p.repartidor_calificacion_promedio && (
+                      <View style={styles.ratingInline}>
+                        <Ionicons name="star" size={12} color={colors.warning} />
+                        <Text style={[styles.ratingInlineTxt, { color: colors.text }]}>
+                          {Number(p.repartidor_calificacion_promedio).toFixed(1)}
+                        </Text>
+                      </View>
+                    )}
                     {p.estado === 'preparacion' && !p.confirmado_repartidor_recogida && (
                       <Text style={[styles.driverSub, { color: colors.muted }]}>Recogiendo en tienda…</Text>
                     )}
@@ -211,8 +224,8 @@ export default function PedidosScreen() {
                       </TouchableOpacity>
                     )}
                     {puedeCancelar(p) && (
-                      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#EF444418' }]} onPress={() => cancelarPedido(p)}>
-                        <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 12 }}>Cancelar</Text>
+                      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: `${colors.danger}18` }]} onPress={() => cancelarPedido(p)}>
+                        <Text style={{ color: colors.danger, fontFamily: FontFamily.bodyBold, fontSize: 12 }}>Cancelar</Text>
                       </TouchableOpacity>
                     )}
                     {puedeRastrear(p) && (
@@ -221,18 +234,18 @@ export default function PedidosScreen() {
                         onPress={() => nav.navigate('Tracking', { pedidoId: p.id })}
                       >
                         <Ionicons name="location" size={13} color="#FFF" />
-                        <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 12, marginLeft: 4 }}>Rastrear</Text>
+                        <Text style={{ color: '#FFF', fontFamily: FontFamily.bodyBold, fontSize: 12, marginLeft: 4 }}>Rastrear</Text>
                       </TouchableOpacity>
                     )}
                     {p.estado === 'entregado' && !p.mi_calificacion && (
-                      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#D97706' }]} onPress={() => setCalificarId(p.id)}>
+                      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.warning }]} onPress={() => setCalificarId(p.id)}>
                         <Ionicons name="star" size={13} color="#FFF" />
-                        <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 12, marginLeft: 4 }}>Calificar</Text>
+                        <Text style={{ color: '#FFF', fontFamily: FontFamily.bodyBold, fontSize: 12, marginLeft: 4 }}>Calificar</Text>
                       </TouchableOpacity>
                     )}
                   </View>
                 </View>
-              </View>
+              </Animated.View>
             );
           }}
         />
@@ -251,27 +264,29 @@ export default function PedidosScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   header: { paddingHorizontal: Spacing.md, paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  title: { fontSize: Fonts.title + 4, fontWeight: '800', letterSpacing: -0.4 },
+  title: { fontFamily: FontFamily.displayExtraBold, fontSize: Fonts.title + 4, letterSpacing: -0.4 },
   filtrosRow: { paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1.5 },
   emptyBlock: { alignItems: 'center', paddingTop: 60, paddingHorizontal: Spacing.xl, gap: Spacing.md },
-  emptyTxt: { fontSize: Fonts.regular, fontWeight: '500', textAlign: 'center' },
+  emptyTxt: { fontFamily: FontFamily.bodySemiBold, fontSize: Fonts.regular, textAlign: 'center' },
   retryBtn: { paddingVertical: 10, paddingHorizontal: 22, borderRadius: Radius.pill },
   card: { borderRadius: Radius.md, borderWidth: 1.5, padding: Spacing.md, marginBottom: Spacing.md },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  pedidoId: { fontWeight: '800', fontSize: Fonts.regular },
+  pedidoId: { fontFamily: FontFamily.displayBold, fontSize: Fonts.regular, fontVariant: ['tabular-nums'] },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.pill },
-  badgeTxt: { fontSize: 11, fontWeight: '800' },
-  tienda: { fontSize: 12, fontWeight: '600', marginTop: 2, marginBottom: 10 },
+  badgeTxt: { fontFamily: FontFamily.bodyExtraBold, fontSize: 11 },
+  tienda: { fontFamily: FontFamily.bodySemiBold, fontSize: 12, marginTop: 2, marginBottom: 10 },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   itemImg: { width: 28, height: 28, borderRadius: 8 },
-  itemName: { flex: 1, fontSize: 13, fontWeight: '600' },
-  itemPrice: { fontSize: 12, fontWeight: '700' },
+  itemName: { flex: 1, fontFamily: FontFamily.bodySemiBold, fontSize: 13 },
+  itemPrice: { fontFamily: FontFamily.displayBold, fontSize: 12, fontVariant: ['tabular-nums'] },
   hint: { fontSize: 12, marginTop: 4, fontStyle: 'italic' },
   driverRow: { flexDirection: 'row', alignItems: 'center', gap: 6, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 10, flexWrap: 'wrap' },
-  driverTxt: { fontSize: 13, fontWeight: '700' },
+  driverTxt: { fontFamily: FontFamily.bodyBold, fontSize: 13, flexShrink: 1 },
+  ratingInline: { flexDirection: 'row', alignItems: 'center', gap: 2, marginLeft: 2 },
+  ratingInlineTxt: { fontFamily: FontFamily.displayBold, fontSize: 12, fontVariant: ['tabular-nums'] },
   driverSub: { fontSize: 11, fontStyle: 'italic' },
   footer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 10, marginTop: 10 },
-  total: { fontWeight: '800', fontSize: Fonts.regular },
+  total: { fontFamily: FontFamily.displayBold, fontSize: Fonts.regular, fontVariant: ['tabular-nums'] },
   actionBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: Radius.sm },
 });

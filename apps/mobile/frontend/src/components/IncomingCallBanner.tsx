@@ -4,6 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, Endpoints, API_URL, getToken } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
+import { FontFamily } from '@/theme/colors';
 import CallWebViewModal, { CallInfo } from './CallWebViewModal';
 
 function imgUri(path?: string | null): string | undefined {
@@ -34,6 +36,7 @@ interface Llamada {
 // que suene sin importar en qué pantalla esté el usuario.
 export default function IncomingCallBanner() {
   const { usuario } = useAuth();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const [incoming, setIncoming] = useState<Llamada | null>(null);
   const [call, setCall]         = useState<CallInfo | null>(null);
@@ -87,20 +90,23 @@ export default function IncomingCallBanner() {
   return (
     <>
       {incoming && (
-        <Animated.View style={[S.banner, { paddingTop: insets.top + 8, transform: [{ translateY }] }]}>
-          <View style={S.avatar}>
+        <Animated.View style={[S.banner, { paddingTop: insets.top + 8, backgroundColor: colors.card, shadowColor: colors.shadow, transform: [{ translateY }] }]}>
+          <View style={[S.avatar, { backgroundColor: colors.accent }]}>
             {imgUri(incoming.foto_perfil)
               ? <Image source={{ uri: imgUri(incoming.foto_perfil) }} style={S.avatarImg} />
               : <Text style={S.avatarTxt}>{getInitials(incoming.nombre)}</Text>}
           </View>
           <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={S.name} numberOfLines={1}>{incoming.nombre}</Text>
-            <Text style={S.sub}>{incoming.tipo === 'video' ? '📹 Videollamada entrante' : '📞 Llamada entrante'}</Text>
+            <Text style={[S.name, { color: colors.text }]} numberOfLines={1}>{incoming.nombre}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 1 }}>
+              <Ionicons name={incoming.tipo === 'video' ? 'videocam' : 'call'} size={12} color={colors.ctaAccent} />
+              <Text style={[S.sub, { color: colors.muted }]}>{incoming.tipo === 'video' ? 'Videollamada entrante' : 'Llamada entrante'}</Text>
+            </View>
           </View>
-          <TouchableOpacity onPress={() => void rechazar()} style={[S.btn, { backgroundColor: '#EF4444' }]} activeOpacity={0.85}>
+          <TouchableOpacity onPress={() => void rechazar()} style={[S.btn, { backgroundColor: colors.danger }]} activeOpacity={0.85}>
             <Ionicons name="close" size={18} color="#FFF" />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => void aceptar()} style={[S.btn, { backgroundColor: '#22C55E' }]} activeOpacity={0.85}>
+          <TouchableOpacity onPress={() => void aceptar()} style={[S.btn, { backgroundColor: colors.success }]} activeOpacity={0.85}>
             <Ionicons name="call" size={18} color="#FFF" />
           </TouchableOpacity>
         </Animated.View>
@@ -122,14 +128,14 @@ const S = StyleSheet.create({
   banner: {
     position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999,
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#121B2D', paddingHorizontal: 14, paddingBottom: 12,
+    paddingHorizontal: 14, paddingBottom: 12,
     borderBottomLeftRadius: 20, borderBottomRightRadius: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 14, elevation: 14,
+    shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 14, elevation: 14,
   },
-  avatar:    { width: 42, height: 42, borderRadius: 21, backgroundColor: '#3B82F6', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  avatar:    { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   avatarImg: { width: '100%', height: '100%' },
-  avatarTxt: { color: '#FFF', fontWeight: '800' },
-  name:      { color: '#FFF', fontWeight: '800', fontSize: 14 },
-  sub:       { color: '#94A3B8', fontSize: 12, marginTop: 1 },
+  avatarTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold },
+  name:      { fontFamily: FontFamily.displayBold, fontSize: 14 },
+  sub:       { fontFamily: FontFamily.bodySemiBold, fontSize: 12 },
   btn:       { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginLeft: 8 },
 });

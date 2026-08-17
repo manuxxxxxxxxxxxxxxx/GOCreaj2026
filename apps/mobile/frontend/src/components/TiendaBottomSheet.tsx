@@ -10,7 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import { api, Endpoints } from '@/services/api';
 import { Tienda, Producto } from '@/types';
-import { Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
 import { resolveMediaUrl } from '@/utils/media';
 
 const { height: SCREEN_H } = Dimensions.get('window');
@@ -159,7 +159,7 @@ export default function TiendaBottomSheet({ tiendaId, onClose }: Props): React.J
               <View style={[styles.logo, { borderColor: c.background, backgroundColor: c.accent }]}>
                 {tienda.logo
                   ? <Image source={{ uri: resolveMediaUrl(tienda.logo) }} style={{ width: '100%', height: '100%' }} />
-                  : <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 28 }}>{tienda.nombre.charAt(0).toUpperCase()}</Text>
+                  : <Text style={styles.avatarLetter}>{tienda.nombre.charAt(0).toUpperCase()}</Text>
                 }
               </View>
 
@@ -174,27 +174,35 @@ export default function TiendaBottomSheet({ tiendaId, onClose }: Props): React.J
                   onPress={toggleSeguir}
                   style={[styles.seguirBtn, { borderColor: c.accent, backgroundColor: siguiendo ? c.accent : 'transparent' }]}
                 >
-                  <Text style={{ color: siguiendo ? '#FFF' : c.accent, fontWeight: '800', fontSize: 12 }}>
+                  <Text style={[styles.seguirTxt, { color: siguiendo ? c.contrast : c.accent }]}>
                     {siguiendo ? 'Siguiendo' : 'Seguir'}
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              <View style={{ flexDirection: 'row', gap: 14, marginTop: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 8 }}>
                 {!!tienda.calificacion_promedio && (
-                  <Text style={{ color: c.muted, fontSize: 12 }}>★ {Number(tienda.calificacion_promedio).toFixed(1)} ({tienda.total_resenas ?? 0})</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <Ionicons name="star" size={12} color={c.ctaAccent} />
+                    <Text style={[styles.statNum, { color: c.text }]}>{Number(tienda.calificacion_promedio).toFixed(1)}</Text>
+                    <Text style={[styles.statTxt, { color: c.muted }]}>({tienda.total_resenas ?? 0})</Text>
+                  </View>
                 )}
-                <Text style={{ color: c.muted, fontSize: 12 }}>{seguidores} seguidores</Text>
+                <Text style={[styles.statTxt, { color: c.muted }]}>
+                  <Text style={styles.statNum}>{seguidores}</Text> seguidores
+                </Text>
               </View>
 
               {!!tienda.descripcion && (
-                <Text style={{ color: c.text, fontSize: 13, lineHeight: 19, marginTop: 12 }}>{tienda.descripcion}</Text>
+                <Text style={[styles.descripcion, { color: c.text }]}>{tienda.descripcion}</Text>
               )}
 
-              <Text style={[styles.sectionLabel, { color: c.muted }]}>Productos de esta tienda ({productos.length})</Text>
+              <Text style={[styles.sectionLabel, { color: c.muted }]}>
+                Productos de esta tienda (<Text style={styles.sectionLabelNum}>{productos.length}</Text>)
+              </Text>
 
               {productos.length === 0 ? (
-                <Text style={{ color: c.muted, fontSize: 13 }}>Esta tienda no tiene productos publicados.</Text>
+                <Text style={[styles.emptyTxt, { color: c.muted }]}>Esta tienda no tiene productos publicados.</Text>
               ) : (
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
                   {productos.map(p => (
@@ -204,14 +212,14 @@ export default function TiendaBottomSheet({ tiendaId, onClose }: Props): React.J
                       style={[styles.prodCard, { borderColor: c.border, backgroundColor: c.card }]}
                       activeOpacity={0.85}
                     >
-                      <View style={styles.prodImgWrap}>
+                      <View style={[styles.prodImgWrap, { backgroundColor: c.elevated }]}>
                         {p.imagen
                           ? <Image source={{ uri: resolveMediaUrl(p.imagen) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
                           : <Ionicons name="image-outline" size={28} color={c.muted} />
                         }
                       </View>
-                      <Text numberOfLines={1} style={{ color: c.text, fontWeight: '700', fontSize: 12, marginTop: 6, paddingHorizontal: 6 }}>{p.nombre}</Text>
-                      <Text style={{ color: c.accent, fontWeight: '900', fontSize: 13, paddingHorizontal: 6, paddingBottom: 8 }}>${Number(p.precio).toFixed(2)}</Text>
+                      <Text numberOfLines={1} style={[styles.prodNombre, { color: c.text }]}>{p.nombre}</Text>
+                      <Text style={[styles.prodPrecio, { color: c.accent }]}>${Number(p.precio).toFixed(2)}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -240,10 +248,19 @@ const styles = StyleSheet.create({
     width: 72, height: 72, borderRadius: 36, marginTop: -36,
     borderWidth: 3, justifyContent: 'center', alignItems: 'center', overflow: 'hidden',
   },
-  nombre: { fontSize: Fonts.title - 1, fontWeight: '900' },
-  meta: { fontSize: Fonts.small, marginTop: 2 },
+  avatarLetter: { color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: 28 },
+  nombre: { fontSize: Fonts.title - 1, fontFamily: FontFamily.displayExtraBold },
+  meta: { fontSize: Fonts.small, fontFamily: FontFamily.bodySemiBold, marginTop: 2 },
   seguirBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1.5 },
-  sectionLabel: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: Spacing.lg, marginBottom: 10 },
+  seguirTxt: { fontFamily: FontFamily.bodyExtraBold, fontSize: 12 },
+  statNum: { fontFamily: FontFamily.displayBold, fontSize: 12, fontVariant: ['tabular-nums'] },
+  statTxt: { fontFamily: FontFamily.bodySemiBold, fontSize: 12 },
+  descripcion: { fontSize: 13, fontFamily: FontFamily.bodyRegular, lineHeight: 19, marginTop: 12 },
+  sectionLabel: { fontSize: 12, fontFamily: FontFamily.bodyExtraBold, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: Spacing.lg, marginBottom: 10 },
+  sectionLabelNum: { fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] },
+  emptyTxt: { fontSize: 13, fontFamily: FontFamily.bodyRegular },
   prodCard: { width: CARD_W, borderRadius: Radius.md, borderWidth: 1.5, overflow: 'hidden' },
-  prodImgWrap: { width: '100%', height: CARD_W * 0.8, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.04)' },
+  prodImgWrap: { width: '100%', height: CARD_W * 0.8, justifyContent: 'center', alignItems: 'center' },
+  prodNombre: { fontFamily: FontFamily.displayBold, fontSize: 12, marginTop: 6, paddingHorizontal: 6 },
+  prodPrecio: { fontFamily: FontFamily.displayExtraBold, fontSize: 13, paddingHorizontal: 6, paddingBottom: 8, fontVariant: ['tabular-nums'] },
 });

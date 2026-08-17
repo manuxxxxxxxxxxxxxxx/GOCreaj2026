@@ -7,9 +7,10 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import MapView, { Marker, MapPressEvent } from 'react-native-maps';
+import Reanimated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api, Endpoints, API_URL } from '@/services/api';
-import { Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { Tienda, Producto, Pedido, EstadoPedido } from '@/types';
 import { useAuth } from '@/context/AuthContext';
@@ -98,11 +99,11 @@ async function pickVideoB64(): Promise<string | null> {
 // ─── Componente: zona de subida de imagen ──────────────────────────────
 function ImageUploadZone({
   uri, width, height, aspect, borderRadius = 16, placeholder, sublabel,
-  onPick, accentColor,
+  onPick, accentColor, colors,
 }: {
   uri?: string | null; width?: number; height: number; aspect: [number, number];
   borderRadius?: number; placeholder: string; sublabel?: string;
-  onPick: (b64: string) => void; accentColor: string;
+  onPick: (b64: string) => void; accentColor: string; colors: any;
 }) {
   const pulse = useRef(new Animated.Value(1)).current;
   useEffect(() => {
@@ -122,7 +123,7 @@ function ImageUploadZone({
     >
       <Animated.View style={[
         S.uploadZone,
-        { height, borderRadius, borderColor: uri ? accentColor : '#334155', transform: [{ scale: uri ? 1 : pulse }] },
+        { height, borderRadius, borderColor: uri ? accentColor : colors.borderLight, backgroundColor: uri ? 'transparent' : colors.elevated, transform: [{ scale: uri ? 1 : pulse }] },
       ]}>
         {uri ? (
           <>
@@ -139,8 +140,8 @@ function ImageUploadZone({
             <View style={[S.uploadIconCircle, { backgroundColor: `${accentColor}18` }]}>
               <Ionicons name="cloud-upload-outline" size={32} color={accentColor} />
             </View>
-            <Text style={[S.uploadLabel, { color: '#F1F5F9' }]}>{placeholder}</Text>
-            {sublabel && <Text style={S.uploadSub}>{sublabel}</Text>}
+            <Text style={[S.uploadLabel, { color: colors.text }]}>{placeholder}</Text>
+            {sublabel && <Text style={[S.uploadSub, { color: colors.muted }]}>{sublabel}</Text>}
             <View style={[S.uploadDashedBadge, { borderColor: accentColor }]}>
               <Text style={[S.uploadDashedTxt, { color: accentColor }]}>Seleccionar archivo</Text>
             </View>
@@ -201,7 +202,7 @@ function PremiumSelector({
         activeOpacity={0.8}
       >
         <Ionicons name={icon as any} size={18} color={open ? colors.accent : colors.muted} style={S.piIcon} />
-        <Text style={[{ flex: 1, fontSize: Fonts.regular, fontWeight: '600', color: value ? colors.text : colors.muted }]}>
+        <Text style={[{ flex: 1, fontSize: Fonts.regular, fontFamily: FontFamily.bodySemiBold, color: value ? colors.text : colors.muted }]}>
           {value || `Seleccionar ${label.toLowerCase()}`}
         </Text>
         <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={17} color={colors.muted} />
@@ -236,7 +237,7 @@ function StatCard({ icon, label, value, color, colors }: {
         <Ionicons name={icon as any} size={22} color={color} />
       </View>
       <Text style={[S.statVal, { color: colors.text }]}>{value}</Text>
-      <Text style={[S.statLbl, { color: colors.muted }]}>{label}</Text>
+      <Text style={[S.statLbl, { color: colors.muted }]} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
@@ -552,13 +553,13 @@ export default function SellerScreen() {
               <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.25)', justifyContent: 'center', alignItems: 'center', marginBottom: 10, overflow: 'hidden' }}>
                 {usuario?.foto_perfil
                   ? <Image source={{ uri: imgUri(usuario.foto_perfil) }} style={{ width: '100%', height: '100%' }} />
-                  : <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 28 }}>{(usuario?.nombre || '?').charAt(0).toUpperCase()}</Text>
+                  : <Text style={{ color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: 28 }}>{(usuario?.nombre || '?').charAt(0).toUpperCase()}</Text>
                 }
               </View>
-              <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 17 }}>{usuario?.nombre || 'Vendedor'}</Text>
-              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2 }}>{usuario?.email || ''}</Text>
+              <Text style={{ color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: 17 }}>{usuario?.nombre || 'Vendedor'}</Text>
+              <Text style={{ color: 'rgba(255,255,255,0.85)', fontSize: 12, marginTop: 2, fontFamily: FontFamily.bodyRegular }}>{usuario?.email || ''}</Text>
               <View style={{ backgroundColor: 'rgba(255,255,255,0.22)', paddingHorizontal: 12, paddingVertical: 3, borderRadius: 99, marginTop: 8 }}>
-                <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 10, letterSpacing: 1 }}>{(usuario?.rol || 'VENDEDOR').toUpperCase()}</Text>
+                <Text style={{ color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: 10, letterSpacing: 1 }}>{(usuario?.rol || 'VENDEDOR').toUpperCase()}</Text>
               </View>
             </View>
 
@@ -567,15 +568,15 @@ export default function SellerScreen() {
               <TouchableOpacity onPress={() => { setMenuPerfil(false); void refrescar(); }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 12 }}>
                 <Ionicons name="refresh-outline" size={20} color={colors.accent} />
-                <Text style={{ flex: 1, fontWeight: '700', fontSize: 14, color: colors.text }}>Refrescar mi rol</Text>
+                <Text style={{ flex: 1, fontFamily: FontFamily.bodyBold, fontSize: 14, color: colors.text }}>Refrescar mi rol</Text>
               </TouchableOpacity>
 
               <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 14 }} />
 
               <TouchableOpacity onPress={() => { setMenuPerfil(false); confirmarCerrarSesion(); }}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 12 }}>
-                <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-                <Text style={{ flex: 1, fontWeight: '800', fontSize: 14, color: '#EF4444' }}>Cerrar sesión</Text>
+                <Ionicons name="log-out-outline" size={20} color={colors.danger} />
+                <Text style={{ flex: 1, fontFamily: FontFamily.bodyExtraBold, fontSize: 14, color: colors.danger }}>Cerrar sesión</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -699,7 +700,7 @@ export default function SellerScreen() {
               <View style={S.statsRow}>
                 <StatCard icon="cube-outline"          label="Productos"  value={String(productos.length)}  color={colors.accent}  colors={colors} />
                 <StatCard icon="receipt-outline"       label="Pedidos"    value={String(ventas.length)}      color="#F59E0B"        colors={colors} />
-                <StatCard icon="star-outline"          label="Calif."     value={tienda.calificacion_promedio ? `${Number(tienda.calificacion_promedio).toFixed(1)}⭐` : '—'} color="#F59E0B" colors={colors} />
+                <StatCard icon="star-outline"          label="Calif."     value={tienda.calificacion_promedio ? Number(tienda.calificacion_promedio).toFixed(1) : '—'} color="#F59E0B" colors={colors} />
                 <StatCard icon="checkmark-done-outline" label="Ventas"    value={String(tienda.ventas_completadas ?? 0)} color="#10B981" colors={colors} />
               </View>
             </View>
@@ -743,8 +744,8 @@ export default function SellerScreen() {
                   </View>
                 ) : (
                   <View style={S.prodGrid}>
-                    {productos.map(p => (
-                      <View key={p.id} style={[S.prodCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    {productos.map((p, idx) => (
+                      <Reanimated.View key={p.id} entering={FadeInDown.delay(idx * 40).springify()} style={[S.prodCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                         <View style={{ position: 'relative', height: 130 }}>
                           {p.imagen
                             ? <Image source={{ uri: imgUri(p.imagen) }} style={{ width: '100%', height: 130 }} resizeMode="cover" />
@@ -753,9 +754,9 @@ export default function SellerScreen() {
                               </View>
                           }
                           {/* Badge estado */}
-                          <View style={[S.prodBadge, { backgroundColor: p.activo ? '#10B98120' : '#EF444420' }]}>
-                            <View style={[S.prodBadgeDot, { backgroundColor: p.activo ? '#10B981' : '#EF4444' }]} />
-                            <Text style={[S.prodBadgeTxt, { color: p.activo ? '#10B981' : '#EF4444' }]}>
+                          <View style={[S.prodBadge, { backgroundColor: p.activo ? `${colors.success}20` : `${colors.danger}20` }]}>
+                            <View style={[S.prodBadgeDot, { backgroundColor: p.activo ? colors.success : colors.danger }]} />
+                            <Text style={[S.prodBadgeTxt, { color: p.activo ? colors.success : colors.danger }]}>
                               {p.activo ? 'Activo' : 'Inactivo'}
                             </Text>
                           </View>
@@ -768,8 +769,8 @@ export default function SellerScreen() {
                               <Text style={[S.prodCatTxt, { color: colors.accent }]}>{CATEGORIA_LABELS[p.categoria ?? 'general'] ?? p.categoria}</Text>
                             </View>
                             {p.stock <= 0 ? (
-                              <View style={[S.prodCatChip, { backgroundColor: '#FEE2E2' }]}>
-                                <Text style={[S.prodCatTxt, { color: '#B91C1C', fontWeight: '900' }]}>AGOTADO</Text>
+                              <View style={[S.prodCatChip, { backgroundColor: `${colors.danger}20` }]}>
+                                <Text style={[S.prodCatTxt, { color: colors.danger }]}>AGOTADO</Text>
                               </View>
                             ) : (
                               <Text style={[S.prodStock, { color: colors.muted }]}>Stock: {p.stock}</Text>
@@ -789,14 +790,14 @@ export default function SellerScreen() {
                               <Ionicons name={p.activo ? 'eye-off-outline' : 'eye-outline'} size={14} color={colors.muted} />
                             </TouchableOpacity>
                             <TouchableOpacity
-                              style={[S.prodActionBtn, { backgroundColor: '#EF444418' }]}
+                              style={[S.prodActionBtn, { backgroundColor: `${colors.danger}18` }]}
                               onPress={() => eliminarProducto(p.id)}
                             >
-                              <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                              <Ionicons name="trash-outline" size={14} color={colors.danger} />
                             </TouchableOpacity>
                           </View>
                         </View>
-                      </View>
+                      </Reanimated.View>
                     ))}
                   </View>
                 )}
@@ -812,10 +813,10 @@ export default function SellerScreen() {
                     <Text style={[S.emptyTabTitle, { color: colors.text }]}>Sin pedidos aún</Text>
                     <Text style={[S.emptyTabSub, { color: colors.muted }]}>Cuando lleguen pedidos aparecerán aquí.</Text>
                   </View>
-                ) : ventas.map(v => {
+                ) : ventas.map((v, idx) => {
                   const cfg = ESTADO_CONFIG[v.estado] ?? ESTADO_CONFIG.preparacion;
                   return (
-                    <View key={v.id} style={[S.orderCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <Reanimated.View key={v.id} entering={FadeInDown.delay(idx * 40).springify()} style={[S.orderCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
                       <View style={[S.orderHeader, { borderBottomColor: colors.border }]}>
                         <View style={[S.orderStatusDot, { backgroundColor: cfg.color }]} />
                         <Text style={[S.orderId, { color: colors.text }]}>Pedido #{v.id}</Text>
@@ -844,7 +845,7 @@ export default function SellerScreen() {
                             <Text style={S.orderActionTxt}>Aprobar pedido</Text>
                           </TouchableOpacity>
                           <TouchableOpacity
-                            style={[S.orderAction, { backgroundColor: '#EF4444', marginTop: 6 }]}
+                            style={[S.orderAction, { backgroundColor: colors.danger, marginTop: 6 }]}
                             onPress={() => rechazarPedido(v.id)}
                             activeOpacity={0.85}
                           >
@@ -879,7 +880,7 @@ export default function SellerScreen() {
                       {(v.estado === 'en_camino' || v.estado === 'entregado') && (
                         <RepartidorAsignadoCard pedidoId={v.id} />
                       )}
-                    </View>
+                    </Reanimated.View>
                   );
                 })}
               </View>
@@ -924,7 +925,7 @@ export default function SellerScreen() {
 
           <Text style={[S.piLabel, { color: colors.textSecondary, marginTop: Spacing.sm }]}>Toca el mapa para marcar tu ubicación</Text>
           <MapView
-            style={S.mapView}
+            style={[S.mapView, { borderColor: colors.border }]}
             initialRegion={{ latitude: tLat, longitude: tLng, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
             onPress={(e: MapPressEvent) => { setTLat(e.nativeEvent.coordinate.latitude); setTLng(e.nativeEvent.coordinate.longitude); }}
           >
@@ -976,6 +977,7 @@ export default function SellerScreen() {
             sublabel="Proporción 16:6 · Recomendado 1280×480 px"
             onPick={setEBanner}
             accentColor={colors.accent}
+            colors={colors}
           />
 
           {/* Logo upload zone */}
@@ -991,6 +993,7 @@ export default function SellerScreen() {
               placeholder="Logo"
               onPick={setELogo}
               accentColor={colors.accent}
+            colors={colors}
             />
           </View>
 
@@ -1054,6 +1057,7 @@ export default function SellerScreen() {
             sublabel="Proporción 4:3 · Mínimo 800×600 px"
             onPick={setPImg}
             accentColor={colors.accent}
+            colors={colors}
           />
 
           {/* Banner promocional */}
@@ -1069,6 +1073,7 @@ export default function SellerScreen() {
             sublabel="Proporción 16:5 · Para publicaciones destacadas"
             onPick={setPBanner}
             accentColor={colors.accent}
+            colors={colors}
           />
 
           <PremiumInput label="Nombre del producto" icon="cube-outline" value={pNombre} onChangeText={setPNombre} placeholder="Ej. Pan artesanal de coco" colors={colors} />
@@ -1119,9 +1124,9 @@ export default function SellerScreen() {
                 activeOpacity={0.85}
                 style={{
                   borderWidth: 2, borderStyle: 'dashed', borderRadius: 18,
-                  borderColor: pVideo ? colors.accent : '#334155',
+                  borderColor: pVideo ? colors.accent : colors.borderLight,
                   height: 140, justifyContent: 'center', alignItems: 'center',
-                  backgroundColor: pVideo ? `${colors.accent}10` : 'transparent',
+                  backgroundColor: pVideo ? `${colors.accent}10` : colors.elevated,
                 }}
               >
                 {subiendoVid ? (
@@ -1129,9 +1134,9 @@ export default function SellerScreen() {
                 ) : pVideo ? (
                   <View style={{ alignItems: 'center' }}>
                     <Ionicons name="checkmark-circle" size={40} color={colors.accent} />
-                    <Text style={{ color: colors.accent, fontWeight: '800', marginTop: 6 }}>Video listo</Text>
+                    <Text style={{ color: colors.accent, fontFamily: FontFamily.bodyExtraBold, marginTop: 6 }}>Video listo</Text>
                     <TouchableOpacity onPress={() => setPVideo(null)} style={{ marginTop: 4 }}>
-                      <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '700' }}>Quitar video</Text>
+                      <Text style={{ color: colors.danger, fontSize: 12, fontFamily: FontFamily.bodyBold }}>Quitar video</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -1139,8 +1144,8 @@ export default function SellerScreen() {
                     <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: `${colors.accent}18`, justifyContent: 'center', alignItems: 'center', marginBottom: 6 }}>
                       <Ionicons name="cloud-upload-outline" size={28} color={colors.accent} />
                     </View>
-                    <Text style={{ color: '#F1F5F9', fontWeight: '800', fontSize: 13 }}>Subir video del reel</Text>
-                    <Text style={{ color: '#64748B', fontSize: 11, marginTop: 2 }}>Hasta 60s · MP4 o MOV</Text>
+                    <Text style={{ color: colors.text, fontFamily: FontFamily.bodyExtraBold, fontSize: 13 }}>Subir video del reel</Text>
+                    <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2, fontFamily: FontFamily.bodyRegular }}>Hasta 60s · MP4 o MOV</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -1191,6 +1196,7 @@ export default function SellerScreen() {
             sublabel="Proporción 4:3 · Mínimo 800×600 px"
             onPick={setEpImg}
             accentColor={colors.accent}
+            colors={colors}
           />
 
           <PremiumInput label="Nombre del producto" icon="cube-outline" value={epNombre} onChangeText={setEpNombre} placeholder="Ej. Pan artesanal de coco" colors={colors} />
@@ -1249,9 +1255,9 @@ export default function SellerScreen() {
               {repartidoresCercanos.map(r => (
                 <View key={r.id} style={[S.prodCard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md, marginBottom: Spacing.sm, backgroundColor: colors.card, borderColor: colors.border }]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text, fontWeight: '800', fontSize: 14 }}>{r.nombre}</Text>
-                    <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>
-                      ★ {r.repartidor_calificacion_promedio ? Number(r.repartidor_calificacion_promedio).toFixed(1) : '—'}
+                    <Text style={{ color: colors.text, fontFamily: FontFamily.bodyExtraBold, fontSize: 14 }}>{r.nombre}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2, fontFamily: FontFamily.bodyRegular }}>
+                      <Ionicons name="star" size={12} color={colors.ctaAccent} /> {r.repartidor_calificacion_promedio ? Number(r.repartidor_calificacion_promedio).toFixed(1) : '—'}
                       {' · '}{r.repartidor_total_resenas ?? 0} reseñas
                       {r.distancia_km != null ? ` · ${r.distancia_km} km` : ''}
                       {r.tipo_vehiculo ? ` · ${r.tipo_vehiculo}` : ''}
@@ -1317,9 +1323,9 @@ export default function SellerScreen() {
                   </View>
                 ) : notifData.pedidos.map((n: any) => (
                   <View key={n.id} style={[S.prodCard, { padding: Spacing.md, marginBottom: Spacing.sm, backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <Text style={{ color: colors.text, fontWeight: '800', fontSize: 14 }}>{n.titulo}</Text>
-                    {n.cuerpo ? <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>{n.cuerpo}</Text> : null}
-                    <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>{new Date(n.created_at).toLocaleString()}</Text>
+                    <Text style={{ color: colors.text, fontFamily: FontFamily.bodyExtraBold, fontSize: 14 }}>{n.titulo}</Text>
+                    {n.cuerpo ? <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2, fontFamily: FontFamily.bodyRegular }}>{n.cuerpo}</Text> : null}
+                    <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4, fontFamily: FontFamily.bodyRegular }}>{new Date(n.created_at).toLocaleString()}</Text>
                   </View>
                 ))
               )}
@@ -1331,12 +1337,12 @@ export default function SellerScreen() {
                   </View>
                 ) : notifData.likes.map((n: any) => (
                   <View key={n.id} style={[S.prodCard, { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, marginBottom: Spacing.sm, backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <Ionicons name="heart" size={18} color="#EF4444" style={{ marginRight: 10 }} />
+                    <Ionicons name="heart" size={18} color={colors.danger} style={{ marginRight: 10 }} />
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>
-                        <Text style={{ fontWeight: '900' }}>{n.usuario_nombre}</Text> le dio like a "{n.producto_nombre}"
+                      <Text style={{ color: colors.text, fontFamily: FontFamily.bodyBold, fontSize: 13 }}>
+                        <Text style={{ fontFamily: FontFamily.bodyExtraBold }}>{n.usuario_nombre}</Text> le dio like a "{n.producto_nombre}"
                       </Text>
-                      <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2 }}>{new Date(n.created_at).toLocaleString()}</Text>
+                      <Text style={{ color: colors.muted, fontSize: 11, marginTop: 2, fontFamily: FontFamily.bodyRegular }}>{new Date(n.created_at).toLocaleString()}</Text>
                     </View>
                   </View>
                 ))
@@ -1349,11 +1355,11 @@ export default function SellerScreen() {
                   </View>
                 ) : notifData.comentarios.map((n: any) => (
                   <View key={n.id} style={[S.prodCard, { padding: Spacing.md, marginBottom: Spacing.sm, backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <Text style={{ color: colors.text, fontWeight: '700', fontSize: 13 }}>
-                      <Text style={{ fontWeight: '900' }}>{n.usuario_nombre}</Text> comentó en "{n.producto_nombre}"
+                    <Text style={{ color: colors.text, fontFamily: FontFamily.bodyBold, fontSize: 13 }}>
+                      <Text style={{ fontFamily: FontFamily.bodyExtraBold }}>{n.usuario_nombre}</Text> comentó en "{n.producto_nombre}"
                     </Text>
-                    <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4, fontStyle: 'italic' }}>"{n.comentario}"</Text>
-                    <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4 }}>{new Date(n.created_at).toLocaleString()}</Text>
+                    <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4, fontStyle: 'italic', fontFamily: FontFamily.bodyRegular }}>"{n.comentario}"</Text>
+                    <Text style={{ color: colors.muted, fontSize: 11, marginTop: 4, fontFamily: FontFamily.bodyRegular }}>{new Date(n.created_at).toLocaleString()}</Text>
                   </View>
                 ))
               )}
@@ -1373,55 +1379,55 @@ const S = StyleSheet.create({
   // Empty store
   emptyStore:  { alignItems: 'center', padding: Spacing.xl },
   emptyStoreBg:{ width: 110, height: 110, borderRadius: 55, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.lg },
-  emptyTitle:  { fontSize: Fonts.title, fontWeight: '900', textAlign: 'center', marginBottom: 8, letterSpacing: -0.4 },
-  emptySub:    { fontSize: Fonts.regular, textAlign: 'center', lineHeight: 22, marginBottom: Spacing.xl, fontWeight: '500', paddingHorizontal: Spacing.md },
+  emptyTitle:  { fontSize: Fonts.title, fontFamily: FontFamily.displayExtraBold, textAlign: 'center', marginBottom: 8, letterSpacing: -0.4 },
+  emptySub:    { fontSize: Fonts.regular, textAlign: 'center', lineHeight: 22, marginBottom: Spacing.xl, fontFamily: FontFamily.bodyRegular, paddingHorizontal: Spacing.md },
 
   // Buttons
   primaryBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 52, borderRadius: Radius.md + 4, shadowColor: '#3B82F6', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 14, elevation: 8 },
-  primaryBtnTxt: { color: '#FFF', fontWeight: '800', fontSize: Fonts.regular + 1, letterSpacing: 0.1 },
+  primaryBtnTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.regular + 1, letterSpacing: 0.1 },
 
   // Banner
   bannerGradient: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent' },
   bannerEditBtn:  { position: 'absolute', bottom: 12, right: 14, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: Radius.pill, paddingHorizontal: 12, paddingVertical: 6 },
-  bannerEditTxt:  { color: '#FFF', fontSize: Fonts.small - 1, fontWeight: '700' },
+  bannerEditTxt:  { color: '#FFF', fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyBold },
 
   // Logo
   infoCard:   { marginHorizontal: Spacing.md, marginTop: -30, borderRadius: Radius.lg, padding: Spacing.md, shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 10, marginBottom: Spacing.sm },
   infoRow:    { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.md },
   logoWrap:   { position: 'relative', marginTop: -LOGO_SZ / 2 - 10 },
   logoImg:    { width: LOGO_SZ, height: LOGO_SZ, borderRadius: LOGO_SZ / 2, justifyContent: 'center', alignItems: 'center', borderWidth: 3, borderColor: '#FFF', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 6 },
-  logoInitial:{ color: '#FFF', fontWeight: '900', fontSize: 30 },
+  logoInitial:{ color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: 30 },
   logoEditBadge: { position: 'absolute', bottom: 2, right: 2, width: 24, height: 24, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#FFF' },
-  storeName:  { fontSize: Fonts.title - 2, fontWeight: '900', letterSpacing: -0.4, marginBottom: 4 },
+  storeName:  { fontSize: Fonts.title - 2, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.4, marginBottom: 4 },
   storeMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 2 },
-  storeMeta:  { fontSize: Fonts.small + 1, fontWeight: '500' },
+  storeMeta:  { fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyRegular },
   editStoreBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radius.pill, borderWidth: 1.5 },
-  editStoreTxt: { fontSize: Fonts.small, fontWeight: '800' },
+  editStoreTxt: { fontSize: Fonts.small, fontFamily: FontFamily.bodyExtraBold },
 
   // Stats row
   statsRow:  { flexDirection: 'row', gap: Spacing.xs },
   statCard:  { flex: 1, alignItems: 'center', padding: Spacing.sm, borderRadius: Radius.md, borderWidth: StyleSheet.hairlineWidth, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
   statIcon:  { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center', marginBottom: 6 },
-  statVal:   { fontSize: Fonts.regular, fontWeight: '900', letterSpacing: -0.3 },
-  statLbl:   { fontSize: 9, fontWeight: '700', marginTop: 2 },
+  statVal:   { fontSize: Fonts.regular + 2, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.3, fontVariant: ['tabular-nums'] },
+  statLbl:   { fontSize: 9, fontFamily: FontFamily.bodyBold, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.5 },
 
   // Tabs
   tabBar:     { flexDirection: 'row', margin: Spacing.md, borderRadius: Radius.pill, padding: 5, borderWidth: 1.5 },
   tabBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, borderRadius: Radius.pill },
   tabBtnActive: { shadowColor: '#3B82F6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
-  tabTxt:     { fontWeight: '800', fontSize: Fonts.small },
+  tabTxt:     { fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.small },
 
   // Section
   section: { paddingHorizontal: Spacing.md },
-  sectionLabel: { fontSize: Fonts.small + 1, fontWeight: '800', marginTop: Spacing.md, marginBottom: 8 },
-  optLabel: { fontWeight: '500' },
+  sectionLabel: { fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyExtraBold, marginTop: Spacing.md, marginBottom: 8 },
+  optLabel: { fontFamily: FontFamily.bodyRegular },
 
   // Empty tab
   emptyTab:    { alignItems: 'center', padding: Spacing.xl, borderRadius: Radius.lg, gap: Spacing.sm, marginBottom: Spacing.sm },
-  emptyTabTitle: { fontSize: Fonts.title - 4, fontWeight: '900' },
-  emptyTabSub:   { fontSize: Fonts.regular, textAlign: 'center', lineHeight: 20, fontWeight: '500' },
+  emptyTabTitle: { fontSize: Fonts.title - 4, fontFamily: FontFamily.displayExtraBold },
+  emptyTabSub:   { fontSize: Fonts.regular, textAlign: 'center', lineHeight: 20, fontFamily: FontFamily.bodyRegular },
   emptyTabBtn:   { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 20, paddingVertical: 12, borderRadius: Radius.md },
-  emptyTabBtnTxt: { color: '#FFF', fontWeight: '800', fontSize: Fonts.regular - 1 },
+  emptyTabBtnTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.regular - 1 },
 
   // Product grid
   prodGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.sm },
@@ -1432,14 +1438,14 @@ const S = StyleSheet.create({
   },
   prodBadge:    { position: 'absolute', top: 8, left: 8, flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.pill },
   prodBadgeDot: { width: 6, height: 6, borderRadius: 3 },
-  prodBadgeTxt: { fontSize: 9, fontWeight: '800' },
+  prodBadgeTxt: { fontSize: 9, fontFamily: FontFamily.bodyExtraBold },
   prodInfo:     { padding: Spacing.sm },
-  prodName:     { fontSize: Fonts.small + 1, fontWeight: '800', marginBottom: 2, letterSpacing: -0.2, lineHeight: 17 },
-  prodPrice:    { fontSize: Fonts.regular + 1, fontWeight: '900', marginBottom: 6 },
+  prodName:     { fontSize: Fonts.small + 1, fontFamily: FontFamily.displayBold, marginBottom: 2, letterSpacing: -0.2, lineHeight: 17 },
+  prodPrice:    { fontSize: Fonts.regular + 1, fontFamily: FontFamily.displayExtraBold, marginBottom: 6, fontVariant: ['tabular-nums'] },
   prodMeta:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   prodCatChip:  { paddingHorizontal: 7, paddingVertical: 3, borderRadius: Radius.pill },
-  prodCatTxt:   { fontSize: 8, fontWeight: '900' },
-  prodStock:    { fontSize: 9, fontWeight: '600' },
+  prodCatTxt:   { fontSize: 8, fontFamily: FontFamily.bodyExtraBold },
+  prodStock:    { fontSize: 9, fontFamily: FontFamily.bodySemiBold },
   prodActions:  { flexDirection: 'row', gap: Spacing.xs },
   prodActionBtn:{ flex: 1, height: 30, borderRadius: Radius.sm + 2, justifyContent: 'center', alignItems: 'center' },
 
@@ -1447,15 +1453,15 @@ const S = StyleSheet.create({
   orderCard:   { borderRadius: Radius.md + 2, borderWidth: StyleSheet.hairlineWidth, marginBottom: Spacing.sm, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2 },
   orderHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: Spacing.md, paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   orderStatusDot: { width: 8, height: 8, borderRadius: 4 },
-  orderId:     { flex: 1, fontWeight: '800', fontSize: Fonts.regular - 1 },
+  orderId:     { flex: 1, fontFamily: FontFamily.displayBold, fontSize: Fonts.regular - 1, fontVariant: ['tabular-nums'] },
   orderBadge:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.pill },
-  orderBadgeTxt: { fontSize: 10, fontWeight: '800' },
+  orderBadgeTxt: { fontSize: 10, fontFamily: FontFamily.bodyExtraBold },
   orderBody:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.md },
-  orderClient: { fontWeight: '700', fontSize: Fonts.regular - 1, marginBottom: 2 },
-  orderMeta:   { fontSize: Fonts.small - 1, fontWeight: '500' },
-  orderTotal:  { fontSize: Fonts.title - 4, fontWeight: '900' },
+  orderClient: { fontFamily: FontFamily.bodyBold, fontSize: Fonts.regular - 1, marginBottom: 2 },
+  orderMeta:   { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyRegular },
+  orderTotal:  { fontSize: Fonts.title - 4, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] },
   orderAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 14 },
-  orderActionTxt: { color: '#FFF', fontWeight: '800', fontSize: Fonts.small + 1 },
+  orderActionTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.small + 1 },
 
   // FAB
   fab: {
@@ -1475,40 +1481,40 @@ const S = StyleSheet.create({
   // Modal
   modal:    { flex: 1 },
   modalTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.lg },
-  modalTitle: { fontSize: Fonts.title - 2, fontWeight: '900', letterSpacing: -0.4 },
-  modalSub:   { fontSize: Fonts.small + 1, fontWeight: '500', marginTop: 3 },
+  modalTitle: { fontSize: Fonts.title - 2, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.4 },
+  modalSub:   { fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyRegular, marginTop: 3 },
   closeBtn:   { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
 
   // Premium Input
   piWrap:  { marginBottom: Spacing.sm },
-  piLabel: { fontSize: Fonts.small + 1, fontWeight: '700', marginBottom: 6 },
+  piLabel: { fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyBold, marginBottom: 6 },
   piRow:   { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.md, borderWidth: 1.5, paddingHorizontal: Spacing.md, minHeight: 50 },
   piIcon:  { marginRight: 10 },
-  piInput: { flex: 1, fontSize: Fonts.regular, fontWeight: '500', paddingVertical: Platform.OS === 'ios' ? 12 : 8 },
+  piInput: { flex: 1, fontSize: Fonts.regular, fontFamily: FontFamily.bodyRegular, paddingVertical: Platform.OS === 'ios' ? 12 : 8 },
 
   // Dropdown
   dropdown:  { borderWidth: 1.5, borderRadius: Radius.md, marginTop: 4, marginBottom: 4, overflow: 'hidden' },
   dropItem:  { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: 11 },
-  dropTxt:   { fontSize: Fonts.regular - 1, fontWeight: '600' },
+  dropTxt:   { fontSize: Fonts.regular - 1, fontFamily: FontFamily.bodySemiBold },
 
   // Upload zone
   uploadZone:      { borderWidth: 2, borderStyle: 'dashed', overflow: 'hidden', justifyContent: 'center', alignItems: 'center' },
   uploadEditOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'flex-end', alignItems: 'flex-end', padding: 10 },
   uploadEditBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(0,0,0,0.65)', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 5 },
-  uploadEditTxt:   { color: '#FFF', fontSize: Fonts.small - 1, fontWeight: '700' },
+  uploadEditTxt:   { color: '#FFF', fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyBold },
   uploadPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.xs, padding: Spacing.md },
   uploadIconCircle:  { width: 60, height: 60, borderRadius: 30, justifyContent: 'center', alignItems: 'center' },
-  uploadLabel:     { fontSize: Fonts.regular - 1, fontWeight: '700', textAlign: 'center' },
-  uploadSub:       { fontSize: Fonts.small - 1, color: '#64748B', fontWeight: '500', textAlign: 'center' },
+  uploadLabel:     { fontSize: Fonts.regular - 1, fontFamily: FontFamily.bodyBold, textAlign: 'center' },
+  uploadSub:       { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyRegular, textAlign: 'center' },
   uploadDashedBadge: { borderWidth: 1.5, borderStyle: 'dashed', borderRadius: Radius.pill, paddingHorizontal: 14, paddingVertical: 6, marginTop: 4 },
-  uploadDashedTxt:   { fontSize: Fonts.small, fontWeight: '800' },
+  uploadDashedTxt:   { fontSize: Fonts.small, fontFamily: FontFamily.bodyExtraBold },
 
   // Reel toggle
   reelToggle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderWidth: 1.5, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm },
   reelBox:    { width: 22, height: 22, borderRadius: 6, borderWidth: 2, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
-  reelTitle:  { fontWeight: '700', fontSize: Fonts.regular - 1 },
-  reelSub:    { fontSize: Fonts.small - 1, fontWeight: '500', marginTop: 2 },
+  reelTitle:  { fontFamily: FontFamily.bodyBold, fontSize: Fonts.regular - 1 },
+  reelSub:    { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyRegular, marginTop: 2 },
 
   // Map
-  mapView: { width: '100%', height: 220, borderRadius: Radius.md, marginBottom: Spacing.md, borderWidth: 1.5, borderColor: '#1E293B' },
+  mapView: { width: '100%', height: 220, borderRadius: Radius.md, marginBottom: Spacing.md, borderWidth: 1.5 },
 });

@@ -1,0 +1,62 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "bounce-easing",
+        "value": "typingbounce",
+        "files": [
+          "apps/web/web/css/Chat.css"
+        ],
+        "createdAt": "2026-08-17T03:29:41.405Z",
+        "reason": "Typing-indicator dot bounce is the universal chat-app convention (WhatsApp/iMessage/Messenger/Slack all bounce the three dots) — removing it would make the indicator read as broken, not calmer."
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "apps/web/web/css/Chat.css"
+        ],
+        "createdAt": "2026-08-17T03:31:39.905Z",
+        "reason": "poll-bar width transition directly represents a vote-percentage fill; low-frequency updates (on vote), not a perf-sensitive continuous animation — same pattern already accepted for the checkout progress fill and upload progress bar elsewhere in the app."
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "apps/web/web/css/carritoypago.css"
+        ],
+        "createdAt": "2026-08-17T03:31:41.044Z",
+        "reason": "step-connector-fill width transition directly represents checkout step progress; fires once per step change, not a perf-sensitive continuous animation."
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "apps/web/web/src/pages/Chat.tsx"
+        ],
+        "createdAt": "2026-08-17T03:32:52.748Z",
+        "reason": "Left border on the ReplySnapshot/ReplyBar quoted-message blocks is the standard messaging-app reply-quote indicator (WhatsApp/Telegram/iMessage), not a generic card decoration — it marks which message is being answered."
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "apps/web/web/css/Reels.css"
+        ],
+        "createdAt": "2026-08-17T03:34:20.492Z",
+        "reason": "Volume-slider expand (32px->130px pill, user-triggered, one-shot) and story-style progress-dot width (6px->18px, negligible reflow) are small, infrequent, purposeful — not continuous/scroll animation."
+      },
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": [
+          "apps/web/web/src/pages/VendedorDashboard.tsx"
+        ],
+        "createdAt": "2026-08-17T03:34:21.507Z",
+        "reason": "Upload progress bar width directly represents real upload percentage from state; updates infrequently (network progress events), not a perf-sensitive continuous animation."
+      }
+    ]
+  }
+}

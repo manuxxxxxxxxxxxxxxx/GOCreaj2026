@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, Alert,
-  Animated, RefreshControl, Image, TextInput,
+  Animated, RefreshControl, Image, TextInput, StyleProp, ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import Reanimated, { FadeInDown } from 'react-native-reanimated';
 import { io, Socket } from 'socket.io-client';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
@@ -14,7 +15,7 @@ import { api, Endpoints, traducirError } from '@/services/api';
 import { useTheme } from '@/context/ThemeContext';
 import { useLang } from '@/context/LangContext';
 import { useAuth } from '@/context/AuthContext';
-import { Spacing } from '@/theme/colors';
+import { Spacing, FontFamily } from '@/theme/colors';
 import { resolveMediaUrl } from '@/utils/media';
 import { RootStackParamList } from '@/types';
 import ScreenScroll from '@/components/ScreenScroll';
@@ -265,16 +266,25 @@ export default function DriverScreen() {
   const switchBg = switchAnim.interpolate({ inputRange: [0, 1], outputRange: [colors.border, colors.success] });
   const switchKnob = switchAnim.interpolate({ inputRange: [0, 1], outputRange: [4, 32] });
 
+  // Mapeo semántico del estado de una entrega -> status-pill (fondo tintado 15% + ícono + color).
+  // 'en_camino' usa ctaAccent (naranja) para hacer eco visual con el pin de tracking en vivo
+  // del mapa (MapTrackingScreen), que usa el mismo color para el mismo estado real del pedido.
+  const ESTADO_ENTREGA_CFG: Record<string, { label: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
+    preparacion: { label: 'Preparando', color: colors.accent, icon: 'restaurant-outline' },
+    en_camino:   { label: 'En camino',  color: colors.ctaAccent, icon: 'bicycle-outline' },
+    entregado:   { label: 'Entregado',  color: colors.success, icon: 'checkmark-circle-outline' },
+  };
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: insets.top + 12, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
-            <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 16 }}>{usuario?.nombre?.[0] ?? 'R'}</Text>
+            <Text style={{ color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: 16 }}>{usuario?.nombre?.[0] ?? 'R'}</Text>
           </View>
           <View>
-            <Text style={{ color: colors.text, fontWeight: '900', fontSize: 16 }}>{usuario?.nombre}</Text>
-            <Text style={{ color: enLinea ? colors.success : colors.muted, fontWeight: '700', fontSize: 11 }}>
+            <Text style={{ color: colors.text, fontFamily: FontFamily.bodyExtraBold, fontSize: 16 }}>{usuario?.nombre}</Text>
+            <Text style={{ color: enLinea ? colors.success : colors.muted, fontFamily: FontFamily.bodyBold, fontSize: 11 }}>
               {enLinea ? t.driver.enLinea : t.driver.fueraLinea}
             </Text>
           </View>
@@ -291,9 +301,9 @@ export default function DriverScreen() {
           <TouchableOpacity
             onPress={confirmarLogout}
             activeOpacity={0.85}
-            style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: '#EF444418', justifyContent: 'center', alignItems: 'center' }}
+            style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: `${colors.danger}18`, justifyContent: 'center', alignItems: 'center' }}
           >
-            <Ionicons name="log-out-outline" size={18} color="#EF4444" />
+            <Ionicons name="log-out-outline" size={18} color={colors.danger} />
           </TouchableOpacity>
         </View>
       </View>
@@ -314,7 +324,7 @@ export default function DriverScreen() {
               style={[styles.tabBtn, act && { backgroundColor: colors.accent }]}
             >
               <Ionicons name={it.icon} size={15} color={act ? '#FFF' : colors.muted} />
-              <Text style={{ color: act ? '#FFF' : colors.text, fontWeight: '800', fontSize: 12 }}>{it.label}</Text>
+              <Text style={{ color: act ? '#FFF' : colors.text, fontFamily: FontFamily.bodyExtraBold, fontSize: 12 }}>{it.label}</Text>
             </TouchableOpacity>
           );
         })}
@@ -329,7 +339,7 @@ export default function DriverScreen() {
             {!enLinea && (
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
                 <Ionicons name="power-outline" size={28} color={colors.muted} />
-                <Text style={{ color: colors.text, fontWeight: '900', fontSize: 15, marginTop: 8 }}>{t.driver.fueraLinea}</Text>
+                <Text style={{ color: colors.text, fontFamily: FontFamily.displayBold, fontSize: 15, marginTop: 8 }}>{t.driver.fueraLinea}</Text>
                 <Text style={{ color: colors.muted, fontSize: 12, marginTop: 4, textAlign: 'center' }}>
                   Activa el interruptor para empezar a recibir pedidos.
                 </Text>
@@ -338,13 +348,17 @@ export default function DriverScreen() {
             {enLinea && pendientes.length === 0 && (
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Ionicons name="hourglass-outline" size={28} color={colors.muted} />
-                <Text style={{ color: colors.text, fontWeight: '900', fontSize: 14, marginTop: 8 }}>Esperando pedidos...</Text>
+                <Text style={{ color: colors.text, fontFamily: FontFamily.displayBold, fontSize: 14, marginTop: 8 }}>Esperando pedidos...</Text>
               </View>
             )}
-            {pendientes.map(p => (
-              <View key={p.id} style={[styles.matchCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
+            {pendientes.map((p, i) => (
+              <Reanimated.View
+                key={p.id}
+                entering={FadeInDown.delay(i * 40).springify()}
+                style={[styles.matchCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}
+              >
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ color: colors.muted, fontWeight: '800', fontSize: 11, letterSpacing: 0.5 }}>#SV-{p.id}</Text>
+                  <Text style={{ color: colors.muted, fontFamily: FontFamily.displayBold, fontSize: 11, letterSpacing: 0.5 }}>#SV-{p.id}</Text>
                   <View style={[styles.ganBadge, { backgroundColor: colors.success }]}>
                     <Ionicons name="cash" size={12} color="#FFF" />
                     <Text style={styles.ganTxt}>+US$ {Number(p.ganancia_repartidor).toFixed(2)}</Text>
@@ -353,35 +367,28 @@ export default function DriverScreen() {
 
                 <View style={{ marginTop: 10 }}>
                   <View style={styles.locRow}>
-                    <View style={[styles.locDot, { backgroundColor: '#2563EB' }]} />
-                    <Text style={{ color: colors.text, fontWeight: '700', flex: 1 }} numberOfLines={1}>
-                      {p.tienda_nombre ?? p.vendedor_nombre} <Text style={{ color: colors.muted, fontWeight: '600' }}>· origen</Text>
+                    <View style={[styles.locDot, { backgroundColor: colors.accent }]} />
+                    <Text style={{ color: colors.text, fontFamily: FontFamily.bodyBold, flex: 1 }} numberOfLines={1}>
+                      {p.tienda_nombre ?? p.vendedor_nombre} <Text style={{ color: colors.muted, fontFamily: FontFamily.bodySemiBold }}>· origen</Text>
                     </Text>
                   </View>
                   <View style={styles.locRow}>
                     <View style={[styles.locDot, { backgroundColor: colors.success }]} />
-                    <Text style={{ color: colors.text, fontWeight: '700', flex: 1 }} numberOfLines={1}>
-                      {p.comprador_nombre} <Text style={{ color: colors.muted, fontWeight: '600' }}>· destino</Text>
+                    <Text style={{ color: colors.text, fontFamily: FontFamily.bodyBold, flex: 1 }} numberOfLines={1}>
+                      {p.comprador_nombre} <Text style={{ color: colors.muted, fontFamily: FontFamily.bodySemiBold }}>· destino</Text>
                     </Text>
                   </View>
                 </View>
 
                 <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
-                  <Text style={{ color: colors.muted, fontSize: 11, fontWeight: '700' }}>
+                  <Text style={{ color: colors.muted, fontSize: 11, fontFamily: FontFamily.bodyBold }}>
                     Total pedido{p.distancia_km != null ? ` · ${p.distancia_km} km` : ''}
                   </Text>
-                  <Text style={{ color: colors.text, fontWeight: '900' }}>US$ {Number(p.total).toFixed(2)}</Text>
+                  <Text style={{ color: colors.text, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] }}>US$ {Number(p.total).toFixed(2)}</Text>
                 </View>
 
-                <TouchableOpacity
-                  onPress={() => aceptar(p)}
-                  activeOpacity={0.88}
-                  style={[styles.acceptBtn, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
-                >
-                  <Ionicons name="checkmark-circle" size={18} color="#FFF" />
-                  <Text style={styles.acceptTxt}>Aceptar pedido</Text>
-                </TouchableOpacity>
-              </View>
+                <ActionButton onPress={() => aceptar(p)} bg={colors.accent} icon="checkmark-circle" label="Aceptar pedido" />
+              </Reanimated.View>
             ))}
           </>
         )}
@@ -391,64 +398,58 @@ export default function DriverScreen() {
             {entregas.length === 0 && (
               <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
                 <Ionicons name="cube-outline" size={28} color={colors.muted} />
-                <Text style={{ color: colors.text, fontWeight: '900', fontSize: 14, marginTop: 8 }}>Sin entregas aún</Text>
+                <Text style={{ color: colors.text, fontFamily: FontFamily.displayBold, fontSize: 14, marginTop: 8 }}>Sin entregas aún</Text>
               </View>
             )}
-            {entregas.map(p => (
-              <View key={p.id} style={[styles.matchCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ color: colors.muted, fontWeight: '800', fontSize: 11 }}>#SV-{p.id}</Text>
-                  <Text style={{ color: p.estado === 'entregado' ? colors.success : colors.warning, fontWeight: '900', fontSize: 11 }}>
-                    {p.estado.toUpperCase()}
-                  </Text>
-                </View>
-                <Text style={{ color: colors.text, fontWeight: '800', marginTop: 6 }}>{p.vendedor_nombre} → {p.comprador_nombre}</Text>
-                <Text style={{ color: colors.muted, fontSize: 12 }}>{new Date(p.created_at).toLocaleString()}</Text>
+            {entregas.map((p, i) => {
+              const cfg = ESTADO_ENTREGA_CFG[p.estado] ?? ESTADO_ENTREGA_CFG.preparacion;
+              return (
+                <Reanimated.View
+                  key={p.id}
+                  entering={FadeInDown.delay(i * 40).springify()}
+                  style={[styles.matchCard, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}
+                >
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ color: colors.muted, fontFamily: FontFamily.displayBold, fontSize: 11 }}>#SV-{p.id}</Text>
+                    <View style={[styles.statusPill, { backgroundColor: `${cfg.color}26` }]}>
+                      <Ionicons name={cfg.icon} size={12} color={cfg.color} />
+                      <Text style={[styles.statusPillTxt, { color: cfg.color }]}>{cfg.label}</Text>
+                    </View>
+                  </View>
+                  <Text style={{ color: colors.text, fontFamily: FontFamily.bodyExtraBold, marginTop: 6 }}>{p.vendedor_nombre} → {p.comprador_nombre}</Text>
+                  <Text style={{ color: colors.muted, fontSize: 12 }}>{new Date(p.created_at).toLocaleString()}</Text>
 
-                <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
-                  <Text style={{ color: colors.muted, fontSize: 11 }}>Tu ganancia</Text>
-                  <Text style={{ color: colors.success, fontWeight: '900' }}>
-                    US$ {Number(p.total_repartidor ?? p.ganancia_repartidor ?? 0).toFixed(2)}
-                  </Text>
-                </View>
+                  <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
+                    <Text style={{ color: colors.muted, fontSize: 11 }}>Tu ganancia</Text>
+                    <Text style={{ color: colors.success, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] }}>
+                      US$ {Number(p.total_repartidor ?? p.ganancia_repartidor ?? 0).toFixed(2)}
+                    </Text>
+                  </View>
 
-                {p.estado === 'preparacion' && !p.confirmado_repartidor_recogida && (
-                  <TouchableOpacity
-                    onPress={() => confirmarRecogida(p)}
-                    activeOpacity={0.88}
-                    style={[styles.acceptBtn, { backgroundColor: colors.accent, shadowColor: colors.accent }]}
-                  >
-                    <Ionicons name="checkmark-done-circle" size={18} color="#FFF" />
-                    <Text style={styles.acceptTxt}>Confirmar recogida en tienda</Text>
-                  </TouchableOpacity>
-                )}
-                {p.estado === 'preparacion' && !!p.confirmado_repartidor_recogida && (
-                  <Text style={{ color: colors.muted, fontSize: 12, fontStyle: 'italic', marginTop: 8 }}>
-                    Esperando que la tienda confirme la entrega…
-                  </Text>
-                )}
-                {p.estado === 'en_camino' && (
-                  <>
-                    <TouchableOpacity
-                      onPress={() => nav.navigate('Tracking' as any, { pedidoId: p.id })}
-                      activeOpacity={0.88}
-                      style={[styles.acceptBtn, { backgroundColor: colors.accentLight, shadowOpacity: 0, marginTop: 8 }]}
-                    >
-                      <Ionicons name="location" size={18} color={colors.accent} />
-                      <Text style={[styles.acceptTxt, { color: colors.accent }]}>Ver mi ubicación en el mapa</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => completar(p)}
-                      activeOpacity={0.88}
-                      style={[styles.acceptBtn, { backgroundColor: colors.success, shadowColor: colors.success }]}
-                    >
-                      <Ionicons name="checkmark-done-circle" size={18} color="#FFF" />
-                      <Text style={styles.acceptTxt}>Marcar entregado</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-            ))}
+                  {p.estado === 'preparacion' && !p.confirmado_repartidor_recogida && (
+                    <ActionButton onPress={() => confirmarRecogida(p)} bg={colors.accent} icon="checkmark-done-circle" label="Confirmar recogida en tienda" />
+                  )}
+                  {p.estado === 'preparacion' && !!p.confirmado_repartidor_recogida && (
+                    <Text style={{ color: colors.muted, fontSize: 12, fontStyle: 'italic', marginTop: 8 }}>
+                      Esperando que la tienda confirme la entrega…
+                    </Text>
+                  )}
+                  {p.estado === 'en_camino' && (
+                    <>
+                      <ActionButton
+                        onPress={() => nav.navigate('Tracking' as any, { pedidoId: p.id })}
+                        bg={colors.accentLight}
+                        textColor={colors.accent}
+                        icon="location"
+                        label="Ver mi ubicación en el mapa"
+                        style={{ shadowOpacity: 0, marginTop: 8 }}
+                      />
+                      <ActionButton onPress={() => completar(p)} bg={colors.success} icon="checkmark-done-circle" label="Marcar entregado" />
+                    </>
+                  )}
+                </Reanimated.View>
+              );
+            })}
           </>
         )}
 
@@ -459,35 +460,38 @@ export default function DriverScreen() {
               <Text style={styles.walletLabel}>Saldo actual</Text>
               <Text style={styles.walletSaldo}>US$ {Number(wallet.saldo).toFixed(2)}</Text>
               <View style={styles.walletStats}>
-                <View style={styles.walletStat}>
-                  <Text style={styles.walletStatVal}>US$ {Number(wallet.stats.hoy).toFixed(2)}</Text>
-                  <Text style={styles.walletStatLab}>{t.driver.gananciasHoy}</Text>
-                </View>
-                <View style={styles.walletStat}>
-                  <Text style={styles.walletStatVal}>US$ {Number(wallet.stats.semana).toFixed(2)}</Text>
-                  <Text style={styles.walletStatLab}>{t.driver.gananciasSemanales}</Text>
-                </View>
-                <View style={styles.walletStat}>
-                  <Text style={styles.walletStatVal}>{wallet.stats.entregas_hoy}</Text>
-                  <Text style={styles.walletStatLab}>{t.driver.entregasHoy}</Text>
-                </View>
+                {([
+                  { icon: 'cash-outline' as const, val: `US$ ${Number(wallet.stats.hoy).toFixed(2)}`, lab: t.driver.gananciasHoy },
+                  { icon: 'calendar-outline' as const, val: `US$ ${Number(wallet.stats.semana).toFixed(2)}`, lab: t.driver.gananciasSemanales },
+                  { icon: 'bicycle-outline' as const, val: String(wallet.stats.entregas_hoy), lab: t.driver.entregasHoy },
+                ]).map((s, idx) => (
+                  <View key={idx} style={styles.walletStat}>
+                    <Ionicons name={s.icon} size={13} color="rgba(255,255,255,0.85)" />
+                    <Text style={styles.walletStatVal}>{s.val}</Text>
+                    <Text style={styles.walletStatLab}>{s.lab}</Text>
+                  </View>
+                ))}
               </View>
             </View>
 
-            <Text style={{ color: colors.text, fontWeight: '900', fontSize: 15, marginTop: 16, marginBottom: 10 }}>Movimientos</Text>
-            {wallet.movimientos.map(m => (
-              <View key={m.id} style={[styles.mov, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                <View style={[styles.movIcon, { backgroundColor: m.monto > 0 ? '#DCFCE7' : '#FEE2E2' }]}>
-                  <Ionicons name={m.monto > 0 ? 'arrow-up-circle' : 'arrow-down-circle'} size={20} color={m.monto > 0 ? '#16A34A' : '#DC2626'} />
+            <Text style={{ color: colors.text, fontFamily: FontFamily.displayBold, fontSize: 15, marginTop: 16, marginBottom: 10 }}>Movimientos</Text>
+            {wallet.movimientos.map((m, i) => (
+              <Reanimated.View
+                key={m.id}
+                entering={FadeInDown.delay(i * 30).springify()}
+                style={[styles.mov, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
+                <View style={[styles.movIcon, { backgroundColor: m.monto > 0 ? `${colors.success}26` : `${colors.danger}26` }]}>
+                  <Ionicons name={m.monto > 0 ? 'arrow-up-circle' : 'arrow-down-circle'} size={20} color={m.monto > 0 ? colors.success : colors.danger} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: colors.text, fontWeight: '800', fontSize: 13 }}>{m.referencia ?? m.tipo}</Text>
+                  <Text style={{ color: colors.text, fontFamily: FontFamily.bodyExtraBold, fontSize: 13 }}>{m.referencia ?? m.tipo}</Text>
                   <Text style={{ color: colors.muted, fontSize: 11 }}>{new Date(m.created_at).toLocaleString()}</Text>
                 </View>
-                <Text style={{ color: m.monto > 0 ? colors.success : colors.danger, fontWeight: '900' }}>
+                <Text style={{ color: m.monto > 0 ? colors.success : colors.danger, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] }}>
                   {m.monto > 0 ? '+' : ''}{Number(m.monto).toFixed(2)}
                 </Text>
-              </View>
+              </Reanimated.View>
             ))}
           </>
         )}
@@ -500,65 +504,85 @@ export default function DriverScreen() {
                   <Image source={{ uri: resolveMediaUrl(perfil.foto_perfil) }} style={styles.perfilAvatar} />
                 ) : (
                   <View style={[styles.perfilAvatar, { backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }]}>
-                    <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 26 }}>{usuario?.nombre?.[0] ?? 'R'}</Text>
+                    <Text style={{ color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: 26 }}>{usuario?.nombre?.[0] ?? 'R'}</Text>
                   </View>
                 )}
                 <View style={[styles.perfilCamBadge, { backgroundColor: colors.accent, borderColor: colors.background }]}>
                   <Ionicons name="camera" size={13} color="#FFF" />
                 </View>
               </TouchableOpacity>
-              <Text style={{ color: colors.text, fontWeight: '900', fontSize: 17, marginTop: 10 }}>{perfil?.nombre ?? usuario?.nombre}</Text>
+              <Text style={{ color: colors.text, fontFamily: FontFamily.bodyExtraBold, fontSize: 17, marginTop: 10 }}>{perfil?.nombre ?? usuario?.nombre}</Text>
               <View style={{ flexDirection: 'row', gap: 14, marginTop: 6 }}>
-                <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
-                  ★ {perfil?.repartidor_calificacion_promedio ? Number(perfil.repartidor_calificacion_promedio).toFixed(1) : '—'} ({perfil?.repartidor_total_resenas ?? 0})
-                </Text>
-                <Text style={{ color: colors.muted, fontSize: 12, fontWeight: '700' }}>
-                  🚴 {perfil?.entregas_completadas ?? 0} entregas
-                </Text>
+                <View style={styles.statInline}>
+                  <Ionicons name="star" size={14} color={colors.warning} />
+                  <Text style={[styles.statInlineTxt, { color: colors.text }]}>
+                    {perfil?.repartidor_calificacion_promedio ? Number(perfil.repartidor_calificacion_promedio).toFixed(1) : '—'}
+                  </Text>
+                  <Text style={[styles.statInlineSub, { color: colors.muted }]}>({perfil?.repartidor_total_resenas ?? 0})</Text>
+                </View>
+                <View style={styles.statInline}>
+                  <Ionicons name="bicycle-outline" size={14} color={colors.muted} />
+                  <Text style={[styles.statInlineTxt, { color: colors.text }]}>{perfil?.entregas_completadas ?? 0}</Text>
+                  <Text style={[styles.statInlineSub, { color: colors.muted }]}>entregas</Text>
+                </View>
               </View>
             </View>
 
             <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, alignItems: 'stretch' }]}>
-              <Text style={{ color: colors.text, fontWeight: '900', fontSize: 13, marginBottom: 8 }}>Descripción</Text>
+              <Text style={{ color: colors.text, fontFamily: FontFamily.displayBold, fontSize: 13, marginBottom: 8 }}>Descripción</Text>
               {!editandoBio ? (
                 <>
                   <Text style={{ color: colors.muted, fontSize: 13, lineHeight: 18 }}>
                     {perfil?.descripcion || 'Sin descripción todavía.'}
                   </Text>
                   <TouchableOpacity onPress={() => setEditandoBio(true)} style={{ marginTop: 10 }}>
-                    <Text style={{ color: colors.accent, fontWeight: '800', fontSize: 12 }}>Editar descripción</Text>
+                    <Text style={{ color: colors.accent, fontFamily: FontFamily.bodyExtraBold, fontSize: 12 }}>Editar descripción</Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <>
                   <View style={[styles.bioInput, { borderColor: colors.border, backgroundColor: colors.background }]}>
-                    <TextInputBio value={bioDraft} onChangeText={setBioDraft} color={colors.text} />
+                    <TextInputBio value={bioDraft} onChangeText={setBioDraft} color={colors.text} placeholderColor={colors.muted} />
                   </View>
                   <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
-                    <TouchableOpacity onPress={guardarBio} disabled={guardandoPerfil} style={[styles.acceptBtn, { backgroundColor: colors.accent, flex: 1 }]}>
-                      <Text style={styles.acceptTxt}>{guardandoPerfil ? 'Guardando...' : 'Guardar'}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => { setEditandoBio(false); setBioDraft(perfil?.descripcion || ''); }} style={[styles.acceptBtn, { backgroundColor: colors.border, flex: 1 }]}>
-                      <Text style={[styles.acceptTxt, { color: colors.text }]}>Cancelar</Text>
-                    </TouchableOpacity>
+                    <ActionButton
+                      onPress={guardarBio}
+                      disabled={guardandoPerfil}
+                      bg={colors.accent}
+                      icon={guardandoPerfil ? undefined : 'checkmark'}
+                      label={guardandoPerfil ? 'Guardando...' : 'Guardar'}
+                      style={{ flex: 1, marginTop: 0 }}
+                    />
+                    <ActionButton
+                      onPress={() => { setEditandoBio(false); setBioDraft(perfil?.descripcion || ''); }}
+                      bg={colors.border}
+                      textColor={colors.text}
+                      icon="close"
+                      label="Cancelar"
+                      style={{ flex: 1, marginTop: 0, shadowOpacity: 0 }}
+                    />
                   </View>
                 </>
               )}
             </View>
 
-            <Text style={{ color: colors.text, fontWeight: '900', fontSize: 15, marginTop: 16, marginBottom: 10 }}>Reseñas de clientes</Text>
+            <Text style={{ color: colors.text, fontFamily: FontFamily.displayBold, fontSize: 15, marginTop: 16, marginBottom: 10 }}>Reseñas de clientes</Text>
             {resenas.length === 0 ? (
               <Text style={{ color: colors.muted, fontSize: 13 }}>Aún no tienes reseñas.</Text>
-            ) : resenas.map(r => (
-              <View key={r.id} style={[styles.mov, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            ) : resenas.map((r, i) => (
+              <Reanimated.View
+                key={r.id}
+                entering={FadeInDown.delay(i * 40).springify()}
+                style={[styles.mov, { backgroundColor: colors.card, borderColor: colors.border }]}
+              >
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ color: colors.text, fontWeight: '800', fontSize: 13 }}>{r.comprador_nombre}</Text>
-                    <Text style={{ color: '#F59E0B', fontWeight: '800', fontSize: 12 }}>{'★'.repeat(r.estrellas)}</Text>
+                    <Text style={{ color: colors.text, fontFamily: FontFamily.bodyExtraBold, fontSize: 13 }}>{r.comprador_nombre}</Text>
+                    <StarRow count={r.estrellas} color={colors.warning} emptyColor={colors.border} />
                   </View>
                   {!!r.comentario && <Text style={{ color: colors.muted, fontSize: 12, marginTop: 2 }}>{r.comentario}</Text>}
                 </View>
-              </View>
+              </Reanimated.View>
             ))}
           </>
         )}
@@ -567,17 +591,63 @@ export default function DriverScreen() {
   );
 }
 
-function TextInputBio({ value, onChangeText, color }: { value: string; onChangeText: (v: string) => void; color: string }) {
+function TextInputBio({ value, onChangeText, color, placeholderColor }: { value: string; onChangeText: (v: string) => void; color: string; placeholderColor: string }) {
   return (
     <TextInput
       value={value}
       onChangeText={onChangeText}
       placeholder="Cuéntale a tus clientes sobre ti..."
-      placeholderTextColor="#94A3B8"
+      placeholderTextColor={placeholderColor}
       multiline
       numberOfLines={3}
-      style={{ color, fontSize: 13, minHeight: 60, textAlignVertical: 'top', padding: 12 }}
+      style={{ color, fontFamily: FontFamily.bodyRegular, fontSize: 13, minHeight: 60, textAlignVertical: 'top', padding: 12 }}
     />
+  );
+}
+
+/** Fila de 1 a 5 estrellas Ionicons — reemplaza los antiguos caracteres '★' pintados como texto. */
+function StarRow({ count, color, emptyColor, size = 12 }: { count: number; color: string; emptyColor: string; size?: number }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 1 }}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <Ionicons key={i} name={i <= count ? 'star' : 'star-outline'} size={size} color={i <= count ? color : emptyColor} />
+      ))}
+    </View>
+  );
+}
+
+/** Botón de acción reutilizable con el mismo micro-gesto de tap (spring a 0.96) que src/components/Button.tsx,
+ *  pero permitiendo color de texto explícito — evita depender de colors.contrast para casos de texto blanco
+ *  sobre fondo sólido (accent/success), que es el contrato de color que pide DESIGN.md para estos botones. */
+function ActionButton({
+  onPress, bg, textColor = '#FFF', icon, label, shadowColor, style, disabled,
+}: {
+  onPress: () => void;
+  bg: string;
+  textColor?: string;
+  icon?: keyof typeof Ionicons.glyphMap;
+  label: string;
+  shadowColor?: string;
+  style?: StyleProp<ViewStyle>;
+  disabled?: boolean;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const onPressIn = () => { Animated.spring(scale, { toValue: 0.96, useNativeDriver: true, tension: 150, friction: 8 }).start(); };
+  const onPressOut = () => { Animated.spring(scale, { toValue: 1, useNativeDriver: true, tension: 150, friction: 8 }).start(); };
+  return (
+    <Animated.View style={{ transform: [{ scale }] }}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        activeOpacity={0.88}
+        disabled={disabled}
+        style={[styles.acceptBtn, { backgroundColor: bg, shadowColor: shadowColor ?? bg }, disabled && { opacity: 0.6 }, style]}
+      >
+        {icon ? <Ionicons name={icon} size={18} color={textColor} /> : null}
+        <Text style={[styles.acceptTxt, { color: textColor }]}>{label}</Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 
@@ -612,7 +682,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.10, shadowRadius: 14, elevation: 4,
   },
   ganBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14 },
-  ganTxt: { color: '#FFF', fontWeight: '900', fontSize: 12 },
+  ganTxt: { color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: 12, fontVariant: ['tabular-nums'] },
   locRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 5 },
   locDot: { width: 10, height: 10, borderRadius: 5 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, paddingTop: 10, marginTop: 10 },
@@ -621,17 +691,22 @@ const styles = StyleSheet.create({
     paddingVertical: 13, borderRadius: 22, marginTop: 12,
     shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.30, shadowRadius: 10, elevation: 5,
   },
-  acceptTxt: { color: '#FFF', fontWeight: '900', fontSize: 14, letterSpacing: 0.3 },
+  acceptTxt: { fontFamily: FontFamily.bodyExtraBold, fontSize: 14, letterSpacing: 0.3 },
+  statusPill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 9, paddingVertical: 4, borderRadius: 999 },
+  statusPillTxt: { fontFamily: FontFamily.bodyExtraBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.4 },
+  statInline: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  statInlineTxt: { fontFamily: FontFamily.displayBold, fontSize: 13, fontVariant: ['tabular-nums'] },
+  statInlineSub: { fontFamily: FontFamily.bodySemiBold, fontSize: 12 },
   walletBig: {
     borderRadius: 24, padding: 22,
     shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.30, shadowRadius: 20, elevation: 10,
   },
-  walletLabel: { color: 'rgba(255,255,255,0.85)', marginTop: 8, fontWeight: '700', fontSize: 12 },
-  walletSaldo: { color: '#FFF', fontWeight: '900', fontSize: 36, letterSpacing: -1, marginTop: 4 },
+  walletLabel: { color: 'rgba(255,255,255,0.85)', marginTop: 8, fontFamily: FontFamily.bodyBold, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6 },
+  walletSaldo: { color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: 36, letterSpacing: -1, marginTop: 4, fontVariant: ['tabular-nums'] },
   walletStats: { flexDirection: 'row', gap: 14, marginTop: 18 },
   walletStat: { flex: 1, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 14, padding: 12 },
-  walletStatVal: { color: '#FFF', fontWeight: '900', fontSize: 15 },
-  walletStatLab: { color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: '700', marginTop: 2 },
+  walletStatVal: { color: '#FFF', fontFamily: FontFamily.displayExtraBold, fontSize: 15, marginTop: 6, fontVariant: ['tabular-nums'] },
+  walletStatLab: { color: 'rgba(255,255,255,0.85)', fontSize: 10, fontFamily: FontFamily.bodyBold, marginTop: 2, textTransform: 'uppercase', letterSpacing: 0.4 },
   mov: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     padding: 12, borderRadius: 16, borderWidth: 1, marginBottom: 8,

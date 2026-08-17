@@ -5,7 +5,6 @@ import './Dashboard.css';
 
 interface AdminProduct {
   id: string;
-  emoji: string;
   name: string;
   seller: string;
   category: string;
@@ -31,7 +30,7 @@ export default function AdminProducts() {
   const [editProduct, setEditProduct] = useState<AdminProduct | null>(null);
 
   // Form state
-  const [form, setForm] = useState({ emoji: '🛍️', name: '', seller: '', category: 'panadería', price: '', stock: '' });
+  const [form, setForm] = useState({ name: '', seller: '', category: 'panadería', price: '', stock: '' });
 
   useEffect(() => {
     fetchProducts();
@@ -43,7 +42,6 @@ export default function AdminProducts() {
       if (res.data.ok) {
         setProducts(res.data.productos.map((p: any) => ({
           id: p.id.toString(),
-          emoji: '🛍️',
           name: p.nombre,
           seller: p.tienda_nombre || 'Tienda',
           category: p.categoria || 'otros',
@@ -66,7 +64,7 @@ export default function AdminProducts() {
 
   const openEdit = (p: AdminProduct) => {
     setEditProduct(p);
-    setForm({ emoji: p.emoji, name: p.name, seller: p.seller, category: p.category, price: String(p.price), stock: String(p.stock) });
+    setForm({ name: p.name, seller: p.seller, category: p.category, price: String(p.price), stock: String(p.stock) });
     setShowModal(true);
   };
 
@@ -164,7 +162,7 @@ export default function AdminProducts() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'var(--bg)' }}>
-                {['', 'Nombre', 'Tienda', 'Categoría', 'Precio', 'Stock', 'Estado', 'Acciones'].map(h => (
+                {['Nombre', 'Tienda', 'Categoría', 'Precio', 'Stock', 'Estado', 'Acciones'].map(h => (
                   <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--border)' }}>{h}</th>
                 ))}
               </tr>
@@ -176,7 +174,6 @@ export default function AdminProducts() {
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.2s' }}
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                    <td style={{ padding: '14px 16px', fontSize: '1.6rem' }}>{p.emoji}</td>
                     <td style={{ padding: '14px 16px', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>{p.name}</td>
                     <td style={{ padding: '14px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{p.seller}</td>
                     <td style={{ padding: '14px 16px', fontSize: '0.82rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{p.category}</td>
@@ -205,7 +202,7 @@ export default function AdminProducts() {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>No se encontraron productos.</td></tr>
+                <tr><td colSpan={7} style={{ textAlign: 'center', padding: '48px', color: 'var(--text-muted)' }}>No se encontraron productos.</td></tr>
               )}
             </tbody>
           </table>
@@ -216,13 +213,12 @@ export default function AdminProducts() {
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: 'var(--white)', borderRadius: 24, width: '100%', maxWidth: 480, overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.25)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #355068, #4A6D8C)', padding: '24px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ background: 'linear-gradient(135deg, #1D4ED8, #2563EB)', padding: '24px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ color: '#fff', fontWeight: 800, fontSize: '1.15rem' }}>{editProduct ? 'Editar Producto' : 'Nuevo Producto'}</h2>
               <button onClick={() => setShowModal(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}><X size={16} /></button>
             </div>
             <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
               {[
-                { label: 'Emoji', key: 'emoji', type: 'text', placeholder: '🥖' },
                 { label: 'Nombre del Producto', key: 'name', type: 'text', placeholder: 'Pan Integral...' },
                 { label: 'Tienda / Vendedor', key: 'seller', type: 'text', placeholder: 'Panadería...' },
                 { label: 'Precio ($)', key: 'price', type: 'number', placeholder: '0.00' },

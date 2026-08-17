@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { AlertTriangle } from 'lucide-react';
 
 interface Props { children: ReactNode }
 interface State { error: Error | null }
@@ -21,7 +22,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           minHeight: '60vh', padding: 24, textAlign: 'center', gap: 12, fontFamily: 'inherit',
         }}>
-          <div style={{ fontSize: 40 }}>⚠️</div>
+          <div style={{ color: '#F59E0B' }}><AlertTriangle size={40} strokeWidth={1.6} /></div>
           <h2 style={{ margin: 0 }}>Algo salió mal</h2>
           <p style={{ color: '#64748B', maxWidth: 420 }}>
             Ocurrió un error al mostrar esta sección. Intenta recargar la página.

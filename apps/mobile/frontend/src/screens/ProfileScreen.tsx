@@ -7,11 +7,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuth } from '@/context/AuthContext';
 import { useLang } from '@/context/LangContext';
 import { useTheme } from '@/context/ThemeContext';
 import { api, Endpoints, API_URL } from '@/services/api';
-import { Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
 import { Producto, RootStackParamList } from '@/types';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
@@ -47,16 +48,16 @@ interface Pedido {
   items?: PedidoItem[];
 }
 
-const ESTADOS: { id: EstadoDB; label: string; bg: string; color: string; emoji: string }[] = [
-  { id: 'preparacion',          label: 'Preparando',  bg: '#fef3c7', color: '#92400e', emoji: '🕐' },
-  { id: 'en_camino',            label: 'En camino',   bg: '#dbeafe', color: '#1e40af', emoji: '🚚' },
-  { id: 'entregado',            label: 'Entregado',   bg: '#d1fae5', color: '#065f46', emoji: '✅' },
-  { id: 'cancelado',            label: 'Cancelado',   bg: '#fee2e2', color: '#991b1b', emoji: '✕' },
-  { id: 'rechazado_repartidor', label: 'Rechazado',   bg: '#fee2e2', color: '#991b1b', emoji: '✕' },
+const ESTADOS: { id: EstadoDB; label: string; bg: string; color: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { id: 'preparacion',          label: 'Preparando',  bg: '#fef3c7', color: '#92400e', icon: 'time-outline' },
+  { id: 'en_camino',            label: 'En camino',   bg: '#dbeafe', color: '#1e40af', icon: 'bicycle-outline' },
+  { id: 'entregado',            label: 'Entregado',   bg: '#d1fae5', color: '#065f46', icon: 'checkmark-circle' },
+  { id: 'cancelado',            label: 'Cancelado',   bg: '#fee2e2', color: '#991b1b', icon: 'close-circle' },
+  { id: 'rechazado_repartidor', label: 'Rechazado',   bg: '#fee2e2', color: '#991b1b', icon: 'close-circle' },
 ];
 
 function estadoConfig(estado: string) {
-  return ESTADOS.find(e => e.id === estado) ?? { id: estado, label: estado, bg: '#f3f4f6', color: '#374151', emoji: '?' };
+  return ESTADOS.find(e => e.id === estado) ?? { id: estado, label: estado, bg: '#f3f4f6', color: '#374151', icon: 'help-circle-outline' as const };
 }
 // ─────────────────────────────────────────────────────────────
 
@@ -329,7 +330,7 @@ export default function ProfileScreen() {
                       activeOpacity={0.8}
                     >
                       <View style={[adminPanel.statIcon, { backgroundColor: e.bg }]}>
-                        <Text style={{ fontSize: 18 }}>{e.emoji}</Text>
+                        <Ionicons name={e.icon} size={18} color={e.color} />
                       </View>
                       <Text style={[adminPanel.statNum, { color: e.color }]}>{contarEstado(e.id)}</Text>
                       <Text style={[adminPanel.statLabel, { color: c.muted }]}>{e.label}</Text>
@@ -364,48 +365,50 @@ export default function ProfileScreen() {
             <View style={{ paddingHorizontal: Spacing.md, paddingBottom: insets.bottom + 24 }}>
               {loadingPedidos && pedidosFiltrados.length === 0 ? (
                 <View style={{ alignItems: 'center', padding: 40 }}>
-                  <Text style={{ color: c.muted, fontWeight: '600' }}>Cargando pedidos...</Text>
+                  <Text style={{ color: c.muted, fontFamily: FontFamily.bodySemiBold }}>Cargando pedidos...</Text>
                 </View>
               ) : pedidosFiltrados.length === 0 ? (
                 <View style={{ alignItems: 'center', padding: 40 }}>
-                  <Text style={{ fontSize: 32, marginBottom: 8 }}>📦</Text>
-                  <Text style={{ color: c.muted, fontWeight: '600' }}>No hay pedidos aquí</Text>
+                  <Ionicons name="cube-outline" size={32} color={c.muted} style={{ marginBottom: 8 }} />
+                  <Text style={{ color: c.muted, fontFamily: FontFamily.bodySemiBold }}>No hay pedidos aquí</Text>
                 </View>
               ) : (
-                pedidosFiltrados.map(p => {
+                pedidosFiltrados.map((p, index) => {
                   const ec = estadoConfig(p.estado);
                   return (
-                    <TouchableOpacity
-                      key={p.id}
-                      style={[adminPanel.pedidoCard, { backgroundColor: c.card, borderColor: c.border }]}
-                      onPress={() => setVerPedido(p)}
-                      activeOpacity={0.8}
-                    >
-                      {/* Fila superior */}
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <Text style={[adminPanel.pedidoId, { color: c.accent }]}>#SV-{p.id}</Text>
-                        <View style={[adminPanel.estadoBadge, { backgroundColor: ec.bg }]}>
-                          <Text style={[adminPanel.estadoTxt, { color: ec.color }]}>{ec.label}</Text>
-                        </View>
-                      </View>
-                      {/* Info */}
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[adminPanel.pedidoNombre, { color: c.text }]} numberOfLines={1}>{p.comprador_nombre}</Text>
-                          <Text style={[adminPanel.pedidoVendedor, { color: c.muted }]} numberOfLines={1}>Vendedor: {p.vendedor_nombre}</Text>
-                          <Text style={[adminPanel.pedidoFecha, { color: c.muted }]}>
-                            {new Date(p.created_at).toLocaleDateString('es-SV')}
-                          </Text>
-                        </View>
-                        <View style={{ alignItems: 'flex-end' }}>
-                          <Text style={[adminPanel.pedidoTotal, { color: c.text }]}>${Number(p.total).toFixed(2)}</Text>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                            <Text style={[adminPanel.verTxt, { color: c.accent }]}>Ver detalle</Text>
-                            <Ionicons name="chevron-forward" size={14} color={c.accent} />
+                    <Animated.View key={p.id} entering={FadeInDown.delay(index * 40).springify()}>
+                      <TouchableOpacity
+                        style={[adminPanel.pedidoCard, { backgroundColor: c.card, borderColor: c.border }]}
+                        onPress={() => setVerPedido(p)}
+                        activeOpacity={0.8}
+                      >
+                        {/* Fila superior */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <Text style={[adminPanel.pedidoId, { color: c.accent }]}>#SV-{p.id}</Text>
+                          <View style={[adminPanel.estadoBadge, { backgroundColor: ec.bg }]}>
+                            <Ionicons name={ec.icon} size={11} color={ec.color} />
+                            <Text style={[adminPanel.estadoTxt, { color: ec.color }]}>{ec.label}</Text>
                           </View>
                         </View>
-                      </View>
-                    </TouchableOpacity>
+                        {/* Info */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[adminPanel.pedidoNombre, { color: c.text }]} numberOfLines={1}>{p.comprador_nombre}</Text>
+                            <Text style={[adminPanel.pedidoVendedor, { color: c.muted }]} numberOfLines={1}>Vendedor: {p.vendedor_nombre}</Text>
+                            <Text style={[adminPanel.pedidoFecha, { color: c.muted }]}>
+                              {new Date(p.created_at).toLocaleDateString('es-SV')}
+                            </Text>
+                          </View>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={[adminPanel.pedidoTotal, { color: c.text }]}>${Number(p.total).toFixed(2)}</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                              <Text style={[adminPanel.verTxt, { color: c.accent }]}>Ver detalle</Text>
+                              <Ionicons name="chevron-forward" size={14} color={c.accent} />
+                            </View>
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    </Animated.View>
                   );
                 })
               )}
@@ -419,7 +422,7 @@ export default function ProfileScreen() {
             <View style={detalle.backdrop}>
               <View style={[detalle.sheet, { backgroundColor: c.background }]}>
                 {/* Header del detalle */}
-                <View style={detalle.header}>
+                <View style={[detalle.header, { backgroundColor: c.accent }]}>
                   <View>
                     <Text style={detalle.title}>Pedido #SV-{verPedido.id}</Text>
                     <Text style={detalle.sub}>{new Date(verPedido.created_at).toLocaleString('es-SV')}</Text>
@@ -454,7 +457,7 @@ export default function ProfileScreen() {
                           <View style={[detalle.itemImg, { backgroundColor: c.border }]}>
                             {item.imagen
                               ? <Image source={{ uri: imgUri(item.imagen) }} style={{ width: '100%', height: '100%', borderRadius: 8 }} resizeMode="cover" />
-                              : <Text style={{ fontSize: 20 }}>🛍️</Text>}
+                              : <Ionicons name="bag-outline" size={20} color={c.muted} />}
                           </View>
                           <View style={{ flex: 1 }}>
                             <Text style={[detalle.itemNombre, { color: c.text }]} numberOfLines={1}>{item.nombre ?? `Producto #${item.producto_id}`}</Text>
@@ -473,6 +476,7 @@ export default function ProfileScreen() {
                       const ec = estadoConfig(verPedido.estado);
                       return (
                         <View style={[adminPanel.estadoBadge, { backgroundColor: ec.bg, alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 6, marginBottom: Spacing.md }]}>
+                          <Ionicons name={ec.icon} size={14} color={ec.color} />
                           <Text style={[adminPanel.estadoTxt, { color: ec.color, fontSize: 14 }]}>{ec.label}</Text>
                         </View>
                       );
@@ -487,6 +491,7 @@ export default function ProfileScreen() {
                           onPress={() => actualizarEstado(verPedido.id, e.id)}
                           activeOpacity={0.8}
                         >
+                          <Ionicons name={e.icon} size={13} color={e.color} />
                           <Text style={[detalle.cambiarTxt, { color: e.color }]}>{e.label}</Text>
                         </TouchableOpacity>
                       ))}
@@ -514,7 +519,7 @@ export default function ProfileScreen() {
       refreshControl={<RefreshControl refreshing={cargando} onRefresh={cargar} tintColor={c.accent} />}
       showsVerticalScrollIndicator={false}
     >
-      {/* ── Header con gradiente accent ── */}
+      {/* ── Header con fondo accent ── */}
       <View style={[hdr.root, { backgroundColor: c.accent, paddingTop: insets.top + 24 }]}>
         <View style={hdr.avatarRing}>
           <View style={hdr.avatarInner}>
@@ -531,8 +536,9 @@ export default function ProfileScreen() {
 
         {/* Badge de rol — admin tiene estilo especial dorado */}
         <View style={[hdr.badge, isAdmin && { backgroundColor: 'rgba(251,191,36,0.25)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.5)' }]}>
+          {isAdmin && <Ionicons name="shield-checkmark" size={11} color="#FDE68A" style={{ marginRight: 4 }} />}
           <Text style={[hdr.badgeTxt, isAdmin && { color: '#FDE68A' }]}>
-            {isAdmin ? '★ ADMIN' : (usuario?.rol ?? 'comprador').toUpperCase()}
+            {isAdmin ? 'ADMIN' : (usuario?.rol ?? 'comprador').toUpperCase()}
           </Text>
         </View>
 
@@ -681,7 +687,7 @@ export default function ProfileScreen() {
         </Card>
 
         {/* Versión */}
-        <Text style={{ textAlign: 'center', color: c.muted, fontSize: Fonts.small, marginBottom: Spacing.md, fontWeight: '500' }}>
+        <Text style={{ textAlign: 'center', color: c.muted, fontSize: Fonts.small, marginBottom: Spacing.md, fontFamily: FontFamily.bodyRegular }}>
           Versión 1.0.0 · [SV]Go © 2026
         </Text>
 
@@ -690,7 +696,7 @@ export default function ProfileScreen() {
           style={[btnLogout.wrap, { backgroundColor: c.accentLight, borderColor: c.accent, marginBottom: 10 }]}
           onPress={async () => {
             await refrescar();
-            Alert.alert('✓', 'Tu rol fue actualizado desde el servidor.');
+            Alert.alert('Listo', 'Tu rol fue actualizado desde el servidor.');
           }}
           activeOpacity={0.8}
         >
@@ -733,23 +739,24 @@ export default function ProfileScreen() {
         {/* Grid de productos */}
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.md, paddingBottom: Spacing.xl }}>
           {items.map((item, idx) => (
-            <TouchableOpacity
-              key={item.id}
-              style={[itemCard.wrap, { backgroundColor: c.card, borderColor: c.border }]}
-              activeOpacity={0.9}
-              onPress={() => nav.navigate('Product', { productoId: item.id })}
-            >
-              <View style={[itemCard.img, { backgroundColor: CARD_COLORS[idx % CARD_COLORS.length] }]}>
-                {item.imagen
-                  ? <Image source={{ uri: imgUri(item.imagen) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-                  : <Ionicons name="fast-food-outline" size={28} color="#FFF" />}
-              </View>
-              <View style={{ padding: 10 }}>
-                <Text style={[itemCard.nombre, { color: c.text }]} numberOfLines={1}>{item.nombre}</Text>
-                <Text style={[itemCard.tienda, { color: c.muted }]} numberOfLines={1}>{item.tienda_nombre}</Text>
-                <Text style={[itemCard.precio, { color: c.accent }]}>${Number(item.precio).toFixed(2)}</Text>
-              </View>
-            </TouchableOpacity>
+            <Animated.View key={item.id} entering={FadeInDown.delay(idx * 40).springify()} style={{ width: '47.5%' as any }}>
+              <TouchableOpacity
+                style={[itemCard.wrap, { backgroundColor: c.card, borderColor: c.border }]}
+                activeOpacity={0.9}
+                onPress={() => nav.navigate('Product', { productoId: item.id })}
+              >
+                <View style={[itemCard.img, { backgroundColor: CARD_COLORS[idx % CARD_COLORS.length] }]}>
+                  {item.imagen
+                    ? <Image source={{ uri: imgUri(item.imagen) }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                    : <Ionicons name="fast-food-outline" size={28} color="#FFF" />}
+                </View>
+                <View style={{ padding: 10 }}>
+                  <Text style={[itemCard.nombre, { color: c.text }]} numberOfLines={1}>{item.nombre}</Text>
+                  <Text style={[itemCard.tienda, { color: c.muted }]} numberOfLines={1}>{item.tienda_nombre}</Text>
+                  <Text style={[itemCard.precio, { color: c.accent }]}>${Number(item.precio).toFixed(2)}</Text>
+                </View>
+              </TouchableOpacity>
+            </Animated.View>
           ))}
         </View>
 
@@ -763,7 +770,7 @@ export default function ProfileScreen() {
 function SectionLabel({ label, color }: { label: string; color: string }) {
   return (
     <Text style={{
-      fontSize: Fonts.small - 1, fontWeight: '800',
+      fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyExtraBold,
       textTransform: 'uppercase', letterSpacing: 1.2,
       color, marginBottom: 8, marginTop: 4,
     }}>{label}</Text>
@@ -822,65 +829,69 @@ const hdr = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.18)',
     justifyContent: 'center', alignItems: 'center', overflow: 'hidden',
   },
-  nombre: { fontSize: Fonts.title, color: '#FFF', fontWeight: '900', letterSpacing: -0.3 },
-  sub: { color: 'rgba(255,255,255,0.75)', marginTop: 2, fontSize: Fonts.small + 1, fontWeight: '500' },
+  nombre: { fontSize: Fonts.title, color: '#FFF', fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.3 },
+  sub: { color: 'rgba(255,255,255,0.75)', marginTop: 2, fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyRegular },
   badge: {
+    flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.2)',
     paddingHorizontal: 14, paddingVertical: 4,
     borderRadius: Radius.pill, marginTop: 8,
   },
-  badgeTxt: { color: '#FFF', fontSize: Fonts.small - 1, fontWeight: '800', letterSpacing: 1 },
+  badgeTxt: { color: '#FFF', fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyExtraBold, letterSpacing: 1 },
   stats: {
     flexDirection: 'row', marginTop: Spacing.lg,
     backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: Radius.md, padding: Spacing.md, width: '100%',
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statNum: { color: '#FFF', fontSize: Fonts.title - 2, fontWeight: '900' },
-  statLbl: { color: 'rgba(255,255,255,0.8)', fontSize: Fonts.small - 1, fontWeight: '600', marginTop: 2 },
+  statNum: { color: '#FFF', fontSize: Fonts.title - 2, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] },
+  statLbl: { color: 'rgba(255,255,255,0.8)', fontSize: Fonts.small - 1, fontFamily: FontFamily.bodySemiBold, marginTop: 2 },
   statDiv: { width: 1, backgroundColor: 'rgba(255,255,255,0.25)', marginVertical: 4 },
   editBtn: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(255,255,255,0.92)',
     paddingHorizontal: 16, paddingVertical: 7,
     borderRadius: Radius.pill,
+    minHeight: 32,
   },
-  editBtnTxt: { fontSize: Fonts.small, fontWeight: '800' },
+  editBtnTxt: { fontSize: Fonts.small, fontFamily: FontFamily.bodyExtraBold },
   adminBtn: {
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: 'rgba(245,158,11,0.85)',
     paddingHorizontal: 16, paddingVertical: 7,
     borderRadius: Radius.pill,
+    minHeight: 32,
     shadowColor: '#F59E0B', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.4, shadowRadius: 6, elevation: 4,
   },
-  adminBtnTxt: { fontSize: Fonts.small, fontWeight: '800', color: '#fff' },
+  adminBtnTxt: { fontSize: Fonts.small, fontFamily: FontFamily.bodyExtraBold, color: '#fff' },
 } as any);
 
 const row = StyleSheet.create({
   wrap: {
     flexDirection: 'row', alignItems: 'center',
     padding: Spacing.md, borderBottomWidth: 1,
+    minHeight: 44,
   },
   iconBg: {
     width: 38, height: 38, borderRadius: 19,
     justifyContent: 'center', alignItems: 'center', marginRight: Spacing.md,
   },
-  title: { fontSize: Fonts.regular, fontWeight: '700' },
-  sub: { fontSize: Fonts.small, fontWeight: '500', marginTop: 1 },
+  title: { fontSize: Fonts.regular, fontFamily: FontFamily.bodyBold },
+  sub: { fontSize: Fonts.small, fontFamily: FontFamily.bodyRegular, marginTop: 1 },
 });
 
 const chip = StyleSheet.create({
   wrap: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: Radius.pill, borderWidth: 1.5 },
-  txt: { fontSize: Fonts.small - 1, fontWeight: '800' },
+  txt: { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyExtraBold },
 });
 
 const btnLogout = StyleSheet.create({
   wrap: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     padding: Spacing.md, borderRadius: Radius.md, borderWidth: 1.5,
-    gap: 10, marginBottom: Spacing.xl,
+    gap: 10, marginBottom: Spacing.xl, minHeight: 48,
   },
-  txt: { fontWeight: '700', fontSize: Fonts.regular },
+  txt: { fontFamily: FontFamily.bodyBold, fontSize: Fonts.regular },
 });
 
 const tabRow = StyleSheet.create({
@@ -889,22 +900,22 @@ const tabRow = StyleSheet.create({
     flex: 1, flexDirection: 'row', paddingVertical: 12,
     alignItems: 'center', justifyContent: 'center',
     borderBottomWidth: 3, borderBottomColor: 'transparent',
+    minHeight: 44,
   },
-  txt: { fontWeight: '700', fontSize: Fonts.small },
+  txt: { fontFamily: FontFamily.bodyBold, fontSize: Fonts.small },
 });
 
 const itemCard = StyleSheet.create({
   wrap: {
-    width: '47.5%' as any,
     borderRadius: Radius.md, borderWidth: 1.5,
     overflow: 'hidden',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
   img: { height: 110, justifyContent: 'center', alignItems: 'center' },
-  nombre: { fontWeight: '700', fontSize: Fonts.regular - 1, letterSpacing: -0.1 },
-  tienda: { fontSize: Fonts.small - 1, fontWeight: '500', marginTop: 1 },
-  precio: { fontWeight: '800', marginTop: 4, fontSize: Fonts.small + 1 },
+  nombre: { fontFamily: FontFamily.displayBold, fontSize: Fonts.regular - 1, letterSpacing: -0.1 },
+  tienda: { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyRegular, marginTop: 1 },
+  precio: { fontFamily: FontFamily.displayExtraBold, marginTop: 4, fontSize: Fonts.small + 1, fontVariant: ['tabular-nums'] },
 });
 
 const modal = StyleSheet.create({
@@ -915,19 +926,19 @@ const modal = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: -8 }, shadowOpacity: 0.08, shadowRadius: 16, elevation: 16,
   },
   handle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginTop: 12, marginBottom: 4 },
-  title: { fontSize: Fonts.title - 2, fontWeight: '800', letterSpacing: -0.3, marginBottom: Spacing.lg },
+  title: { fontSize: Fonts.title - 2, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.3, marginBottom: Spacing.lg },
   photoWrap: { alignItems: 'center', marginBottom: Spacing.lg },
   photoCircle: { width: 88, height: 88, borderRadius: 44, justifyContent: 'center', alignItems: 'center', overflow: 'hidden', marginBottom: 8 },
-  photoLbl: { fontSize: Fonts.small, fontWeight: '700' },
-  cancelBtn: { borderRadius: Radius.md, borderWidth: 1.5, alignItems: 'center', paddingVertical: 14, marginTop: Spacing.sm },
-  cancelTxt: { fontWeight: '700', fontSize: Fonts.regular },
+  photoLbl: { fontSize: Fonts.small, fontFamily: FontFamily.bodyBold },
+  cancelBtn: { borderRadius: Radius.md, borderWidth: 1.5, alignItems: 'center', paddingVertical: 14, marginTop: Spacing.sm, minHeight: 44, justifyContent: 'center' },
+  cancelTxt: { fontFamily: FontFamily.bodyBold, fontSize: Fonts.regular },
   cooldownRow: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderRadius: Radius.sm, borderWidth: 1,
     paddingHorizontal: Spacing.sm, paddingVertical: 8,
     marginTop: -Spacing.sm, marginBottom: Spacing.md,
   },
-  cooldownTxt: { fontSize: Fonts.small, fontWeight: '600', flex: 1 },
+  cooldownTxt: { fontSize: Fonts.small, fontFamily: FontFamily.bodySemiBold, flex: 1 },
 });
 
 // Estilos del panel admin
@@ -947,31 +958,31 @@ const adminPanel = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     justifyContent: 'center', alignItems: 'center',
   },
-  headerTitle: { color: '#fff', fontWeight: '800', fontSize: Fonts.regular + 2 },
-  headerSub: { color: 'rgba(255,255,255,0.6)', fontSize: Fonts.small - 1, marginTop: 1 },
-  sectionLabel: { fontSize: Fonts.small - 1, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 1, marginBottom: Spacing.sm },
+  headerTitle: { color: '#fff', fontFamily: FontFamily.displayExtraBold, fontSize: Fonts.regular + 2 },
+  headerSub: { color: 'rgba(255,255,255,0.6)', fontSize: Fonts.small - 1, marginTop: 1, fontFamily: FontFamily.bodyRegular },
+  sectionLabel: { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyExtraBold, textTransform: 'uppercase', letterSpacing: 1, marginBottom: Spacing.sm },
   statCard: {
     width: 110, borderRadius: 14, borderWidth: 1.5,
     padding: Spacing.md, alignItems: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 2,
   },
   statIcon: { width: 44, height: 44, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  statNum: { fontSize: Fonts.title - 2, fontWeight: '900', lineHeight: Fonts.title },
-  statLabel: { fontSize: Fonts.small - 2, fontWeight: '700', marginTop: 2, textAlign: 'center' },
-  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: Radius.pill, borderWidth: 1.5 },
-  chipTxt: { fontSize: Fonts.small - 1, fontWeight: '700' },
+  statNum: { fontSize: Fonts.title - 2, fontFamily: FontFamily.displayExtraBold, lineHeight: Fonts.title, fontVariant: ['tabular-nums'] },
+  statLabel: { fontSize: Fonts.small - 2, fontFamily: FontFamily.bodyBold, marginTop: 2, textAlign: 'center' },
+  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: Radius.pill, borderWidth: 1.5, minHeight: 32, justifyContent: 'center' },
+  chipTxt: { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyBold },
   pedidoCard: {
     borderRadius: 14, borderWidth: 1.5, padding: Spacing.md, marginBottom: Spacing.sm,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1,
   },
-  pedidoId: { fontSize: Fonts.small, fontWeight: '800' },
-  pedidoNombre: { fontSize: Fonts.regular - 1, fontWeight: '700', marginBottom: 2 },
-  pedidoVendedor: { fontSize: Fonts.small - 1, fontWeight: '500' },
-  pedidoFecha: { fontSize: Fonts.small - 2, fontWeight: '500', marginTop: 2 },
-  pedidoTotal: { fontSize: Fonts.regular, fontWeight: '900' },
-  estadoBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: Radius.pill },
-  estadoTxt: { fontSize: Fonts.small - 2, fontWeight: '700' },
-  verTxt: { fontSize: Fonts.small - 1, fontWeight: '700' },
+  pedidoId: { fontSize: Fonts.small, fontFamily: FontFamily.displayBold, fontVariant: ['tabular-nums'] },
+  pedidoNombre: { fontSize: Fonts.regular - 1, fontFamily: FontFamily.displayBold, marginBottom: 2 },
+  pedidoVendedor: { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyRegular },
+  pedidoFecha: { fontSize: Fonts.small - 2, fontFamily: FontFamily.bodyRegular, marginTop: 2 },
+  pedidoTotal: { fontSize: Fonts.regular, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] },
+  estadoBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 3, borderRadius: Radius.pill },
+  estadoTxt: { fontSize: Fonts.small - 2, fontFamily: FontFamily.bodyBold },
+  verTxt: { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyBold },
   // Tarjeta de acceso rápido al admin en el perfil
   accessCard: {
     borderRadius: 16, padding: 20, marginBottom: Spacing.md,
@@ -996,14 +1007,14 @@ const adminPanel = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(245,158,11,0.3)',
     justifyContent: 'center', alignItems: 'center',
   },
-  accessTitle: { color: '#fff', fontWeight: '800', fontSize: Fonts.regular },
+  accessTitle: { color: '#fff', fontFamily: FontFamily.displayBold, fontSize: Fonts.regular },
   accessBadge: {
     backgroundColor: 'rgba(251,191,36,0.2)',
     borderWidth: 1, borderColor: 'rgba(251,191,36,0.4)',
     paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8,
   },
-  accessBadgeTxt: { color: '#FDE68A', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 },
-  accessSub: { color: 'rgba(255,255,255,0.6)', fontSize: Fonts.small - 1, fontWeight: '500' },
+  accessBadgeTxt: { color: '#FDE68A', fontSize: 9, fontFamily: FontFamily.bodyExtraBold, letterSpacing: 0.5 },
+  accessSub: { color: 'rgba(255,255,255,0.6)', fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyRegular },
 } as any);
 
 // Estilos del modal de detalle de pedido
@@ -1012,13 +1023,11 @@ const detalle = StyleSheet.create({
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '92%', flex: 1 },
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    background: 'linear-gradient(135deg, #355068, #4A6D8C)',
-    backgroundColor: '#355068',
     padding: Spacing.lg,
     borderTopLeftRadius: 24, borderTopRightRadius: 24,
   },
-  title: { color: '#fff', fontWeight: '800', fontSize: Fonts.regular + 2 },
-  sub: { color: 'rgba(255,255,255,0.65)', fontSize: Fonts.small - 1, marginTop: 4 },
+  title: { color: '#fff', fontFamily: FontFamily.displayBold, fontSize: Fonts.regular + 2, fontVariant: ['tabular-nums'] },
+  sub: { color: 'rgba(255,255,255,0.65)', fontSize: Fonts.small - 1, marginTop: 4, fontFamily: FontFamily.bodyRegular },
   closeBtn: {
     width: 36, height: 36, borderRadius: 10,
     backgroundColor: 'rgba(255,255,255,0.15)',
@@ -1028,19 +1037,19 @@ const detalle = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     paddingBottom: 12, borderBottomWidth: 1, marginBottom: 12,
   },
-  infoLabel: { fontSize: Fonts.small, fontWeight: '600' },
-  infoValue: { fontSize: Fonts.small + 1, fontWeight: '700', flex: 1, textAlign: 'right', marginLeft: 16 },
+  infoLabel: { fontSize: Fonts.small, fontFamily: FontFamily.bodySemiBold },
+  infoValue: { fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyBold, flex: 1, textAlign: 'right', marginLeft: 16 },
   itemRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     padding: 10, borderRadius: 10, borderWidth: 1, marginBottom: 8,
   },
   itemImg: { width: 40, height: 40, borderRadius: 8, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
-  itemNombre: { fontWeight: '700', fontSize: Fonts.small + 1 },
-  itemSub: { fontSize: Fonts.small - 1, fontWeight: '500', marginTop: 2 },
-  itemTotal: { fontWeight: '900', fontSize: Fonts.regular - 1 },
-  cambiarBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.pill, borderWidth: 2 },
-  cambiarTxt: { fontSize: Fonts.small, fontWeight: '700' },
+  itemNombre: { fontFamily: FontFamily.displayBold, fontSize: Fonts.small + 1 },
+  itemSub: { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodyRegular, marginTop: 2 },
+  itemTotal: { fontFamily: FontFamily.displayExtraBold, fontSize: Fonts.regular - 1, fontVariant: ['tabular-nums'] },
+  cambiarBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 7, borderRadius: Radius.pill, borderWidth: 2, minHeight: 36 },
+  cambiarTxt: { fontSize: Fonts.small, fontFamily: FontFamily.bodyBold },
   footer: { padding: Spacing.md, borderTopWidth: 1 },
-  closeFooterBtn: { borderRadius: 12, padding: 14, alignItems: 'center' },
-  closeFooterTxt: { color: '#fff', fontWeight: '700', fontSize: Fonts.regular },
+  closeFooterBtn: { borderRadius: 12, padding: 14, alignItems: 'center', minHeight: 44, justifyContent: 'center' },
+  closeFooterTxt: { color: '#fff', fontFamily: FontFamily.bodyBold, fontSize: Fonts.regular },
 } as any);

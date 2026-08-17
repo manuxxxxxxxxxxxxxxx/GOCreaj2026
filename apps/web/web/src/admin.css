@@ -1,5 +1,6 @@
 :root {
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-display: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   
   /* Color Palette */
   --bg-color: #f3f4f6;
@@ -8,15 +9,15 @@
   --text-secondary: #6b7280;
   --text-muted: #9ca3af;
   
-  --primary: #f97316; /* Orange */
-  --primary-hover: #ea580c;
-  --primary-light: #ffedd5;
+  --primary: #2563EB; /* Blue (evolved brand) */
+  --primary-hover: #1D4ED8;
+  --primary-light: #DBEAFE;
   
-  --danger: #ef4444;
+  --danger: #DC2626;
   --danger-hover: #dc2626;
   --danger-light: #fee2e2;
 
-  --success: #22c55e;
+  --success: #16A34A;
   --success-light: #dcfce7;
   
   --border-color: #e5e7eb;

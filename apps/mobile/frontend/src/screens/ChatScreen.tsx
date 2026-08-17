@@ -19,7 +19,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Clipboard from 'expo-clipboard';
 import { Audio } from 'expo-av';
 import { api, Endpoints, API_URL, getToken } from '@/services/api';
-import { Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
 import { useTheme } from '@/context/ThemeContext';
 import { RootStackParamList } from '@/types';
 import { useAuth } from '@/context/AuthContext';
@@ -138,6 +138,18 @@ function formatDuration(totalSeconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 }
 
+// Preview de tipo de mensaje (ubicación/imagen/pdf/audio) para listas, respuestas y
+// fallbacks de error: un ícono Ionicons + label corto, sin depender de emoji.
+function tipoPreview(tipo?: string): { icon: keyof typeof Ionicons.glyphMap; label: string } | null {
+  switch (tipo) {
+    case 'imagen': return { icon: 'image-outline', label: 'Imagen' };
+    case 'ubicacion': return { icon: 'location-outline', label: 'Ubicación' };
+    case 'pdf': return { icon: 'document-text-outline', label: 'Documento' };
+    case 'audio': return { icon: 'mic-outline', label: 'Nota de voz' };
+    default: return null;
+  }
+}
+
 function presenceLabel(otro: OtroInfo | null): string {
   if (!otro) return '';
   if (otro.en_linea === 1) return 'En línea';
@@ -177,7 +189,12 @@ function LocationMsg({ lat, lng, mio, colors, onOpen }: { lat: any; lng: any; mi
   const [mapErr, setMapErr] = useState(false);
   const numLat = Number(lat);
   const numLng = Number(lng);
-  if (!numLat || !numLng) return <Text style={{ color: mio ? '#FFF' : colors.muted }}>📍 Ubicación</Text>;
+  if (!numLat || !numLng) return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4 }}>
+      <Ionicons name="location-outline" size={14} color={mio ? '#FFF' : colors.muted} />
+      <Text style={{ color: mio ? '#FFF' : colors.muted, fontFamily: FontFamily.bodySemiBold }}>Ubicación</Text>
+    </View>
+  );
 
   const mapUrl = `https://staticmap.openstreetmap.de/staticmap.php?center=${numLat},${numLng}&zoom=14&size=220x100&markers=${numLat},${numLng},red`;
 
@@ -219,7 +236,7 @@ function MapModal({ lat, lng, colors, onClose }: { lat: number; lng: number; col
           </TouchableOpacity>
           <TouchableOpacity onPress={openExternal} style={[S.mapTopBtn, { flexDirection: 'row', width: 'auto', paddingHorizontal: 14, gap: 6 }]} activeOpacity={0.85}>
             <Ionicons name="navigate" size={16} color="#0F172A" />
-            <Text style={{ fontWeight: '700', color: '#0F172A', fontSize: 12 }}>Abrir en Maps</Text>
+            <Text style={{ fontFamily: FontFamily.bodyBold, color: '#0F172A', fontSize: 12 }}>Abrir en Maps</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -246,7 +263,7 @@ function LocationPickerModal({ initialLat, initialLng, colors, onConfirm, onClos
         </View>
         <View style={{ position: 'absolute', bottom: insets.bottom + 20, left: 16, right: 16 }}>
           <View style={[S.pickerCard, { backgroundColor: colors.card }]}>
-            <Text style={{ color: colors.text, fontWeight: '700', fontSize: 12, marginBottom: 10 }}>
+            <Text style={{ color: colors.text, fontFamily: FontFamily.bodyBold, fontSize: 12, marginBottom: 10 }}>
               Toca el mapa o arrastra el pin para ajustar
             </Text>
             <TouchableOpacity
@@ -255,7 +272,7 @@ function LocationPickerModal({ initialLat, initialLng, colors, onConfirm, onClos
               activeOpacity={0.85}
             >
               <Ionicons name="send" size={16} color="#FFF" />
-              <Text style={{ color: '#FFF', fontWeight: '800' }}>Enviar esta ubicación</Text>
+              <Text style={{ color: '#FFF', fontFamily: FontFamily.bodyExtraBold }}>Enviar esta ubicación</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -300,7 +317,7 @@ function PdfModal({ url, nombre, colors, onClose }: { url: string; nombre?: stri
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="close" size={26} color="#FFF" />
           </TouchableOpacity>
-          <Text style={{ color: '#FFF', fontWeight: '700', flex: 1, fontSize: 14 }} numberOfLines={1}>{nombre ?? 'Documento.pdf'}</Text>
+          <Text style={{ color: '#FFF', fontFamily: FontFamily.displayBold, flex: 1, fontSize: 14 }} numberOfLines={1}>{nombre ?? 'Documento.pdf'}</Text>
         </View>
         {loading && <ActivityIndicator color={colors.accent} style={{ position: 'absolute', top: '50%', left: 0, right: 0 }} />}
         <WebView source={{ uri: url }} style={{ flex: 1, backgroundColor: '#0B0F19' }} onLoadEnd={() => setLoading(false)} />
@@ -400,11 +417,8 @@ function ReactionsRow({ reacciones, mio, colors, onPress }: {
 // ─── ReplyCard / ReplyBar ──────────────────────────────────────────────────────
 
 function ReplyCard({ snap, mio, colors }: { snap: ReplySnapshot; mio: boolean; colors: any }) {
-  const preview = snap.tipo === 'imagen' ? '📷 Imagen'
-    : snap.tipo === 'ubicacion' ? '📍 Ubicación'
-    : snap.tipo === 'pdf' ? '📄 Documento'
-    : snap.tipo === 'audio' ? '🎤 Nota de voz'
-    : snap.mensaje.length > 55 ? snap.mensaje.slice(0, 55) + '…' : snap.mensaje;
+  const prev = tipoPreview(snap.tipo);
+  const textColor = mio ? 'rgba(255,255,255,0.75)' : colors.muted;
 
   return (
     <View style={[S.replyCard, {
@@ -426,25 +440,37 @@ function ReplyCard({ snap, mio, colors }: { snap: ReplySnapshot; mio: boolean; c
           </View>
         </View>
       )}
-      <Text style={[S.replyTxt, { color: mio ? 'rgba(255,255,255,0.75)' : colors.muted }]} numberOfLines={2}>
-        {preview}
-      </Text>
+      {prev ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Ionicons name={prev.icon} size={12} color={textColor} />
+          <Text style={[S.replyTxt, { color: textColor }]} numberOfLines={2}>{prev.label}</Text>
+        </View>
+      ) : (
+        <Text style={[S.replyTxt, { color: textColor }]} numberOfLines={2}>
+          {snap.mensaje.length > 55 ? snap.mensaje.slice(0, 55) + '…' : snap.mensaje}
+        </Text>
+      )}
     </View>
   );
 }
 
 function ReplyBar({ target, onCancel, colors }: { target: MensajeExt; onCancel: () => void; colors: any }) {
-  const preview = target.tipo === 'imagen' ? '📷 Imagen'
-    : target.tipo === 'ubicacion' ? '📍 Ubicación'
-    : target.tipo === 'pdf' ? '📄 Documento'
-    : target.tipo === 'audio' ? '🎤 Nota de voz'
-    : target.mensaje.length > 60 ? target.mensaje.slice(0, 60) + '…' : target.mensaje;
+  const prev = tipoPreview(target.tipo);
   return (
     <View style={[S.replyBar, { backgroundColor: colors.card, borderTopColor: colors.border }]}>
       <View style={[S.replyBarAccent, { backgroundColor: colors.accent }]} />
       <View style={{ flex: 1 }}>
         <Text style={[S.replyBarLabel, { color: colors.accent }]}>Respondiendo</Text>
-        <Text style={[S.replyBarPrev, { color: colors.muted }]} numberOfLines={1}>{preview}</Text>
+        {prev ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Ionicons name={prev.icon} size={12} color={colors.muted} />
+            <Text style={[S.replyBarPrev, { color: colors.muted }]} numberOfLines={1}>{prev.label}</Text>
+          </View>
+        ) : (
+          <Text style={[S.replyBarPrev, { color: colors.muted }]} numberOfLines={1}>
+            {target.mensaje.length > 60 ? target.mensaje.slice(0, 60) + '…' : target.mensaje}
+          </Text>
+        )}
       </View>
       <TouchableOpacity onPress={onCancel} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
         <Ionicons name="close-circle" size={20} color={colors.muted} />
@@ -513,12 +539,21 @@ function MessageActionModal({ msg, mio, colors, onClose, onCopy, onReply, onForw
               {tipo === 'imagen' && msg.adjunto
                 ? <Image source={{ uri: imgUri(msg.adjunto) }} style={{ width: 160, height: 120, borderRadius: 10 }} resizeMode="cover" />
                 : tipo === 'ubicacion'
-                  ? <Text style={{ color: mio ? '#FFF' : colors.text, fontSize: 14 }}>📍 Ubicación compartida</Text>
+                  ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Ionicons name="location-outline" size={16} color={mio ? '#FFF' : colors.text} />
+                      <Text style={{ color: mio ? '#FFF' : colors.text, fontSize: 14, fontFamily: FontFamily.bodyRegular }}>Ubicación compartida</Text>
+                    </View>
                   : tipo === 'pdf'
-                    ? <Text style={{ color: mio ? '#FFF' : colors.text, fontSize: 14 }}>📄 {msg.adjunto_nombre ?? 'Documento.pdf'}</Text>
+                    ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name="document-text-outline" size={16} color={mio ? '#FFF' : colors.text} />
+                        <Text style={{ color: mio ? '#FFF' : colors.text, fontSize: 14, fontFamily: FontFamily.bodyRegular }}>{msg.adjunto_nombre ?? 'Documento.pdf'}</Text>
+                      </View>
                     : tipo === 'audio'
-                      ? <Text style={{ color: mio ? '#FFF' : colors.text, fontSize: 14 }}>🎤 Nota de voz</Text>
-                      : <Text style={{ color: mio ? '#FFF' : colors.text, fontSize: 14, lineHeight: 20 }} numberOfLines={5}>{msg.mensaje}</Text>
+                      ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Ionicons name="mic-outline" size={16} color={mio ? '#FFF' : colors.text} />
+                          <Text style={{ color: mio ? '#FFF' : colors.text, fontSize: 14, fontFamily: FontFamily.bodyRegular }}>Nota de voz</Text>
+                        </View>
+                      : <Text style={{ color: mio ? '#FFF' : colors.text, fontSize: 14, lineHeight: 20, fontFamily: FontFamily.bodyRegular }} numberOfLines={5}>{msg.mensaje}</Text>
               }
             </View>
             <Text style={[S.previewTime, { color: colors.muted }]}>{formatTime(msg.created_at)}</Text>
@@ -561,7 +596,7 @@ function PeoplePickerModal({ visible, title, colors, insets, people, loading, on
           <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
             <Ionicons name="close" size={26} color={colors.text} />
           </TouchableOpacity>
-          <Text style={{ flex: 1, fontWeight: '900', fontSize: 18, color: colors.text }}>{title}</Text>
+          <Text style={{ flex: 1, fontFamily: FontFamily.displayExtraBold, fontSize: 18, color: colors.text }}>{title}</Text>
         </View>
         <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: colors.border }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: colors.elevated, borderRadius: 12, paddingHorizontal: 12, height: 44 }}>
@@ -586,7 +621,7 @@ function PeoplePickerModal({ visible, title, colors, insets, people, loading, on
             ListEmptyComponent={
               <View style={{ alignItems: 'center', padding: 40 }}>
                 <Ionicons name="people-outline" size={48} color={colors.muted} />
-                <Text style={{ color: colors.muted, marginTop: 10, fontWeight: '700', textAlign: 'center' }}>
+                <Text style={{ color: colors.muted, marginTop: 10, fontFamily: FontFamily.bodyBold, textAlign: 'center' }}>
                   {people.length === 0 ? 'Aún no tienes contactos.\nAparecerán aquí tras tu primer pedido.' : 'Sin resultados'}
                 </Text>
               </View>
@@ -601,14 +636,14 @@ function PeoplePickerModal({ visible, title, colors, insets, people, loading, on
                   activeOpacity={0.85}
                 >
                   <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: roleColor, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }}>
-                    {uri ? <Image source={{ uri }} style={{ width: '100%', height: '100%' }} /> : <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 16 }}>{u.nombre.charAt(0).toUpperCase()}</Text>}
+                    {uri ? <Image source={{ uri }} style={{ width: '100%', height: '100%' }} /> : <Text style={{ color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: 16 }}>{u.nombre.charAt(0).toUpperCase()}</Text>}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.text, fontWeight: '800', fontSize: 14 }}>{u.nombre}</Text>
+                    <Text style={{ color: colors.text, fontFamily: FontFamily.bodyExtraBold, fontSize: 14 }}>{u.nombre}</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                      {u.username && <Text style={{ color: colors.muted, fontSize: 12 }}>@{u.username}</Text>}
+                      {u.username && <Text style={{ color: colors.muted, fontSize: 12, fontFamily: FontFamily.bodyRegular }}>@{u.username}</Text>}
                       <View style={{ backgroundColor: `${roleColor}22`, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8 }}>
-                        <Text style={{ color: roleColor, fontSize: 9, fontWeight: '900', letterSpacing: 0.5, textTransform: 'uppercase' }}>{u.rol}</Text>
+                        <Text style={{ color: roleColor, fontSize: 9, fontFamily: FontFamily.bodyExtraBold, letterSpacing: 0.5, textTransform: 'uppercase' }}>{u.rol}</Text>
                       </View>
                       {u.en_linea === 1 && <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: '#10B981' }} />}
                     </View>
@@ -685,8 +720,8 @@ export function ChatListScreen() {
   const onLongPress = (conv: ConvExt) => {
     Vibration.vibrate(25);
     Alert.alert(conv.nombre, undefined, [
-      { text: conv.favorito ? '★ Quitar favorito' : '☆ Agregar favorito', onPress: async () => { await api(Endpoints.chatToggleFavorito, { body: { otro_id: conv.id } }); void cargar(tab, search); } },
-      { text: conv.archivado ? '📂 Desarchivar' : '🗂 Archivar', onPress: async () => { await api(Endpoints.chatToggleArchivado, { body: { otro_id: conv.id } }); void cargar(tab, search); } },
+      { text: conv.favorito ? 'Quitar favorito' : 'Agregar favorito', onPress: async () => { await api(Endpoints.chatToggleFavorito, { body: { otro_id: conv.id } }); void cargar(tab, search); } },
+      { text: conv.archivado ? 'Desarchivar' : 'Archivar', onPress: async () => { await api(Endpoints.chatToggleArchivado, { body: { otro_id: conv.id } }); void cargar(tab, search); } },
       { text: 'Cancelar', style: 'cancel' },
     ]);
   };
@@ -783,11 +818,8 @@ export function ChatListScreen() {
           const roleColor = ROLE_COLORS[item.rol] ?? colors.accent;
           const isUnread  = (item.no_leidos ?? 0) > 0;
           const uri       = imgUri(item.foto_perfil);
-          const lastMsg   = item.ultimo_mensaje?.tipo === 'imagen' ? '📷 Imagen'
-                          : item.ultimo_mensaje?.tipo === 'ubicacion' ? '📍 Ubicación'
-                          : item.ultimo_mensaje?.tipo === 'pdf' ? '📄 Documento'
-                          : item.ultimo_mensaje?.tipo === 'audio' ? '🎤 Nota de voz'
-                          : (item.ultimo_mensaje?.mensaje ?? 'Iniciar conversación');
+          const lastMsgPreview = tipoPreview(item.ultimo_mensaje?.tipo);
+          const lastMsg   = lastMsgPreview ? lastMsgPreview.label : (item.ultimo_mensaje?.mensaje ?? 'Iniciar conversación');
           const esMio = !!item.ultimo_mensaje && item.ultimo_mensaje.emisor_id === usuario?.id;
           return (
             <TouchableOpacity
@@ -803,7 +835,10 @@ export function ChatListScreen() {
               </View>
               <View style={S.convBody}>
                 <View style={S.convTopRow}>
-                  <Text style={[S.convNombre, { color: colors.text, fontWeight: isUnread ? '800' : '600' }]}>{item.nombre}{item.favorito ? ' ★' : ''}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 4 }}>
+                    <Text style={[S.convNombre, { flex: 0, color: colors.text, fontFamily: isUnread ? FontFamily.bodyExtraBold : FontFamily.bodySemiBold }]} numberOfLines={1}>{item.nombre}</Text>
+                    {!!item.favorito && <Ionicons name="star" size={12} color={colors.ctaAccent} style={{ marginLeft: 4 }} />}
+                  </View>
                   <Text style={[S.convTime, { color: isUnread ? colors.accent : colors.muted }]}>{item.ultimo_mensaje ? formatTime(item.ultimo_mensaje.created_at) : ''}</Text>
                 </View>
                 <View style={S.convBotRow}>
@@ -815,7 +850,10 @@ export function ChatListScreen() {
                       style={{ marginRight: 4 }}
                     />
                   )}
-                  <Text numberOfLines={1} style={[S.convMsg, { color: isUnread ? colors.text : colors.muted, fontWeight: isUnread ? '600' : '400' }]}>{lastMsg}</Text>
+                  {lastMsgPreview && (
+                    <Ionicons name={lastMsgPreview.icon} size={13} color={isUnread ? colors.text : colors.muted} style={{ marginRight: 3 }} />
+                  )}
+                  <Text numberOfLines={1} style={[S.convMsg, { color: isUnread ? colors.text : colors.muted, fontFamily: isUnread ? FontFamily.bodySemiBold : FontFamily.bodyRegular }]}>{lastMsg}</Text>
                   {isUnread && <View style={[S.badge, { backgroundColor: colors.accent }]}><Text style={S.badgeTxt}>{item.no_leidos! > 99 ? '99+' : item.no_leidos}</Text></View>}
                 </View>
               </View>
@@ -838,17 +876,17 @@ function EmptyState({ colors, tab, onNewChat }: { colors: any; tab: ChatTab; onN
       Animated.timing(pulse, { toValue: 1,    duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
     ])).start();
   }, [pulse]);
-  const msgs: Record<ChatTab, [string, string]> = {
-    todos:      ['¡Bienvenido a tus mensajes!', 'Habla con la tienda o el repartidor de tus pedidos.'],
-    noLeidos:   ['Todo leído ✓', 'No tienes mensajes pendientes.'],
-    favoritos:  ['Sin favoritos', 'Mantén pulsada una conversación para marcarla.'],
-    archivados: ['Sin archivados', 'Las archivadas aparecerán aquí.'],
+  const msgs: Record<ChatTab, [string, string, keyof typeof Ionicons.glyphMap]> = {
+    todos:      ['¡Bienvenido a tus mensajes!', 'Habla con la tienda o el repartidor de tus pedidos.', 'chatbubbles-outline'],
+    noLeidos:   ['Todo leído', 'No tienes mensajes pendientes.', 'checkmark-circle-outline'],
+    favoritos:  ['Sin favoritos', 'Mantén pulsada una conversación para marcarla.', 'star-outline'],
+    archivados: ['Sin archivados', 'Las archivadas aparecerán aquí.', 'archive-outline'],
   };
-  const [title, sub] = msgs[tab];
+  const [title, sub, icon] = msgs[tab];
   return (
     <View style={S.emptyBlock}>
       <Animated.View style={[S.emptyIconBg, { backgroundColor: colors.accentLight, transform: [{ scale: pulse }] }]}>
-        <Ionicons name="chatbubbles-outline" size={52} color={colors.accent} />
+        <Ionicons name={icon} size={52} color={colors.accent} />
       </Animated.View>
       <Text style={[S.emptyTitle, { color: colors.text }]}>{title}</Text>
       <Text style={[S.emptySub, { color: colors.muted }]}>{sub}</Text>
@@ -859,7 +897,7 @@ function EmptyState({ colors, tab, onNewChat }: { colors: any; tab: ChatTab; onN
           activeOpacity={0.85}
         >
           <Ionicons name="people-outline" size={18} color="#FFF" />
-          <Text style={{ color: '#FFF', fontWeight: '800' }}>Ver mis contactos</Text>
+          <Text style={{ color: '#FFF', fontFamily: FontFamily.bodyExtraBold }}>Ver mis contactos</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -1188,7 +1226,7 @@ export default function ChatScreen() {
         <Modal transparent animationType="fade" statusBarTranslucent>
           <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.96)', justifyContent: 'center' }} onPress={() => setImgPreview(null)}>
             <Image source={{ uri: imgPreview }} style={{ width: '100%', height: '70%' }} resizeMode="contain" />
-            <Text style={{ color: '#94A3B8', textAlign: 'center', marginTop: 16, fontWeight: '600' }}>Toca para cerrar</Text>
+            <Text style={{ color: '#94A3B8', textAlign: 'center', marginTop: 16, fontFamily: FontFamily.bodySemiBold }}>Toca para cerrar</Text>
           </Pressable>
         </Modal>
       )}
@@ -1222,8 +1260,8 @@ export default function ChatScreen() {
         <TouchableOpacity
           style={[S.callHeaderBtn, { backgroundColor: colors.accentLight }]}
           onPress={() => Alert.alert('Llamar', undefined, [
-            { text: '📞 Llamada de voz', onPress: () => void iniciarLlamada('voz') },
-            { text: '📹 Videollamada',   onPress: () => void iniciarLlamada('video') },
+            { text: 'Llamada de voz', onPress: () => void iniciarLlamada('voz') },
+            { text: 'Videollamada',   onPress: () => void iniciarLlamada('video') },
             { text: 'Cancelar', style: 'cancel' },
           ])}
           activeOpacity={0.8}
@@ -1279,15 +1317,30 @@ export default function ChatScreen() {
                         <Image source={{ uri }} style={S.msgImage} resizeMode="cover" />
                       </TouchableOpacity>
                     ) : tipo === 'ubicacion' ? (
-                      <MsgErrorBoundary fallback={<Text style={{ color: mio ? '#FFF' : colors.muted, padding: 8 }}>📍 Ubicación compartida</Text>}>
+                      <MsgErrorBoundary fallback={
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8 }}>
+                          <Ionicons name="location-outline" size={14} color={mio ? '#FFF' : colors.muted} />
+                          <Text style={{ color: mio ? '#FFF' : colors.muted, fontFamily: FontFamily.bodyRegular }}>Ubicación compartida</Text>
+                        </View>
+                      }>
                         <LocationMsg lat={item.lat} lng={item.lng} mio={mio} colors={colors} onOpen={(lat, lng) => setMapTarget({ lat, lng })} />
                       </MsgErrorBoundary>
                     ) : tipo === 'pdf' ? (
-                      <MsgErrorBoundary fallback={<Text style={{ color: mio ? '#FFF' : colors.muted, padding: 8 }}>📄 Documento</Text>}>
+                      <MsgErrorBoundary fallback={
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8 }}>
+                          <Ionicons name="document-text-outline" size={14} color={mio ? '#FFF' : colors.muted} />
+                          <Text style={{ color: mio ? '#FFF' : colors.muted, fontFamily: FontFamily.bodyRegular }}>Documento</Text>
+                        </View>
+                      }>
                         <PdfMsg msg={item} mio={mio} colors={colors} onOpen={(url, nom) => setPdfTarget({ url, nombre: nom })} />
                       </MsgErrorBoundary>
                     ) : tipo === 'audio' ? (
-                      <MsgErrorBoundary fallback={<Text style={{ color: mio ? '#FFF' : colors.muted, padding: 8 }}>🎤 Nota de voz</Text>}>
+                      <MsgErrorBoundary fallback={
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, padding: 8 }}>
+                          <Ionicons name="mic-outline" size={14} color={mio ? '#FFF' : colors.muted} />
+                          <Text style={{ color: mio ? '#FFF' : colors.muted, fontFamily: FontFamily.bodyRegular }}>Nota de voz</Text>
+                        </View>
+                      }>
                         <AudioMsg msg={item} mio={mio} colors={colors} />
                       </MsgErrorBoundary>
                     ) : (
@@ -1330,7 +1383,7 @@ export default function ChatScreen() {
             <Text style={[S.attachTxt, { color: colors.text }]}>Compartir ubicación</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[S.attachCancel, { backgroundColor: colors.background }]} onPress={() => setAttachModal(false)} activeOpacity={0.8}>
-            <Text style={{ color: colors.muted, fontWeight: '700', fontSize: Fonts.regular }}>Cancelar</Text>
+            <Text style={{ color: colors.muted, fontFamily: FontFamily.bodyBold, fontSize: Fonts.regular }}>Cancelar</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1399,70 +1452,70 @@ export default function ChatScreen() {
 const S = StyleSheet.create({
   root: { flex: 1 },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.md, paddingBottom: Spacing.md, borderBottomWidth: 1 },
-  topTitle: { fontSize: Fonts.heading - 6, fontWeight: '900', letterSpacing: -0.5 },
-  topSub: { fontSize: Fonts.small, fontWeight: '500', marginTop: 2 },
+  topTitle: { fontSize: Fonts.heading - 6, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.5 },
+  topSub: { fontSize: Fonts.small, fontFamily: FontFamily.bodyRegular, marginTop: 2 },
   newChatBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   searchWrap: { paddingHorizontal: Spacing.md, paddingVertical: 8, borderBottomWidth: 1 },
   searchInner: { flexDirection: 'row', alignItems: 'center', borderRadius: Radius.lg, borderWidth: 1, paddingHorizontal: Spacing.sm, paddingVertical: 7 },
-  searchInput: { flex: 1, fontSize: Fonts.regular, fontWeight: '500' },
+  searchInput: { flex: 1, fontSize: Fonts.regular, fontFamily: FontFamily.bodyRegular },
   segmentWrap: { flexDirection: 'row', margin: Spacing.md, marginBottom: Spacing.sm, borderRadius: 14, padding: 4 },
   segmentItem: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 11, flexDirection: 'row', alignItems: 'center', gap: 6 },
-  segmentTxt: { fontSize: Fonts.small + 1, fontWeight: '800' },
+  segmentTxt: { fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyExtraBold },
   badge: { minWidth: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4 },
-  badgeTxt: { fontSize: 9, fontWeight: '900' },
+  badgeTxt: { fontSize: 9, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] },
   convRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: 13, borderBottomWidth: 1 },
   avatarRing: { width: 54, height: 54, borderRadius: 27, borderWidth: 2, justifyContent: 'center', alignItems: 'center' },
   avatar: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', flexShrink: 0, overflow: 'hidden' },
   avatarImg: { width: 48, height: 48, borderRadius: 24 },
-  avatarTxt: { color: '#FFF', fontWeight: '800', fontSize: Fonts.regular - 1 },
+  avatarTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.regular - 1 },
   convBody: { flex: 1, marginHorizontal: Spacing.sm },
   convTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 },
   convNombre: { fontSize: Fonts.regular, flex: 1, marginRight: 4 },
-  convTime: { fontSize: Fonts.small - 1, fontWeight: '600' },
+  convTime: { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodySemiBold },
   convBotRow: { flexDirection: 'row', alignItems: 'center' },
   convMsg: { flex: 1, fontSize: Fonts.small + 1 },
   rolPill: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: Radius.pill, marginLeft: Spacing.sm },
-  rolTxt: { fontSize: 8, fontWeight: '900' },
+  rolTxt: { fontSize: 8, fontFamily: FontFamily.bodyExtraBold, letterSpacing: 0.5 },
   emptyContainer: { flex: 1 },
   emptyBlock: { alignItems: 'center', paddingTop: 80, paddingHorizontal: Spacing.xl },
   emptyIconBg: { width: 96, height: 96, borderRadius: 48, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.lg },
-  emptyTitle: { fontSize: Fonts.title - 2, fontWeight: '800', marginBottom: 8 },
+  emptyTitle: { fontSize: Fonts.title - 2, fontFamily: FontFamily.displayExtraBold, marginBottom: 8 },
   emptySub: { fontSize: Fonts.regular, textAlign: 'center', lineHeight: 22 },
   chatHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm, borderBottomWidth: 1 },
   backBtn: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.sm },
   chatAvatar: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
   chatAvatarImg: { width: 42, height: 42, borderRadius: 21 },
-  chatAvatarTxt: { color: '#FFF', fontWeight: '800', fontSize: Fonts.small + 1 },
-  chatName: { fontWeight: '800', fontSize: Fonts.regular },
-  chatOnline: { fontSize: Fonts.small - 1, fontWeight: '600', marginTop: 1 },
+  chatAvatarTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.small + 1 },
+  chatName: { fontFamily: FontFamily.displayBold, fontSize: Fonts.regular },
+  chatOnline: { fontSize: Fonts.small - 1, fontFamily: FontFamily.bodySemiBold, marginTop: 1 },
   callHeaderBtn: { width: 38, height: 38, borderRadius: 19, justifyContent: 'center', alignItems: 'center' },
   bubbleWrap: { alignSelf: 'flex-start', maxWidth: '80%', marginBottom: Spacing.xs + 2 },
   bubbleWrapMio: { alignSelf: 'flex-end' },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 1 },
   bubbleMio: { borderTopLeftRadius: 18, borderTopRightRadius: 18, borderBottomLeftRadius: 18, borderBottomRightRadius: 4 },
   bubbleOtro: { borderTopLeftRadius: 18, borderTopRightRadius: 18, borderBottomLeftRadius: 4, borderBottomRightRadius: 18, borderWidth: 1.5 },
-  bubbleTxt: { fontSize: Fonts.regular, fontWeight: '500', lineHeight: 20 },
+  bubbleTxt: { fontSize: Fonts.regular, fontFamily: FontFamily.bodyRegular, lineHeight: 20 },
   bubbleMeta: { flexDirection: 'row', alignItems: 'center', marginTop: 3 },
   bubbleMetaMio: { justifyContent: 'flex-end' },
-  bubbleTime: { fontSize: 10, fontWeight: '500' },
+  bubbleTime: { fontSize: 10, fontFamily: FontFamily.bodyRegular },
   msgImage: { width: 200, height: 180, borderRadius: 14 },
   emptyChat: { alignItems: 'center', paddingTop: 60, gap: Spacing.sm },
-  emptyChatTxt: { fontWeight: '600', fontSize: Fonts.regular },
+  emptyChatTxt: { fontFamily: FontFamily.bodySemiBold, fontSize: Fonts.regular },
 
   // Location
   locWrap: { borderRadius: 14, overflow: 'hidden', width: 222 },
   locMap: { width: 222, height: 108 },
   locMapFallback: { width: 222, height: 108, justifyContent: 'center', alignItems: 'center' },
   locFooter: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7, gap: 5 },
-  locLabel: { fontWeight: '700', fontSize: Fonts.small + 1, flex: 1 },
+  locLabel: { fontFamily: FontFamily.bodyBold, fontSize: Fonts.small + 1, flex: 1 },
   locCoords: { fontSize: 9 },
   mapTopBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, elevation: 4 },
 
   // PDF card
   pdfCard: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, padding: 8, width: 230, gap: 10 },
   pdfIcon: { width: 40, height: 40, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  pdfNombre: { fontSize: Fonts.small + 1, fontWeight: '700' },
-  pdfTamano: { fontSize: 10, fontWeight: '600', marginTop: 2 },
+  pdfNombre: { fontSize: Fonts.small + 1, fontFamily: FontFamily.bodyBold },
+  pdfTamano: { fontSize: 10, fontFamily: FontFamily.bodySemiBold, marginTop: 2 },
   pdfDownload: { width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center' },
 
   // Audio message
@@ -1470,25 +1523,25 @@ const S = StyleSheet.create({
   audioPlayBtn: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center' },
   audioTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
   audioProgress: { height: 4, borderRadius: 2 },
-  audioTime: { fontSize: 10, fontWeight: '600', marginTop: 5 },
+  audioTime: { fontSize: 10, fontFamily: FontFamily.displayBold, marginTop: 5, fontVariant: ['tabular-nums'] },
 
   // Reactions
   reaccionesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 4 },
   reaccionPill: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 99, borderWidth: 1 },
   reaccionEmoji: { fontSize: 13 },
-  reaccionCount: { fontSize: 10, fontWeight: '800' },
+  reaccionCount: { fontSize: 10, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] },
 
   // Reply card / bar
   replyCard: { borderLeftWidth: 3, borderRadius: 8, padding: 8, marginBottom: 6 },
   replyProd: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
   replyProdImg: { width: 36, height: 36, borderRadius: 6 },
-  replyProdNom: { fontSize: 12, fontWeight: '700' },
-  replyProdPx: { fontSize: 11, fontWeight: '600' },
+  replyProdNom: { fontSize: 12, fontFamily: FontFamily.bodyBold },
+  replyProdPx: { fontSize: 11, fontFamily: FontFamily.displayBold, fontVariant: ['tabular-nums'] },
   replyTxt: { fontSize: 12 },
   replyBar: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: Spacing.md, borderTopWidth: 1, gap: 10 },
   replyBarAccent: { width: 3, height: 36, borderRadius: 2 },
-  replyBarLabel: { fontSize: 12, fontWeight: '800', marginBottom: 2 },
-  replyBarPrev: { fontSize: 12, fontWeight: '500' },
+  replyBarLabel: { fontSize: 12, fontFamily: FontFamily.bodyExtraBold, marginBottom: 2 },
+  replyBarPrev: { fontSize: 12, fontFamily: FontFamily.bodyRegular },
 
   // Action menu modal
   menuOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: Spacing.lg },
@@ -1498,18 +1551,18 @@ const S = StyleSheet.create({
   emoji: { fontSize: 26 },
   msgPreview: { borderRadius: 18, padding: 14, gap: 6 },
   previewBubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 14, maxWidth: '82%' },
-  previewTime: { fontSize: 10, textAlign: 'right', fontWeight: '500' },
+  previewTime: { fontSize: 10, textAlign: 'right', fontFamily: FontFamily.bodyRegular },
   actionsGrid: { flexDirection: 'row', borderRadius: 18, paddingVertical: 8 },
   actionItem: { flex: 1, alignItems: 'center', paddingVertical: 12, gap: 6 },
   actionIcon: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center' },
-  actionLabel: { fontSize: Fonts.small, fontWeight: '700' },
+  actionLabel: { fontSize: Fonts.small, fontFamily: FontFamily.bodyBold },
 
   // Attach
   attachSheet: { borderTopWidth: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg, paddingTop: Spacing.sm },
   attachHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: Spacing.md },
   attachRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm },
   attachIcon: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.md },
-  attachTxt: { fontSize: Fonts.regular, fontWeight: '600' },
+  attachTxt: { fontSize: Fonts.regular, fontFamily: FontFamily.bodySemiBold },
   attachCancel: { marginTop: Spacing.sm, borderRadius: Radius.lg, paddingVertical: 14, alignItems: 'center' },
   attachBtn: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.sm },
 
@@ -1519,13 +1572,13 @@ const S = StyleSheet.create({
   // Recording bar
   recordingInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: Spacing.sm },
   recordingDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#EF4444' },
-  recordingTime: { fontSize: Fonts.regular, fontWeight: '800', fontVariant: ['tabular-nums'] },
-  recordingHint: { fontSize: Fonts.small, fontWeight: '500' },
+  recordingTime: { fontSize: Fonts.regular, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] },
+  recordingHint: { fontSize: Fonts.small, fontFamily: FontFamily.bodyRegular },
 
   // Input
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, borderTopWidth: 1 },
   inputWrap: { flex: 1, flexDirection: 'row', alignItems: 'flex-end', borderRadius: Radius.lg, borderWidth: 1.5, paddingHorizontal: Spacing.md, paddingVertical: 8, marginRight: Spacing.sm, maxHeight: 100 },
-  input: { flex: 1, fontSize: Fonts.regular, fontWeight: '500', maxHeight: 80 },
+  input: { flex: 1, fontSize: Fonts.regular, fontFamily: FontFamily.bodyRegular, maxHeight: 80 },
   sendBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
 
   // Selector de ubicación (mapa propio)

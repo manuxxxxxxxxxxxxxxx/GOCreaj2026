@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Eye, RefreshCw, XCircle } from 'lucide-react';
+import { Search, Eye, RefreshCw, XCircle, ShoppingBag } from 'lucide-react';
 import { api } from '../api';
 import './Dashboard.css';
 
@@ -265,7 +265,7 @@ export default function AdminOrders() {
                         {item.imagen ? (
                           <img src={item.imagen} alt={item.nombre} style={{ width: 40, height: 40, borderRadius: '8px', objectFit: 'cover' }} />
                         ) : (
-                          <div style={{ width: 40, height: 40, borderRadius: '8px', background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>🛍️</div>
+                          <div style={{ width: 40, height: 40, borderRadius: '8px', background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}><ShoppingBag size={18} strokeWidth={1.8} /></div>
                         )}
                         <div style={{ flex: 1 }}>
                           <p style={{ fontWeight: '700', fontSize: '0.88rem', margin: 0, color: 'var(--text)' }}>{item.nombre ?? `Producto #${item.producto_id}`}</p>

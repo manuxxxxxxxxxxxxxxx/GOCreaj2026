@@ -4,6 +4,7 @@ import { useGlobal } from '../context/GlobalContext';
 import Header from '../components/Header';
 import TiendaWizard from '../components/TiendaWizard';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Trophy, MapPin, Circle, Star } from 'lucide-react';
 import { api, API_URL } from '../api';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -723,7 +724,7 @@ export default function VendedorDashboard() {
               )}
               {productoTop && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${border}` }}>
-                  <span style={{ fontSize: 20 }}>🏆</span>
+                  <Trophy size={20} strokeWidth={1.8} color="#F59E0B" />
                   <div>
                     <div style={{ fontWeight: 800, fontSize: 13, color: text }}>Producto más vendido</div>
                     <div style={{ fontSize: 12, color: muted }}>{productoTop.nombre} · {productoTop.total_vendido} vendidos</div>
@@ -1194,12 +1195,15 @@ export default function VendedorDashboard() {
                       onClick={() => navigate(`/entregas/${pedidoDetalle.id}`)}
                       style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: accent, cursor: 'pointer', fontWeight: 700, fontSize: 12, padding: 0 }}
                     >
-                      📍 Ver ubicación en vivo
+                      <MapPin size={13} strokeWidth={2.2} />Ver ubicación en vivo
                     </button>
                   )}
                 </div>
-                <div style={{ color: text, fontWeight: 700 }}>
-                  {pedidoDetalle.repartidor_nombre} {pedidoDetalle.repartidor_en_linea ? '🟢 en línea' : '⚪ desconectado'}
+                <div style={{ color: text, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {pedidoDetalle.repartidor_nombre}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, fontSize: 12, color: pedidoDetalle.repartidor_en_linea ? '#16A34A' : muted }}>
+                    <Circle size={8} strokeWidth={0} fill="currentColor" />{pedidoDetalle.repartidor_en_linea ? 'en línea' : 'desconectado'}
+                  </span>
                 </div>
                 {pedidoDetalle.estado === 'preparacion' && (
                   <div style={{ fontSize: 12, color: muted, marginTop: 4, fontStyle: 'italic' }}>
@@ -1220,8 +1224,8 @@ export default function VendedorDashboard() {
                       <div key={r.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: `1px solid ${border}`, borderRadius: 12, padding: '8px 12px' }}>
                         <div>
                           <div style={{ fontWeight: 700, color: text, fontSize: 13 }}>{r.nombre}</div>
-                          <div style={{ fontSize: 12, color: muted }}>
-                            ★ {r.repartidor_calificacion_promedio ? Number(r.repartidor_calificacion_promedio).toFixed(1) : '—'}
+                          <div style={{ fontSize: 12, color: muted, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Star size={11} strokeWidth={2} fill="#F59E0B" color="#F59E0B" />{r.repartidor_calificacion_promedio ? Number(r.repartidor_calificacion_promedio).toFixed(1) : '—'}
                             {' · '}{r.repartidor_total_resenas ?? 0} reseñas
                             {r.distancia_km != null ? ` · ${r.distancia_km} km` : ''}
                             {r.tipo_vehiculo ? ` · ${r.tipo_vehiculo}` : ''}

@@ -1,13 +1,14 @@
 export const Colors = {
-  background: '#F3F0FA',
-  text: '#111111',
-  accent: '#4A6D8C',
+  background: '#F8FAFC',
+  text: '#0F172A',
+  accent: '#2563EB',
+  ctaAccent: '#EA580C',
   contrast: '#FFFFFF',
-  border: '#E0E0E0',
-  muted: '#6B7280',
-  danger: '#B91C1C',
-  success: '#15803D',
-  warning: '#B45309',
+  border: '#E2E8F0',
+  muted: '#475569',
+  danger: '#DC2626',
+  success: '#16A34A',
+  warning: '#D97706',
   card: '#FFFFFF',
   overlay: 'rgba(17,17,17,0.45)'
 } as const;
@@ -32,4 +33,14 @@ export const Fonts = {
   small: 12,
   title: 20,
   heading: 28
+} as const;
+
+/** Self-hosted en assets/fonts, registradas en App.tsx vía expo-font (useFonts). */
+export const FontFamily = {
+  displayBold: 'Sora-Bold',
+  displayExtraBold: 'Sora-ExtraBold',
+  bodyRegular: 'Manrope-Regular',
+  bodySemiBold: 'Manrope-SemiBold',
+  bodyBold: 'Manrope-Bold',
+  bodyExtraBold: 'Manrope-ExtraBold',
 } as const;

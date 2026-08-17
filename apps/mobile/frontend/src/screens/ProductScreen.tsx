@@ -3,7 +3,8 @@ import { useLang } from '@/context/LangContext';
 import { View, Text, StyleSheet, Image, Alert, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useRoute, useNavigation, NavigationProp } from '@react-navigation/native';
-import { Colors, Spacing, Radius, Fonts } from '@/theme/colors';
+import { Spacing, Radius, Fonts, FontFamily } from '@/theme/colors';
+import { useTheme } from '@/context/ThemeContext';
 import { api, Endpoints } from '@/services/api';
 import { Producto, RootStackParamList } from '@/types';
 import { useAuth } from '@/context/AuthContext';
@@ -17,6 +18,7 @@ interface Resp { ok: boolean; producto?: Producto; error?: string; }
 
 export default function ProductScreen() {
   const { t } = useLang();
+  const { colors } = useTheme();
   const route = useRoute<RouteProp<RootStackParamList, 'Product'>>();
   const nav = useNavigation<NavigationProp<RootStackParamList>>();
   const { usuario } = useAuth();
@@ -35,7 +37,7 @@ export default function ProductScreen() {
   }, [productoId]);
 
   if (cargando) return <LoadingScreen mensaje={t.product.cargandoProducto} />;
-  if (!prod) return <View style={styles.root}><Text style={styles.error}>{t.product.productoNoEncontrado}</Text></View>;
+  if (!prod) return <View style={[styles.root, { backgroundColor: colors.background }]}><Text style={[styles.error, { color: colors.danger }]}>{t.product.productoNoEncontrado}</Text></View>;
 
   const addCarrito = async (): Promise<void> => {
     if (!usuario) { nav.navigate('Auth' as never); return; }
@@ -66,73 +68,85 @@ export default function ProductScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ScreenHeader
         title={t.product.detalle}
         right={
-          <TouchableOpacity onPress={guardar} style={styles.backBtn} activeOpacity={0.7}>
-            <Ionicons name="bookmark-outline" size={22} color={Colors.text} />
+          <TouchableOpacity onPress={guardar} style={[styles.backBtn, { backgroundColor: colors.background, borderColor: colors.border }]} activeOpacity={0.7}>
+            <Ionicons name="bookmark-outline" size={22} color={colors.text} />
           </TouchableOpacity>
         }
       />
 
       <ScreenScroll>
-        <View style={styles.imgBox}>
+        {/* Imagen protagonista: la foto del producto es el cue principal de escaneo visual */}
+        <View style={[styles.imgBox, { backgroundColor: colors.card, borderColor: colors.border, shadowColor: colors.shadow }]}>
           {prod.imagen ? (
             <Image source={{ uri: prod.imagen }} style={styles.img} resizeMode="cover" />
           ) : (
-            <Ionicons name="image-outline" size={64} color={Colors.border} />
+            <Ionicons name="image-outline" size={64} color={colors.border} />
           )}
         </View>
 
-        <View style={styles.mainInfo}>
-          <Text style={styles.titulo}>{prod.nombre}</Text>
+        <View style={[styles.mainInfo, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.titulo, { color: colors.text }]}>{prod.nombre}</Text>
           <View style={styles.tiendaRow}>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center' }} onPress={() => setTiendaSheetId(prod.tienda_id)} activeOpacity={0.7}>
-              <Ionicons name="storefront-outline" size={16} color={Colors.muted} style={{ marginRight: 6 }} />
-              <Text style={styles.tienda}>{prod.tienda_nombre} • {prod.municipio}</Text>
+              <Ionicons name="storefront-outline" size={16} color={colors.muted} style={{ marginRight: 6 }} />
+              <Text style={[styles.tienda, { color: colors.muted }]}>{prod.tienda_nombre} • {prod.municipio}</Text>
             </TouchableOpacity>
             {prod.vendedor_id && prod.vendedor_id !== usuario?.id ? (
-              <TouchableOpacity onPress={toggleSeguir} style={[styles.seguirBtn, prod.yo_sigo ? styles.seguirBtnActivo : null]} activeOpacity={0.8}>
-                <Text style={[styles.seguirTxt, prod.yo_sigo ? styles.seguirTxtActivo : null]}>{prod.yo_sigo ? 'Siguiendo' : 'Seguir'}</Text>
+              <TouchableOpacity
+                onPress={toggleSeguir}
+                style={[styles.seguirBtn, { borderColor: colors.accent }, prod.yo_sigo ? { backgroundColor: colors.accent } : null]}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.seguirTxt, { color: prod.yo_sigo ? colors.contrast : colors.accent }]}>{prod.yo_sigo ? 'Siguiendo' : 'Seguir'}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
-          <Text style={styles.precio}>${Number(prod.precio).toFixed(2)}</Text>
+          {/* Precio: numeral grande en Sora ExtraBold, tabular-nums — el número más importante de la pantalla */}
+          <Text style={[styles.precio, { color: colors.accent }]}>${Number(prod.precio).toFixed(2)}</Text>
         </View>
 
-        <View style={styles.sectionDivider} />
+        <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />
 
         <View style={styles.descContainer}>
-          <Text style={styles.descTitle}>{t.product.descripcion}</Text>
-          <Text style={styles.descripcion}>{prod.descripcion || t.product.sinDescripcion}</Text>
+          <Text style={[styles.descTitle, { color: colors.text }]}>{t.product.descripcion}</Text>
+          <Text style={[styles.descripcion, { color: colors.muted }]}>{prod.descripcion || t.product.sinDescripcion}</Text>
         </View>
 
-        <View style={styles.sectionDivider} />
+        <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />
 
         <View style={styles.qtyContainer}>
-          <Text style={styles.qtyTitle}>{t.product.cuantosOrdenar}</Text>
-          <View style={styles.qtyRow}>
-            <TouchableOpacity 
-              onPress={() => setCantidad(Math.max(1, cantidad - 1))} 
-              style={styles.qtyBtn}
+          <Text style={[styles.qtyTitle, { color: colors.text }]}>{t.product.cuantosOrdenar}</Text>
+          <View style={[styles.qtyRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <TouchableOpacity
+              onPress={() => setCantidad(Math.max(1, cantidad - 1))}
+              style={[styles.qtyBtn, { backgroundColor: colors.elevated }]}
               activeOpacity={0.7}
             >
-              <Ionicons name="remove" size={22} color={Colors.text} />
+              <Ionicons name="remove" size={22} color={colors.text} />
             </TouchableOpacity>
-            <Text style={styles.qtyText}>{cantidad}</Text>
-            <TouchableOpacity 
-              onPress={() => setCantidad(cantidad + 1)} 
-              style={styles.qtyBtn}
+            <Text style={[styles.qtyText, { color: colors.text }]}>{cantidad}</Text>
+            <TouchableOpacity
+              onPress={() => setCantidad(cantidad + 1)}
+              style={[styles.qtyBtn, { backgroundColor: colors.elevated }]}
               activeOpacity={0.7}
             >
-              <Ionicons name="add" size={22} color={Colors.text} />
+              <Ionicons name="add" size={22} color={colors.text} />
             </TouchableOpacity>
           </View>
         </View>
 
         <View style={{ height: Spacing.lg + 10 }} />
-        <Button label={t.product.anadirCarrito} icon="cart-outline" onPress={addCarrito} />
+        {/* CTA principal de compra en ctaAccent (naranja) para darle energía/urgencia — único acento cálido de la pantalla, sin competir con el azul de "Seguir" */}
+        <Button
+          label={t.product.anadirCarrito}
+          icon="cart-outline"
+          onPress={addCarrito}
+          style={{ backgroundColor: colors.ctaAccent, borderColor: colors.ctaAccent }}
+        />
         <View style={{ height: Spacing.sm }} />
         <Button label={t.product.contactarVendedor} icon="chatbubble-outline" onPress={chatear} variant="secondary" />
       </ScreenScroll>
@@ -143,78 +157,67 @@ export default function ProductScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+  root: { flex: 1 },
   backBtn: {
     width: 38, height: 38, borderRadius: 19,
     justifyContent: 'center', alignItems: 'center',
-    backgroundColor: Colors.background,
-    borderWidth: 1, borderColor: Colors.border
+    borderWidth: 1,
   },
-  imgBox: { 
-    aspectRatio: 1.2, 
-    backgroundColor: Colors.card, 
-    borderRadius: Radius.md, 
-    justifyContent: 'center', 
-    alignItems: 'center', 
-    marginBottom: Spacing.lg, 
+  imgBox: {
+    aspectRatio: 1.1,
+    borderRadius: Radius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
     overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: Colors.border,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
-    shadowRadius: 8,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
     elevation: 3
   },
   img: { width: '100%', height: '100%' },
   mainInfo: {
-    backgroundColor: Colors.card,
     padding: Spacing.md,
     borderRadius: Radius.md,
     borderWidth: 1.5,
-    borderColor: Colors.border
   },
-  titulo: { fontSize: Fonts.heading - 4, fontWeight: '800', color: Colors.text, letterSpacing: -0.5 },
+  titulo: { fontSize: Fonts.heading - 4, fontFamily: FontFamily.displayExtraBold, letterSpacing: -0.5 },
   tiendaRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-  tienda: { color: Colors.muted, fontSize: Fonts.small + 1, fontWeight: '600' },
-  seguirBtn: { marginLeft: 10, paddingHorizontal: 12, paddingVertical: 4, borderRadius: Radius.pill, borderWidth: 1.5, borderColor: Colors.accent },
-  seguirBtnActivo: { backgroundColor: Colors.accent },
-  seguirTxt: { color: Colors.accent, fontWeight: '800', fontSize: Fonts.small - 1 },
-  seguirTxtActivo: { color: '#FFF' },
-  precio: { fontSize: Fonts.heading - 2, color: Colors.accent, fontWeight: '800', marginTop: Spacing.md, letterSpacing: -0.5 },
-  sectionDivider: { height: 1.5, backgroundColor: Colors.border, marginVertical: Spacing.lg },
+  tienda: { fontSize: Fonts.small + 1, fontFamily: FontFamily.bodySemiBold },
+  seguirBtn: { marginLeft: 10, paddingHorizontal: 12, paddingVertical: 4, borderRadius: Radius.pill, borderWidth: 1.5 },
+  seguirTxt: { fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.small - 1 },
+  precio: { fontSize: Fonts.heading + 4, fontFamily: FontFamily.displayExtraBold, marginTop: Spacing.md, letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
+  sectionDivider: { height: 1.5, marginVertical: Spacing.lg },
   descContainer: {
     paddingHorizontal: Spacing.xs
   },
-  descTitle: { fontSize: Fonts.regular, color: Colors.text, fontWeight: '800', letterSpacing: -0.1 },
-  descripcion: { color: Colors.muted, marginTop: Spacing.sm, lineHeight: 22, fontSize: Fonts.regular, fontWeight: '500' },
+  descTitle: { fontSize: Fonts.regular, fontFamily: FontFamily.displayBold, letterSpacing: -0.1 },
+  descripcion: { marginTop: Spacing.sm, lineHeight: 22, fontSize: Fonts.regular, fontFamily: FontFamily.bodySemiBold },
   qtyContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.xs
   },
-  qtyTitle: { fontSize: Fonts.regular, color: Colors.text, fontWeight: '800', flex: 1, letterSpacing: -0.1 },
-  qtyRow: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    backgroundColor: Colors.card, 
-    borderRadius: Radius.pill, 
+  qtyTitle: { fontSize: Fonts.regular, fontFamily: FontFamily.displayBold, flex: 1, letterSpacing: -0.1 },
+  qtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: Radius.pill,
     padding: 4,
     borderWidth: 1.5,
-    borderColor: Colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.02,
     shadowRadius: 3,
     elevation: 1
   },
-  qtyBtn: { 
-    width: 36, height: 36, 
-    borderRadius: 18, 
-    justifyContent: 'center', alignItems: 'center', 
-    backgroundColor: 'rgba(74, 109, 140, 0.05)'
+  qtyBtn: {
+    width: 36, height: 36,
+    borderRadius: 18,
+    justifyContent: 'center', alignItems: 'center',
   },
-  qtyText: { marginHorizontal: Spacing.lg, fontSize: Fonts.title - 2, color: Colors.text, fontWeight: '800' },
-  error: { color: Colors.danger, padding: Spacing.lg, textAlign: 'center', fontWeight: '600' }
+  qtyText: { marginHorizontal: Spacing.lg, fontSize: Fonts.title - 2, fontFamily: FontFamily.displayExtraBold, fontVariant: ['tabular-nums'] },
+  error: { padding: Spacing.lg, textAlign: 'center', fontFamily: FontFamily.bodySemiBold }
 });
