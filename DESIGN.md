@@ -1,54 +1,58 @@
 ---
 name: "[SV]Go"
-description: "Hyperlocal delivery marketplace for El Salvador — evolved blue, committed color strategy, Sora + Manrope type, custom line-icon system, orchestrated motion."
+description: "Hyperlocal delivery marketplace para El Salvador — dirección 'Bandera Institucional' v4: navy profundo + azul ultramar/cian con resplandor integrado al fondo (referencia visual del usuario: JumpBot/Unify), blanco como protagonista estructural en claro, acento dorado con brillo animado, Archivo + Hanken Grotesk, superficies glass. Animaciones firma (sello de aprobación, numerales split-flap, revelado de trazo de tinta) más revelado en cascada por scroll orquestado en toda la página."
 colors:
-  primary: "#2563EB"
-  primary-deep: "#1D4ED8"
-  accent: "#EA580C"
+  primary: "#2C4BC4"
+  primary-deep: "#1B2F82"
+  primary-soft: "#E6F1FE"
+  accent: "#E8B923"
+  accent-deep: "#B8890F"
   success: "#16A34A"
   destructive: "#DC2626"
-  bg: "#F8FAFC"
-  bg-alt: "#EEF3FB"
+  bg: "#F6FAFF"
+  bg-alt: "#EDF4FD"
   surface: "#FFFFFF"
-  surface-2: "#F1F5F9"
-  text: "#0F172A"
-  text-muted: "#475569"
-  text-faint: "#94A3B8"
-  border: "#E2E8F0"
-  primary-dark: "#3B82F6"
-  primary-deep-dark: "#60A5FA"
-  accent-dark: "#FB923C"
+  surface-2: "#E8F1FC"
+  text: "#0B1626"
+  text-muted: "#4A5C75"
+  text-faint: "#8598B3"
+  border: "#D7E6F9"
+  primary-dark: "#2F9BF5"
+  primary-deep-dark: "#1C7AD1"
+  primary-soft-dark: "#12233E"
+  accent-dark: "#F0C24B"
+  accent-deep-dark: "#C99A2E"
   success-dark: "#34D399"
   destructive-dark: "#F87171"
-  bg-dark: "#0F172A"
-  bg-alt-dark: "#0B1220"
-  surface-dark: "#1E293B"
-  surface-2-dark: "#17233A"
-  text-dark: "#F1F5F9"
-  text-muted-dark: "#94A3B8"
-  text-faint-dark: "#64748B"
-  border-dark: "#334155"
+  bg-dark: "#070B16"
+  bg-alt-dark: "#0B121F"
+  surface-dark: "#0F1729"
+  surface-2-dark: "#141D33"
+  text-dark: "#F2F6FC"
+  text-muted-dark: "#8CA0BE"
+  text-faint-dark: "#5E7295"
+  border-dark: "#1E2A44"
 typography:
   display:
-    fontFamily: "Sora, system-ui, sans-serif"
+    fontFamily: "Archivo, system-ui, sans-serif"
     fontWeight: 800
-    letterSpacing: "-0.02em"
+    letterSpacing: "-0.015em"
   heading:
-    fontFamily: "Sora, system-ui, sans-serif"
+    fontFamily: "Archivo, system-ui, sans-serif"
     fontWeight: 700
   body:
-    fontFamily: "Manrope, system-ui, sans-serif"
+    fontFamily: "Hanken Grotesk, system-ui, sans-serif"
     fontWeight: 400
-    lineHeight: 1.5
+    lineHeight: 1.55
   label:
-    fontFamily: "Manrope, system-ui, sans-serif"
+    fontFamily: "Hanken Grotesk, system-ui, sans-serif"
     fontWeight: 700
-    letterSpacing: "0.04em"
+    letterSpacing: "0.06em"
 rounded:
   sm: "8px"
   md: "12px"
-  lg: "16px"
-  xl: "20px"
+  lg: "18px"
+  xl: "26px"
   pill: "999px"
 spacing:
   xs: "4px"
@@ -61,96 +65,133 @@ components:
     backgroundColor: "{colors.primary}"
     textColor: "#FFFFFF"
     rounded: "{rounded.md}"
-    padding: "10px 18px"
-  button-primary-hover:
-    backgroundColor: "{colors.primary-deep}"
-    textColor: "#FFFFFF"
+    padding: "11px 20px"
   button-accent:
     backgroundColor: "{colors.accent}"
-    textColor: "#FFFFFF"
+    textColor: "#241300"
     rounded: "{rounded.md}"
-    padding: "10px 18px"
+    padding: "11px 20px"
   card:
     backgroundColor: "{colors.surface}"
     rounded: "{rounded.lg}"
     padding: "16px"
   badge-pill:
     backgroundColor: "{colors.accent}"
-    textColor: "#FFFFFF"
+    textColor: "#241300"
     rounded: "{rounded.pill}"
-    padding: "3px 10px"
+    padding: "4px 12px"
 ---
 
 ## Overview
 
-[SV]Go is a hyperlocal delivery marketplace for El Salvador (4 roles: Comprador, Vendedor, Repartidor, Admin) shipped as two codebases sharing one PHP/MySQL backend: a React + Vite web app (`apps/web/web`) and a React Native/Expo mobile app (`apps/mobile/frontend`). This system is an **evolution** of the existing brand blue (`#4A6D8C`), not a replacement — approved after a 16-question intake and a live HTML mockup reviewed with the user (dark/light toggle, both a Comprador mobile screen and a Vendedor web dashboard). Two rounds of feedback moved the direction to its final state: emoji iconography rejected outright in favor of a single custom line-icon set, typography reconsidered from Plus Jakarta Sans to Sora + Manrope, and the primary blue confirmed at its original saturation (`#2563EB` / `#3B82F6` dark) after a same-session darker variant was tried and rejected.
+[SV]Go es un marketplace hyperlocal de delivery para El Salvador (4 roles: Comprador, Vendedor, Repartidor, Admin) en dos codebases que comparten un backend PHP/MySQL: web React+Vite (`apps/web/web`) y app React Native/Expo (`apps/mobile/frontend`).
 
-Color strategy is **Committed**: the primary blue owns 30–60% of each surface (headers, primary buttons, section fields), not a neutral base with a scattered accent. Both light and dark themes get equal design care — dark is not a secondary/fallback mode.
+Esta es la **segunda generación** del sistema visual — un **reemplazo deliberado**, no una evolución, del sistema "evolved-blue" anterior (`#2563EB`/`#1D4ED8`, Sora+Manrope, iconos de línea, fondos planos). Se aprobó tras un intake de ~20 preguntas y una ronda de generación de direcciones (`concept-seed.mjs`, modo Operate): el generador asignó "Rótulo de Pulpería" (rótulos pintados a mano) como dirección a construir, pero el usuario eligió en su lugar **"Bandera Institucional"** — la dirección de mayor resonancia propia (IMPECCABLE'S PICK) — por su vínculo directo con el nombre "SVGo" y la bandera de El Salvador. Se iteró dos veces sobre feedback real del usuario: (1) se retiró la tipografía Unbounded por sentirse "en movimiento"/distorsionada, reemplazada por Archivo; (2) el fondo pasó de una banda azul plana en el header a un **degradado ambiental de página completa**, desaturado y con transiciones suaves (referencia visual: wallpapers de degradado azul→negro tipo cielo nocturno), porque la primera versión saturaba y contrastaba demasiado con el contenido.
 
-Web and mobile share brand (color, type, tone, icon grammar) but each follows its own platform convention: mobile uses bottom tabs, gesture-friendly touch targets, and native safe areas; web uses sidebar/table-dense dashboards and hover states. Web dashboards (Vendedor/Admin/Repartidor desktop) run dense; mobile runs spacious with larger touch targets.
+Mockup de referencia completo (interactivo, con toggle claro/oscuro real y el catálogo de animaciones en vivo): ver `docs/redisenio/svgo-direccion-bandera.html` (copia local, sincronizada con este archivo) — construido y validado en un artifact durante la sesión de diseño.
 
-## Colors
+**Historial de la paleta (para que quede claro qué se probó y por qué se descartó, no solo el estado final):** primero se probó un modo oscuro navy/slate con azul brillante — el usuario lo señaló como "look de IA" (navy casi negro + glow azul es un patrón muy repetido en interfaces generadas por IA). Se corrigió a "Añil Nocturno" (índigo profundo con acento dorado, referenciando el tinte histórico de El Salvador) para alejarse deliberadamente de ese cliché. Después el usuario compartió referencias reales que le gustaban (JumpBot, Unify — ambas navy + azul/cian brillante con glow) y pidió explícitamente volver a esa dirección, aceptando conscientemente el parecido con el patrón que antes se había evitado — **es una decisión informada del usuario, no un descuido**. La paleta actual (v4, ver bloque `colors` arriba) es esa: navy profundo + azul ultramar con un resplandor radial integrado al degradado (no manchas sueltas), acento dorado con animación de brillo, y azul primario en modo claro deliberadamente más profundo (`#2C4BC4`, ultramar) que el celeste genérico de SaaS para no repetir el mismo problema en claro.
 
-Committed strategy, evolved-blue anchor:
+Color strategy: **Committed** — el azul primario cubre 30–60% de cada pantalla (headers, CTAs, nav activa, fondo ambiental), nunca es un accent menor. El blanco es un segundo protagonista real (franjas, remates, superficies glass) en modo claro. Un único acento dorado, con brillo animado, reservado para urgencia/CTA de compra.
 
-- **Primary** (`#2563EB` light / `#3B82F6` dark) — the dominant color. Headers, primary CTAs, active nav state, section backgrounds at page scale. Not a small accent — it should read as "this app is blue" at a glance.
-- **Primary Deep** (`#1D4ED8` / `#60A5FA` dark) — pressed states, gradient partner for headers (`linear-gradient(135deg, primary, primary-deep)`).
-- **Accent** (`#EA580C` / `#FB923C` dark) — warm orange, reserved for urgency/energy: "Entrega Express", live-tracking pin, primary marketing CTAs, offer badges. Never placed adjacent to primary in a way that competes for attention in the same zone.
-- **Success** (`#16A34A` / `#34D399`) — confirmed/delivered states only.
-- **Destructive** (`#DC2626` / `#F87171`) — errors, rejections, cancellations only.
-- Neutrals carry a faint blue hue bias (`bg-alt: #EEF3FB` light, cool slate-blue darks) rather than pure gray — chosen to match the primary, not inherited from a template.
+## Colores
 
-Dark mode is not an inversion: surfaces step from `bg` → `bg-alt` → `surface` → `surface-2`, same relationship as light, recalibrated for contrast rather than flipped 1:1.
+- **Primary** (`#2C4BC4` ultramar claro / `#2F9BF5` azul-cian oscuro) — dominante. Headers, CTAs primarios, nav activa, degradado ambiental. En claro es deliberadamente más profundo que un azul SaaS genérico; en oscuro es más brillante porque así lo pidió el usuario a partir de referencias reales.
+- **Primary Deep** (`#1B2F82` / `#1C7AD1` oscuro) — pressed states, extremo del gradiente en botones/heros.
+- **Accent** (`#E8B923` dorado claro / `#F0C24B` oscuro) — dorado, no naranja (se corrigió desde `#F0A202`, que se percibía anaranjado). Lleva una **animación de brillo constante** (glow pulsante + destello diagonal que cruza el botón cada 2.4s) en el CTA "Entrega Express" — es el único elemento con esa animación de brillo, no generalizarla a otros botones. Reservado para urgencia, CTA de compra, momentos de éxito.
+- **Success** (`#16A34A` / `#34D399`) — solo confirmado/entregado.
+- **Destructive** (`#DC2626` / `#F87171`) — solo errores/cancelaciones.
+- Neutrales con sesgo azul en ambos modos — nunca gris puro.
 
-## Typography
+### Fondo ambiental (el cambio más importante frente al sistema "evolved-blue")
 
-Two-family system, both self-hosted (no CDN font links — Google Fonts CDN is blocked by CSP in the artifact tooling used to prototype this; production apps should self-host the `.ttf`/`.woff2` files rather than link `fonts.googleapis.com`):
+Toda la página —no solo el hero— vive sobre un degradado diagonal (155deg) con **un resplandor radial integrado**, no dos manchas (`.blob`) sueltas flotando por separado (versión anterior: se veían como "dos pelotas" — corregido fusionando el resplandor directamente dentro de la variable `--ambient` como una segunda capa `radial-gradient`, siempre la misma posición, sin blobs independientes):
 
-- **Sora** (700/800) — display and headings, all numerals (prices, KPIs, order numbers). Chosen over Plus Jakarta Sans (the first-round pick) for more geometric character; chosen over Inter/Space Grotesk because those read as the generic AI-default pairing. `font-variant-numeric: tabular-nums` on every numeral column.
-- **Manrope** (400/500/600/700/800) — body text, UI labels, dense table content. Highly legible at small sizes, which matters for the dense web dashboards.
+- **Claro**: `radial-gradient(66% 56% at 84% 4%, rgba(44,75,196,.34), transparent 74%), linear-gradient(155deg, #FBFDFF 0%, #F1F8FF 20%, #E4F0FE 40%, #D3E6FC 60%, #C2DAFA 80%, #B2CEF7 100%)`
+- **Oscuro**: `radial-gradient(66% 56% at 84% 4%, rgba(47,155,245,.48), transparent 74%), linear-gradient(155deg, #04060C 0%, #070B16 25%, #0B1220 50%, #0F1729 75%, #14213B 100%)`
 
-Never mix in a third family. Uppercase labels (section eyebrows, table headers, badges) get `letter-spacing: 0.04–0.07em` and the smallest weight that stays legible (usually 700, size ~0.68rem).
+Reglas duras:
+- **El resplandor vive dentro de `--ambient`, nunca como elementos `.blob` separados** — esa fue la corrección explícita del usuario ("no me gusta que se vean como dos pelotas"). Si se necesita más de un punto de luz, se resuelve con más capas `radial-gradient` en la misma variable, nunca con divs posicionados independientemente.
+- Puede animarse (deriva de posición muy lenta, ~60s, `prefers-reduced-motion` respetado) pero el movimiento debe ser casi imperceptible — nunca "opacar la vista".
+- Toda superficie de contenido (tarjetas, navbars, paneles) flota encima en **glass**: `rgba(surface, .93)` + `backdrop-filter: blur(14px) saturate(100%)` — la opacidad alta (93%) es deliberada: el fondo nunca debe teñir el texto ni reducir su contraste. No subir el `saturate()` del blur por encima de 100% — eso intensifica el color que se filtra detrás del texto.
+- Excepción: superficies operativas muy densas (tablas de Admin/Vendedor con muchas filas) pueden usar `--surface` sólido en vez de `.glass` si la legibilidad a alta densidad lo exige — la claridad de Operate gana sobre el efecto visual.
+- **Mobile (React Native):** se implementa con `expo-linear-gradient` (componente `AmbientBackground`) y `expo-blur` (`<BlurView>`) para el efecto vidrio — RN no tiene `backdrop-filter` nativo. A diferencia de la web, el degradado en mobile es **estático, sin la deriva animada de 60s** — la audiencia real (Android gama media/baja en El Salvador) no debe pagar el costo de repintar un degradado grande cada frame.
+
+## Tipografía
+
+Dos familias, ambas self-hosted (sin CDN de Google Fonts — igual que el sistema anterior, por la misma restricción de CSP):
+
+- **Archivo** (700/800) — display, headings, todos los numerales (precios, KPIs, número de pedido). Reemplaza a Unbounded (descartada: sus curvas geométricas se percibían "en movimiento"/inestables) y a Sora (sistema anterior). Es una grotesca muy estable, sin distorsión, con excelentes tabular numerals. `font-variant-numeric: tabular-nums` en toda columna numérica.
+- **Hanken Grotesk** (400/600/700/800) — cuerpo, labels de UI, tablas densas. Reemplaza a Manrope. Muy legible a tamaños pequeños.
+
+Nunca mezclar una tercera familia. Labels en mayúsculas: `letter-spacing: 0.06–0.08em`, peso 700, ~0.72rem.
+
+Archivos: `Archivo-Bold.ttf`, `Archivo-ExtraBold.ttf`, `HankenGrotesk-Regular.ttf`, `HankenGrotesk-SemiBold.ttf`, `HankenGrotesk-Bold.ttf`, `HankenGrotesk-ExtraBold.ttf` — ya copiados a `apps/web/web/public/fonts/` y `apps/mobile/frontend/assets/fonts/`. Los archivos `Sora-*.ttf`/`Manrope-*.ttf` del sistema anterior **se mantienen en disco sin borrar** hasta que ninguna pantalla los referencie (ver `docs/redisenio/PROGRESO.md`).
 
 ## Layout
 
-- **Web dashboards (Vendedor/Admin/Repartidor desktop):** dense — KPI row, compact table rows (~44px), minimal padding, sidebar/tab navigation. Optimized for "see everything at once."
-- **Mobile (Comprador/Vendedor/Repartidor):** spacious — 2-column product grid, generous touch targets (≥44px), bottom tab bar, one primary action per screen.
-- **Comprador-facing surfaces** (Market/Home): product photography is large and protagonist — the image is the primary scanning cue.
-- **Operational surfaces** (Vendedor/Admin panels): imagery is small/functional; data (price, status, buyer) leads.
-- Coverage/business rule from PRODUCT.md still applies: never design an ordering flow that implies delivery outside an active-coverage municipio.
+- **Web dashboards (Vendedor/Admin/Repartidor):** cambio de dirección respecto al sistema anterior — ya **no** son ultra-densos por defecto. El usuario pidió explícitamente "espacioso, prioriza claridad" sobre "denso, ver todo de un vistazo". Filas con más aire, jerarquía clara, aunque implique más scroll.
+- **Mobile:** espacioso, grid de 2 columnas, touch targets ≥44px, bottom tabs con indicador deslizante animado.
+- **Comprador (Market/Home):** foto de producto/comercio grande y protagonista — confirmado explícitamente por el usuario (no ilustración de reemplazo).
+- **Operativas (Vendedor/Admin):** dato (precio, estado, comprador) lidera; imagen pequeña/funcional.
+- Regla de negocio invariable: nunca diseñar un flujo que implique entrega fuera de un municipio con `cobertura_activa`.
 
-## Elevation & Depth
+## Navbars
 
-Two shadow tokens only — don't invent a third:
+- **Web:** barra superior única (no sidebar) — logo `[SV]Go`, enlaces (Inicio/Mercado/Pedidos/Wallet) con un indicador píldora azul que se desliza con `transition: transform .38s cubic-bezier(.2,.8,.2,1)`, buscador, notificaciones, avatar. Superficie glass.
+- **App:** barra superior minimal (título + notificaciones) + tabs inferiores con indicador que se desliza igual que en web (mismo lenguaje de movimiento, cada plataforma con su propia convención de posición).
 
-- `shadow`: `0 1px 2px rgba(15,23,42,.06), 0 8px 24px rgba(15,23,42,.06)` (light) — everyday cards, dropdowns.
-- `shadow-lg`: heavier, used only for the phone-mockup-style presentation frame and hover-lifted cards — not for routine elements.
+## Elevación y vidrio
 
-One deliberate 3D moment is reserved system-wide for **order confirmation only**: a small CSS 3D box (6 faces, `transform-style: preserve-3d`) that spins twice on entrance and settles front-facing with a checkmark badge. This is the system's single true 3D element — do not add 3D transforms elsewhere; that would dilute the one moment designed to earn it.
+- `--shadow`: `0 1px 2px rgba(11,27,51,.08), 0 12px 32px rgba(11,27,51,.10)` claro (ajustar opacidad/negro en oscuro) — única sombra para tarjetas/dropdowns/navbars.
+- `.glass`: ver regla de fondo ambiental arriba. Es el reemplazo del "shadow-lg" de presentación del sistema anterior.
+- El momento de confirmación de pedido **ya no es la caja 3D que giraba** (era, en retrospectiva, el mismo cliché de "card flip" que usa cualquier demo de IA) — ver "Sello de aprobación" en el catálogo de animaciones. Sigue siendo el único momento de firma reservado para ese instante exacto.
 
-## Shapes
+## Formas
 
-- Cards/panels: `16px` radius (`rounded.lg`).
-- Buttons, inputs, category tiles: `10–12px` radius (`rounded.md`).
-- Pills/badges/avatars: fully round (`rounded.pill`).
-- Product-card image tiles: same `16px` as the card (no separate inner radius break).
+- Tarjetas/paneles: `18px` (`rounded.lg`).
+- Botones, inputs, category tiles: `12px` (`rounded.md`).
+- Pills/badges/avatars/navbar: `999px` (`rounded.pill`).
+- Navbars y contenedores grandes de vidrio: `26px` (`rounded.xl`, nuevo token frente al sistema anterior).
 
-## Components
+## Componentes
 
-- **Icons — one custom line-icon system, zero emoji.** Every icon in the product (search, location, categories, tab bar, status pills, order actions, delivery/bike marker) is drawn from a single 24×24 stroke set: `stroke-width: 1.9–2.4`, `stroke-linecap/linejoin: round`, `fill: none` except small solid accent dots. Outline by default; filled/colored background only on the active/selected state (nav tabs, active category). Never use an emoji character as a functional icon or status marker anywhere in the product — this was an explicit, emphatic rejection from the user, not a style preference to weigh against convenience.
-- **Buttons:** primary = solid `primary` background, white text, `rounded.md`. Accent/CTA buttons (checkout, express, publish) = solid `accent`. Secondary = outline, `border` color, transparent background.
-- **Status pills:** tinted background at ~15% of the semantic color (`color-mix(in srgb, var(--x) 15%, transparent)`), text in the full semantic color, a matching small icon, never emoji.
-- **KPI/stat tiles:** label (icon + uppercase caption) → large Sora numeral (tabular figures) → small delta line, semantic-colored.
-- **Order confirmation card:** 3D box (see Elevation & Depth) + order number in a `bg-alt` pill using `Sora 800` tabular numerals — this is a signature moment, give it its own visual weight, don't compress it into a generic toast.
-- **Live tracking:** the only *looping* animation in the system is the tracking-pin pulse (`~2.2s ease-in-out`) — justified because it represents a live, ongoing state. No other element should loop indefinitely.
+- **Iconos — un solo set de línea propio, cero emoji.** Regla heredada e inquebrantable del sistema anterior; se reafirma explícitamente tras un descuido corregido en la sesión de diseño (se habían usado emoji de categoría en un mockup intermedio). 24×24, `stroke-width: 1.9`, `stroke-linecap/linejoin: round`, `fill: none`.
+- **Botones:** primary = sólido `primary`, texto blanco. Accent = sólido `accent`, texto `#241300` (no blanco — el dorado es demasiado claro para texto blanco legible). Outline = borde `border`, transparente. Feedback táctil: `scale(.96)` en `:active`.
+- **Status pills:** fondo `color-mix(in srgb, var(--x) 15-20%, transparent)`, texto en el color semántico completo, transición de estado por **crossfade**, nunca salto instantáneo.
+- **KPI/stat tiles:** label (icono + caption mayúscula) → numeral grande Archivo 800 tabular → delta semántico. Los números usan el efecto **split-flap** al entrar en viewport (`IntersectionObserver`), no count-up (ver catálogo de animaciones, #10).
+- **Tarjeta de producto:** `transform: translateY(-6px) rotateX(4deg) rotateY(-3deg)` + sombra elevada en hover — la "levitación" es parte del lenguaje de movimiento, no decorativa.
 
-## Do's and Don'ts
+## Catálogo de animaciones (nuevo frente al sistema anterior)
 
-- **Do** treat blue as dominant, not an accent — 30–60% coverage per screen, not a color that only shows up on buttons.
-- **Do** keep dark and light at equal fidelity; never ship a component only styled for one theme.
-- **Do** use the accent orange sparingly and with intent (urgency/CTA/live-status) — it loses meaning if it decorates everything.
-- **Do** orchestrate animation as a small set of purposeful moments (entrance stagger once on load, card hover-tilt, order-confirm 3D box, tracking pulse, KPI count-up) rather than scattering effects; respect `prefers-reduced-motion` everywhere.
-- **Don't** use emoji as UI iconography anywhere — not tab bars, not category chips, not status badges, not empty states. This is a hard rule from the client, already broken once and corrected; do not reintroduce it.
-- **Don't** default to Inter or Space Grotesk out of habit — this system's committed pairing is Sora + Manrope.
-- **Don't** add a second 3D-transformed element competing with the order-confirmation box; that moment is deliberately singular.
-- **Don't** load fonts from `fonts.googleapis.com` in production code — self-host the files.
+El sistema anterior tenía ~5 momentos de movimiento orquestados. Este sistema define 12 categorías reutilizables — implementar como utilidades/componentes compartidos, no repetir código por pantalla. Las primeras 8 son utilitarias y comunes a cualquier producto bien hecho; **las últimas 3 son las animaciones firma** — deliberadamente específicas de [SV]Go, elegidas para no parecerse al lenguaje de motion por defecto de una IA (fade+translateY genérico, spinners, count-up plano, glow pulsante):
+
+1. **Entrada escalonada** — listas/grids aparecen ítem a ítem (`delay` 100–150ms entre ítems), nunca todo de golpe.
+2. **Pulso de seguimiento en vivo** — único loop infinito con justificación real (repartidor en camino). `~2.2s ease-in-out`, color `primary` en ambos modos.
+3. **Crossfade de estado** — pills/badges cambian de estado con fundido, no salto.
+4. **Shimmer de carga** — nunca pantalla en blanco mientras cargan datos.
+5. **Notificación flotante** — toasts entran desde abajo, se retiran solos (~3.6s).
+6. **Levitación de tarjeta** — hover en tarjetas de producto (ver Componentes).
+7. **Retroalimentación de botón** — `scale(.96)` en press, siempre, en todo botón.
+8. **Deriva ambiental** — el fondo degradado se mueve ~60s casi imperceptible (ver "Fondo ambiental").
+
+**Animaciones firma:**
+
+9. **Sello de aprobación** — reemplaza el "card flip 3D" del sistema anterior como momento de confirmación de pedido. Un sello circular cae desde arriba (`translateY(-40px)→0`, leve rotación `-8deg→0`, `280ms ease-in` acelerando como una caída real), impacta con una compresión rápida (`scale(1.15→0.95→1)`, `120ms`), y un anillo de tinta se expande desde el punto de impacto y se desvanece (`500ms`). Timing intencionalmente mecánico/físico, no suave — es un sello de verdad, no un objeto 3D flotando. Único momento reservado para confirmación de pedido; no se repite en otro lugar.
+10. **Numerales split-flap** — precios y KPIs (Archivo, tabular-nums) ya no "cuentan" suavemente desde 0 (el cliché de cualquier demo de IA): cada dígito gira sobre su eje X como una ficha de tablero de aeropuerto/estación de buses antiguo, aterrizando en el valor final. Los dígitos se escalonan levemente (el de la izquierda se asienta último) para una sensación de cascada mecánica, no sincronizada al frame.
+11. **Revelado de trazo de tinta** — encabezados de sección (no listas de producto — eso es la entrada escalonada) se revelan con un barrido tipo pincelada, `clip-path: inset()` animado de izquierda a derecha en pasos ligeramente irregulares (no un `ease` perfectamente lineal), evocando un rótulo pintado a mano o tela teñida con añil. Reemplaza el fade+translateY genérico para este caso específico.
+
+Todas respetan `prefers-reduced-motion: reduce` (desactivar o saltar al estado final, nunca dejar un elemento "colgado" a mitad de animación).
+
+## Do's y Don'ts
+
+- **Do** tratar el fondo ambiental como presente en toda la app, no solo en el hero — es la seña de identidad más fuerte de este sistema.
+- **Do** mantener las superficies de contenido casi opacas (93%) sobre el fondo — el vidrio es para dar profundidad, no para que el texto pierda contraste.
+- **Do** usar Archivo únicamente en display/heading/numerales — nunca en párrafos largos (se vuelve pesado a tamaños de cuerpo).
+- **Do** mantener animaciones orquestadas y con propósito — cada una de las 9 categorías tiene un porqué, no son decoración.
+- **Don't** subir la saturación o el contraste local del degradado ambiental — es la corrección más importante de esta iteración, ya validada por el usuario.
+- **Don't** usar emoji como icono funcional en ningún lugar — regla heredada, ya corregida una vez en esta misma sesión de diseño.
+- **Don't** reintroducir Unbounded, Sora o Manrope en pantallas nuevas — el sistema tipográfico actual es Archivo + Hanken Grotesk.
+- **Don't** usar azul brillante/glow como acento de modo oscuro — es exactamente el patrón que se corrigió ("Añil Nocturno"); en oscuro el dorado lleva la luz, el azul lleva la marca.
+- **Don't** usar count-up plano ni el card-flip 3D genérico — fueron reemplazados por split-flap y sello de aprobación precisamente por leerse como "lo que haría cualquier IA".
+- **Don't** asumir dashboards densos por defecto en web — este sistema invierte esa regla frente al anterior; priorizar claridad salvo que una pantalla específica demuestre que la densidad es necesaria.

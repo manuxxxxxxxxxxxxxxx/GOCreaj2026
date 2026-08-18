@@ -574,7 +574,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
     aspectRatio: 1.7,
     justifyContent: 'space-between',
-    shadowColor: '#4A6D8C',
+    shadowColor: '#1D5FD1',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.2,
     shadowRadius: 16,

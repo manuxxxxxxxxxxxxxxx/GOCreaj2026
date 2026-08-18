@@ -44,7 +44,7 @@ interface Producto {
 // Color de marcador por categoría (sección 9.2) — taxonomía real del backend.
 const CATEGORY_COLORS: Record<string, string> = {
   comida: '#F97316',
-  bebidas: '#3B82F6',
+  bebidas: '#5D91EE',
   panaderia: '#92400E',
   postres: '#EC4899',
   frutas: '#22C55E',
@@ -125,7 +125,7 @@ export default function Explorar() {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   // ── Colors ──────────────────────────────────────────────────────────────
-  const accent = isDark ? '#3B82F6' : '#2563EB';
+  const accent = isDark ? '#5D91EE' : '#1D5FD1';
   const bg     = isDark ? '#080D18' : '#F8FAFC';
   const card   = isDark ? '#111827' : '#FFFFFF';
   const text   = isDark ? '#F1F5F9' : '#0F172A';

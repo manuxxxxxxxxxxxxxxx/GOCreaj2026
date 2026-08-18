@@ -119,7 +119,7 @@ interface DashTheme {
   card: string; elevated: string; inputBg: string; isDark: boolean;
 }
 const ThemeContext = createContext<DashTheme>({
-  text: '#0F172A', muted: '#94A3B8', border: '#E2E8F0', accent: '#2563EB',
+  text: '#0F172A', muted: '#94A3B8', border: '#E2E8F0', accent: '#1D5FD1',
   card: '#FFFFFF', elevated: '#F1F5F9', inputBg: '#F8FAFC', isDark: false,
 });
 
@@ -261,7 +261,7 @@ export default function VendedorDashboard() {
   const text    = isDark ? '#F1F5F9' : '#0F172A';
   const muted   = isDark ? '#64748B' : '#94A3B8';
   const elevated= isDark ? '#1A2236' : '#F1F5F9';
-  const accent  = isDark ? '#3B82F6' : '#2563EB';
+  const accent  = isDark ? '#5D91EE' : '#1D5FD1';
   const inputBg = isDark ? '#1E293B' : '#F8FAFC';
 
   const [tienda, setTienda]       = useState<Tienda | null>(null);

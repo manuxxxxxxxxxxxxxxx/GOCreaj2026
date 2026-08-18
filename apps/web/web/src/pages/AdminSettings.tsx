@@ -39,7 +39,7 @@ export default function AdminSettings() {
   const [maxLoginAttempts, setMaxLoginAttempts] = useState('5');
 
   // Appearance
-  const [accentColor, setAccentColor] = useState('#4A6D8C');
+  const [accentColor, setAccentColor] = useState('#1D5FD1');
   const [defaultTheme, setDefaultTheme] = useState('light');
 
   const handleSave = () => {
@@ -52,7 +52,7 @@ export default function AdminSettings() {
       onClick={() => onChange(!value)}
       style={{
         width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
-        background: value ? '#355068' : '#e2e8f0', position: 'relative', transition: 'background 0.3s', flexShrink: 0,
+        background: value ? '#123F94' : '#e2e8f0', position: 'relative', transition: 'background 0.3s', flexShrink: 0,
       }}
     >
       <span style={{
@@ -176,9 +176,9 @@ export default function AdminSettings() {
               ].map(item => (
                 <button key={item.label}
                   style={{ padding: '16px 20px', borderRadius: 12, border: '1.5px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14, textAlign: 'left', fontFamily: 'inherit', transition: 'all 0.2s' }}
-                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#4A6D8C'; e.currentTarget.style.background = '#e8f0f7'; }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#1D5FD1'; e.currentTarget.style.background = '#e8f0f7'; }}
                   onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg)'; }}>
-                  <span style={{ color: '#4A6D8C' }}>{item.svg}</span>
+                  <span style={{ color: '#1D5FD1' }}>{item.svg}</span>
                   <div>
                     <p style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)', marginBottom: 2 }}>{item.label}</p>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>{item.desc}</p>
@@ -223,7 +223,7 @@ export default function AdminSettings() {
               style={{
                 width: '100%', padding: '12px 14px', borderRadius: 10, border: 'none',
                 background: activeSection === section.id ? '#e8f0f7' : 'transparent',
-                color: activeSection === section.id ? '#355068' : 'var(--text-muted)',
+                color: activeSection === section.id ? '#123F94' : 'var(--text-muted)',
                 fontWeight: activeSection === section.id ? 700 : 500,
                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 12,
                 textAlign: 'left', fontSize: '0.88rem', fontFamily: 'inherit', transition: 'all 0.2s',
@@ -249,7 +249,7 @@ export default function AdminSettings() {
                 onClick={handleSave}
                 style={{
                   padding: '10px 20px', borderRadius: 10, border: 'none',
-                  background: saved ? '#10b981' : '#355068', color: '#fff',
+                  background: saved ? '#10b981' : '#123F94', color: '#fff',
                   fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
                   fontSize: '0.88rem', fontFamily: 'inherit', transition: 'background 0.3s',
                 }}

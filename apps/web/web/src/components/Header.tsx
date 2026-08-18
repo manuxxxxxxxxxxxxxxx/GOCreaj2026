@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useGlobal } from '../context/GlobalContext';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -98,15 +98,16 @@ export default function Header() {
     return `hace ${Math.floor(h / 24)} d`;
   };
 
-  // ── Colors ───────────────────────────────────────────────────────────────────
-  const bg      = isDark ? '#080D18' : '#FFFFFF';
-  const border  = isDark ? '#1E293B' : '#E2E8F0';
-  const accent  = isDark ? '#3B82F6' : '#2563EB';
-  const textCol = isDark ? '#F1F5F9' : '#0F172A';
-  const mutedCol= isDark ? '#64748B' : '#94A3B8';
-  const cardBg  = isDark ? '#111827' : '#FFFFFF';
-  const inputBg = isDark ? '#1E293B' : '#F1F5F9';
-  const elevated= isDark ? '#1A2236' : '#F8FAFC';
+  // ── Colors — Bandera Institucional (ver DESIGN.md) ────────────────────────────
+  const bg      = isDark ? 'rgba(18,37,68,.90)' : 'rgba(255,255,255,.92)'; // glass sobre el fondo ambiental
+  const border  = isDark ? '#24406B' : '#DCE4F1';
+  const accent  = isDark ? '#5D91EE' : '#1D5FD1';
+  const accentDeep = isDark ? '#84AAF4' : '#123F94';
+  const textCol = isDark ? '#F1F5FB' : '#0B1B33';
+  const mutedCol= isDark ? '#6E80A0' : '#8494AC';
+  const cardBg  = isDark ? '#122544' : '#FFFFFF';
+  const inputBg = isDark ? '#17304F' : '#EDF2FA';
+  const elevated= isDark ? '#17304F' : '#F3F6FC';
 
   // ── Scroll shadow ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -195,6 +196,21 @@ export default function Header() {
     { path: '/chat',      label: t('header.nav.chats'),    icon: iChat() },
   ];
 
+  // ── Indicador deslizante (Bandera Institucional) ──────────────────────────────
+  const navRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [indicator, setIndicator] = useState<{ left: number; width: number; ready: boolean }>({ left: 0, width: 0, ready: false });
+  useLayoutEffect(() => {
+    const measure = () => {
+      const active = navLinks.find(l => isActive(l.path));
+      const el = active ? navRefs.current[active.path] : null;
+      if (el) setIndicator({ left: el.offsetLeft, width: el.offsetWidth, ready: true });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
   // ── Shared dropdown style ─────────────────────────────────────────────────────
   const dropdownStyle: React.CSSProperties = {
     position: 'absolute', background: cardBg,
@@ -215,8 +231,10 @@ export default function Header() {
     <div style={{
       position: 'sticky', top: 0, zIndex: 1000,
       background: bg,
+      backdropFilter: 'blur(14px) saturate(100%)',
+      WebkitBackdropFilter: 'blur(14px) saturate(100%)',
       borderBottom: `1px solid ${scrolled ? border : 'transparent'}`,
-      boxShadow: scrolled ? (isDark ? '0 4px 32px rgba(0,0,0,0.4)' : '0 4px 24px rgba(15,23,42,0.08)') : 'none',
+      boxShadow: scrolled ? (isDark ? '0 4px 32px rgba(0,0,0,0.4)' : '0 4px 24px rgba(11,27,51,0.08)') : 'none',
       transition: 'border-color 0.25s, box-shadow 0.25s',
     }}>
 
@@ -233,13 +251,13 @@ export default function Header() {
           background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0,
         }}>
           <div style={{
-            width: 34, height: 34, borderRadius: 9,
-            background: `linear-gradient(135deg, ${accent}, #7C3AED)`,
+            width: 34, height: 34, borderRadius: 10,
+            background: `linear-gradient(135deg, ${accent}, ${accentDeep})`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontWeight: 900, fontSize: 12, color: '#FFF', letterSpacing: '-0.5px',
+            fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 12, color: '#FFF', letterSpacing: '-0.5px',
             boxShadow: `0 4px 12px ${accent}40`, flexShrink: 0,
           }}>SV</div>
-          <span style={{ fontWeight: 900, fontSize: 20, color: accent, letterSpacing: '-0.5px' }}>Go</span>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: 20, color: accent, letterSpacing: '-0.5px' }}>Go</span>
         </button>
 
         {/* Municipio picker */}
@@ -567,26 +585,36 @@ export default function Header() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         height: 42, borderTop: `1px solid ${border}`, position: 'relative',
       }}>
-        <div style={{ display: 'flex', gap: 2 }}>
+        <div style={{ display: 'flex', gap: 2, position: 'relative' }}>
+          {/* Indicador deslizante — una sola píldora azul que se mueve entre secciones */}
+          <div style={{
+            position: 'absolute', top: 0, bottom: 0, left: 0,
+            borderRadius: 8, background: `${accent}18`,
+            transform: `translateX(${indicator.left}px)`,
+            width: indicator.width,
+            opacity: indicator.ready ? 1 : 0,
+            transition: 'transform .38s cubic-bezier(.2,.8,.2,1), width .38s cubic-bezier(.2,.8,.2,1), opacity .2s ease',
+            pointerEvents: 'none',
+          }} />
           {navLinks.map(link => {
             const active = isActive(link.path);
             return (
               <button
                 key={link.path}
+                ref={el => { navRefs.current[link.path] = el; }}
                 onClick={() => navigate(link.path)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6,
                   padding: '6px 18px', borderRadius: 8,
-                  border: 'none', cursor: 'pointer',
-                  background: active ? `${accent}18` : 'transparent',
+                  border: 'none', cursor: 'pointer', background: 'transparent',
                   color: active ? accent : mutedCol,
                   fontSize: 13, fontWeight: active ? 700 : 600,
-                  transition: 'all 0.15s',
-                  borderBottom: `2px solid ${active ? accent : 'transparent'}`,
+                  transition: 'color 0.15s',
                   fontFamily: 'inherit', whiteSpace: 'nowrap',
+                  position: 'relative', zIndex: 1,
                 }}
-                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = isDark ? '#1E293B' : '#F1F5F9'; }}
-                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = textCol; }}
+                onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = mutedCol; }}
               >
                 {link.icon}
                 {link.label}

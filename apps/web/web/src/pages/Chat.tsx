@@ -108,7 +108,7 @@ function formatBytes(bytes?: number | null): string {
 }
 
 const ROLE_COLOR: Record<string, string> = {
-  vendedor: '#4A6D8C', repartidor: '#27AE8F', comprador: '#8E44AD', admin: '#C0392B',
+  vendedor: '#1D5FD1', repartidor: '#27AE8F', comprador: '#8E44AD', admin: '#C0392B',
 };
 
 function formatDuration(s: number): string {
@@ -125,7 +125,7 @@ function ReplyCard({ snap, mine }: { snap: ReplySnap; mine: boolean }) {
     : snap.tipo === 'audio' ? '[Nota de voz]'
     : (snap.mensaje ?? '').slice(0, 80);
   return (
-    <div style={{ borderLeft: '3px solid #3B82F6', padding: '5px 8px', marginBottom: 6, background: mine ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.06)', borderRadius: '0 6px 6px 0', display: 'flex', gap: 8, alignItems: 'center' }}>
+    <div style={{ borderLeft: '3px solid #5D91EE', padding: '5px 8px', marginBottom: 6, background: mine ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.06)', borderRadius: '0 6px 6px 0', display: 'flex', gap: 8, alignItems: 'center' }}>
       {isImg && snap.adjunto && (
         <img src={imgUri(snap.adjunto)} alt="" style={{ width: 34, height: 34, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
       )}
@@ -145,9 +145,9 @@ function ReplyBar({ target, onCancel }: { target: Message; onCancel: () => void 
     : target.tipo === 'audio' ? '[Nota de voz]'
     : target.mensaje.slice(0, 70);
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#0F172A', borderTop: '1px solid #334155', borderLeft: '3px solid #3B82F6', padding: '8px 16px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#0F172A', borderTop: '1px solid #334155', borderLeft: '3px solid #5D91EE', padding: '8px 16px' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 11, color: '#3B82F6', fontWeight: 700, marginBottom: 2 }}>Respondiendo a</div>
+        <div style={{ fontSize: 11, color: '#5D91EE', fontWeight: 700, marginBottom: 2 }}>Respondiendo a</div>
         <div style={{ fontSize: 12, color: '#94A3B8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{preview}</div>
       </div>
       <button onClick={onCancel} style={{ background: 'none', border: 'none', color: '#64748B', cursor: 'pointer', lineHeight: 1, padding: '2px 6px', display: 'flex' }}><X size={16} strokeWidth={2.2} /></button>
@@ -260,7 +260,7 @@ function PdfMsg({ msg, mine, onOpen }: { msg: Message; mine: boolean; onOpen: (u
       onClick={() => msg.adjunto && onOpen(msg.adjunto, msg.adjunto_nombre)}
       style={{ display: 'flex', alignItems: 'center', gap: 10, border: 'none', background: mine ? 'rgba(255,255,255,0.14)' : 'rgba(148,163,184,0.12)', borderRadius: 12, padding: 8, width: 230, cursor: 'pointer', textAlign: 'left' }}
     >
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: mine ? 'rgba(255,255,255,0.18)' : 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: mine ? '#fff' : '#3B82F6', flexShrink: 0 }}><FileText size={18} strokeWidth={2} /></div>
+      <div style={{ width: 40, height: 40, borderRadius: 10, background: mine ? 'rgba(255,255,255,0.18)' : 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: mine ? '#fff' : '#5D91EE', flexShrink: 0 }}><FileText size={18} strokeWidth={2} /></div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: mine ? '#FFF' : 'inherit', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{nombre}</div>
         {!!tamano && <div style={{ fontSize: 10, fontWeight: 600, color: mine ? 'rgba(255,255,255,0.7)' : '#94A3B8', marginTop: 2 }}>{tamano} · PDF</div>}
@@ -314,12 +314,12 @@ function AudioMsg({ msg, mine }: { msg: Message; mine: boolean }) {
         onLoadedMetadata={e => { if (isFinite(e.currentTarget.duration)) setTiempo(e.currentTarget.duration); }}
         style={{ display: 'none' }}
       />
-      <button onClick={toggle} style={{ width: 34, height: 34, borderRadius: 17, border: 'none', background: mine ? '#FFF' : '#3B82F6', color: mine ? '#3B82F6' : '#FFF', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <button onClick={toggle} style={{ width: 34, height: 34, borderRadius: 17, border: 'none', background: mine ? '#FFF' : '#5D91EE', color: mine ? '#5D91EE' : '#FFF', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {playing ? <Pause size={14} fill="currentColor" strokeWidth={0} /> : <Play size={14} fill="currentColor" strokeWidth={0} style={{ marginLeft: 2 }} />}
       </button>
       <div style={{ flex: 1 }}>
         <div style={{ height: 4, borderRadius: 2, background: mine ? 'rgba(255,255,255,0.3)' : '#334155', overflow: 'hidden' }}>
-          <div style={{ height: 4, borderRadius: 2, background: mine ? '#FFF' : '#3B82F6', width: `${progreso * 100}%` }} />
+          <div style={{ height: 4, borderRadius: 2, background: mine ? '#FFF' : '#5D91EE', width: `${progreso * 100}%` }} />
         </div>
         <div style={{ fontSize: 10, fontWeight: 600, color: mine ? 'rgba(255,255,255,0.8)' : '#94A3B8', marginTop: 4 }}>{formatDuration(Math.floor(tiempo))}</div>
       </div>
@@ -338,7 +338,7 @@ function ReactionsRow({ reacciones, mine, onPress }: { reacciones: Reaccion[]; m
         <button
           key={r.emoji}
           onClick={() => onPress(r.emoji)}
-          style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '3px 7px', borderRadius: 99, border: `1px solid ${r.mio ? '#3B82F6' : '#334155'}`, background: r.mio ? 'rgba(59,130,246,0.15)' : '#1E293B', cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '3px 7px', borderRadius: 99, border: `1px solid ${r.mio ? '#5D91EE' : '#334155'}`, background: r.mio ? 'rgba(59,130,246,0.15)' : '#1E293B', cursor: 'pointer' }}
         >
           <span style={{ fontSize: 12 }}>{r.emoji}</span>
           {r.count > 1 && <span style={{ fontSize: 10, fontWeight: 800, color: '#94A3B8' }}>{r.count}</span>}
@@ -425,7 +425,7 @@ function PeoplePickerModal({ title, people, loading, onClose, onSelect }: {
               {people.length === 0 ? 'Aún no tienes contactos.\nAparecerán tras tu primer pedido.' : 'Sin resultados'}
             </div>
           ) : filtered.map(u => {
-            const color = ROLE_COLOR[u.rol] ?? '#4A6D8C';
+            const color = ROLE_COLOR[u.rol] ?? '#1D5FD1';
             return (
               <button
                 key={u.id}
@@ -443,7 +443,7 @@ function PeoplePickerModal({ title, people, loading, onClose, onSelect }: {
                     {u.en_linea === 1 && <span style={{ width: 7, height: 7, borderRadius: 4, background: '#10B981' }} />}
                   </div>
                 </div>
-                <span style={{ color: '#3B82F6', display: 'flex' }}><MessageCircle size={18} strokeWidth={2} /></span>
+                <span style={{ color: '#5D91EE', display: 'flex' }}><MessageCircle size={18} strokeWidth={2} /></span>
               </button>
             );
           })}
@@ -457,11 +457,11 @@ function PeoplePickerModal({ title, people, loading, onClose, onSelect }: {
 const CS: Record<string, React.CSSProperties> = {
   callOverlay:   { position: 'fixed', inset: 0, background: 'rgba(2,8,23,0.94)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' },
   callCard:      { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 32px', gap: 12 },
-  callAvatarRing:{ width: 120, height: 120, borderRadius: 60, border: '3px solid #3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  callAvatarRing:{ width: 120, height: 120, borderRadius: 60, border: '3px solid #5D91EE', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   callAvatar:    { width: 100, height: 100, borderRadius: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   callAvatarTxt: { color: '#FFF', fontSize: 38, fontWeight: 800 },
   callName:      { fontSize: 26, fontWeight: 800, color: '#F1F5F9', letterSpacing: -0.5 },
-  callStatus:    { fontSize: 18, fontWeight: 700, color: '#3B82F6' },
+  callStatus:    { fontSize: 18, fontWeight: 700, color: '#5D91EE' },
   callWait:      { fontSize: 13, color: '#475569', fontWeight: 600 },
   hangupBtn:     { width: 64, height: 64, borderRadius: 32, background: '#EF4444', display: 'grid', placeItems: 'center', cursor: 'pointer', marginTop: 20, transition: 'transform 0.15s' },
   avatarImg:     { width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' },
@@ -482,7 +482,7 @@ function ActiveCallModal({ call, contacto, onHangup, muted, speakerOn, onMuteTog
   localVideoRef: React.RefObject<HTMLVideoElement | null>;
 }) {
   const name  = contacto?.nombre ?? 'Desconocido';
-  const color = contacto ? (ROLE_COLOR[contacto.rol] ?? '#3B82F6') : '#3B82F6';
+  const color = contacto ? (ROLE_COLOR[contacto.rol] ?? '#5D91EE') : '#5D91EE';
   const isVideo = call.tipo === 'video';
   return (
     <div style={CS.callOverlay}>
@@ -495,7 +495,7 @@ function ActiveCallModal({ call, contacto, onHangup, muted, speakerOn, onMuteTog
       <div style={{ ...CS.callCard, position: 'relative' }}>
         <div style={{
           ...CS.callAvatarRing,
-          borderColor: call.connected ? '#22C55E' : '#3B82F6',
+          borderColor: call.connected ? '#22C55E' : '#5D91EE',
           boxShadow: call.connected ? '0 0 0 8px rgba(34,197,94,0.15), 0 0 0 16px rgba(34,197,94,0.07)' : 'none',
           transition: 'box-shadow 0.4s',
         }}>
@@ -514,11 +514,11 @@ function ActiveCallModal({ call, contacto, onHangup, muted, speakerOn, onMuteTog
           background: call.connected ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.15)',
           borderRadius: 20, padding: '6px 16px',
           fontSize: 14, fontWeight: 700,
-          color: call.connected ? '#22C55E' : '#3B82F6',
+          color: call.connected ? '#22C55E' : '#5D91EE',
         }}>
           <span style={{
             width: 7, height: 7, borderRadius: '50%',
-            background: call.connected ? '#22C55E' : '#3B82F6',
+            background: call.connected ? '#22C55E' : '#5D91EE',
             animation: call.connected ? 'none' : 'callPulse 1.2s ease infinite',
           }} />
           {call.connected
@@ -583,13 +583,13 @@ function ActiveCallModal({ call, contacto, onHangup, muted, speakerOn, onMuteTog
               style={{
                 width: 54, height: 54, borderRadius: 27,
                 background: speakerOn ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.08)',
-                border: `2px solid ${speakerOn ? '#3B82F6' : 'rgba(255,255,255,0.15)'}`,
+                border: `2px solid ${speakerOn ? '#5D91EE' : 'rgba(255,255,255,0.15)'}`,
                 cursor: 'pointer', display: 'grid', placeItems: 'center',
                 transition: 'all 0.2s',
               }}
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-                stroke={speakerOn ? '#3B82F6' : '#fff'} strokeWidth="2.5" strokeLinecap="round">
+                stroke={speakerOn ? '#5D91EE' : '#fff'} strokeWidth="2.5" strokeLinecap="round">
                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
                 {speakerOn ? (
                   <>
@@ -601,7 +601,7 @@ function ActiveCallModal({ call, contacto, onHangup, muted, speakerOn, onMuteTog
                 )}
               </svg>
             </button>
-            <span style={{ fontSize: 11, color: speakerOn ? '#3B82F6' : '#64748B', fontWeight: 600 }}>
+            <span style={{ fontSize: 11, color: speakerOn ? '#5D91EE' : '#64748B', fontWeight: 600 }}>
               Altavoz
             </span>
           </div>
@@ -644,7 +644,7 @@ function IncomingCallModal({ call, onAccept, onReject }: {
 }) {
   return (
     <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 9999, display: 'flex', alignItems: 'center', gap: 14, background: '#121B2D', borderRadius: 18, padding: '12px 16px', boxShadow: '0 16px 48px rgba(0,0,0,0.45)', minWidth: 340, animation: 'callBannerIn 0.3s cubic-bezier(0.16,1,0.3,1)' }}>
-      <div style={{ width: 46, height: 46, borderRadius: 23, background: '#4A6D8C', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
+      <div style={{ width: 46, height: 46, borderRadius: 23, background: '#1D5FD1', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', flexShrink: 0 }}>
         {call.foto_perfil
           ? <img src={imgUri(call.foto_perfil)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : <span style={{ color: '#FFF', fontWeight: 800, fontSize: 15 }}>{getInitials(call.nombre)}</span>
@@ -1419,14 +1419,14 @@ export default function Chat() {
                   {tab === 'noLeidos' ? <><Check size={16} strokeWidth={2.4} />Todo leído</> : tab === 'favoritos' ? 'Sin favoritos' : tab === 'archivados' ? 'Sin archivados' : 'Sin conversaciones'}
                 </div>
                 {tab === 'todos' && (
-                  <button onClick={() => void abrirContactos()} style={{ marginTop: 14, background: 'linear-gradient(135deg,#2563EB,#1D4ED8)', color: '#FFF', border: 'none', borderRadius: 99, padding: '9px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                  <button onClick={() => void abrirContactos()} style={{ marginTop: 14, background: 'linear-gradient(135deg,#1D5FD1,#123F94)', color: '#FFF', border: 'none', borderRadius: 99, padding: '9px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
                     Ver mis contactos
                   </button>
                 )}
               </div>
             )}
             {contacts.map(c => {
-              const color    = ROLE_COLOR[c.rol] ?? '#4A6D8C';
+              const color    = ROLE_COLOR[c.rol] ?? '#1D5FD1';
               const uri      = imgUri(c.foto_perfil);
               const isActive = selected?.id === c.id;
               const unread   = c.no_leidos ?? 0;
@@ -1452,7 +1452,7 @@ export default function Chat() {
                       <span style={{ ...S.contactName, fontWeight: unread > 0 ? 800 : 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                         {c.nombre}{c.favorito ? <Star size={12} fill="#F59E0B" color="#F59E0B" /> : null}
                       </span>
-                      <span style={{ ...S.contactTime, color: unread > 0 ? '#3B82F6' : '#475569' }}>
+                      <span style={{ ...S.contactTime, color: unread > 0 ? '#5D91EE' : '#475569' }}>
                         {c.ultimo_mensaje ? formatTime(c.ultimo_mensaje.created_at) : ''}
                       </span>
                     </div>
@@ -1480,14 +1480,14 @@ export default function Chat() {
           {selected ? (
             <div style={S.chatWindow}>
               <div style={S.chatHeader}>
-                <div style={{ ...S.headerAvatar, background: ROLE_COLOR[selected.rol] ?? '#4A6D8C' }}>
+                <div style={{ ...S.headerAvatar, background: ROLE_COLOR[selected.rol] ?? '#1D5FD1' }}>
                   {imgUri(selected.foto_perfil) ? <img src={imgUri(selected.foto_perfil)} alt="" style={S.avatarImg} /> : getInitials(selected.nombre)}
                   {selected.en_linea === 1 && <span style={S.onlineDot} />}
                 </div>
                 <div style={S.headerMeta}>
                   <div style={S.headerName}>
                     {selected.nombre}
-                    <span style={{ ...S.rolePill, background: `${ROLE_COLOR[selected.rol] ?? '#4A6D8C'}22`, color: ROLE_COLOR[selected.rol] ?? '#4A6D8C' }}>{selected.rol}</span>
+                    <span style={{ ...S.rolePill, background: `${ROLE_COLOR[selected.rol] ?? '#1D5FD1'}22`, color: ROLE_COLOR[selected.rol] ?? '#1D5FD1' }}>{selected.rol}</span>
                   </div>
                   {selected.en_linea === 1
                     ? <div style={{ color: '#22C55E', fontSize: 12, fontWeight: 600 }}>En línea</div>
@@ -1561,7 +1561,7 @@ export default function Chat() {
                         <ReactionsRow reacciones={m.reacciones ?? []} mine={mine} onPress={emoji => void reaccionar(m, emoji)} />
                         <div style={{ ...S.msgMeta, justifyContent: mine ? 'flex-end' : 'flex-start' }}>
                           <span>{formatTime(m.created_at)}</span>
-                          {mine && <span style={{ color: m.leido ? '#3B82F6' : '#475569', marginLeft: 4, display: 'inline-flex' }}>{m.leido ? <CheckCheck size={13} strokeWidth={2.4} /> : <Check size={13} strokeWidth={2.4} />}</span>}
+                          {mine && <span style={{ color: m.leido ? '#5D91EE' : '#475569', marginLeft: 4, display: 'inline-flex' }}>{m.leido ? <CheckCheck size={13} strokeWidth={2.4} /> : <Check size={13} strokeWidth={2.4} />}</span>}
                         </div>
                       </div>
                     </div>
@@ -1628,7 +1628,7 @@ export default function Chat() {
           ) : (
             <div style={S.emptyMain}>
               <div style={S.emptyIcon}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="1.5" width="52" height="52">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#5D91EE" strokeWidth="1.5" width="52" height="52">
                   <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                 </svg>
               </div>
@@ -1678,14 +1678,14 @@ function makeStyles(isDark: boolean): Record<string, React.CSSProperties> {
     sidebar:          { width: 320, minWidth: 260, display: 'flex', flexDirection: 'column', background: sidebarBg, borderRight: `1px solid ${sideBorder}` },
     sidebarHeader:    { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 16px 12px', borderBottom: `1px solid ${sideBorder}` },
     sidebarTitle:     { fontSize: 20, fontWeight: 900, color: textPrimary, letterSpacing: -0.5 },
-    sidebarSub:       { fontSize: 12, color: '#3B82F6', fontWeight: 600, marginTop: 2 },
+    sidebarSub:       { fontSize: 12, color: '#5D91EE', fontWeight: 600, marginTop: 2 },
     iconBtn:          { width: 36, height: 36, borderRadius: 18, background: inputBg, color: textMuted, display: 'grid', placeItems: 'center', cursor: 'pointer' },
     searchWrap:       { display: 'flex', alignItems: 'center', gap: 8, margin: '10px 12px', background: inputBg, borderRadius: 10, padding: '8px 12px' },
     searchInput:      { flex: 1, background: 'transparent', border: 'none', outline: 'none', color: textPrimary, fontSize: 14, fontWeight: 500 },
     tabRow:           { display: 'flex', overflowX: 'auto', borderBottom: `1px solid ${sideBorder}`, padding: '0 4px' },
     tabBtn:           { flexShrink: 0, padding: '10px 12px', fontSize: 13, fontWeight: 700, color: textMuted, background: 'none', cursor: 'pointer', borderBottom: '2px solid transparent', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 6 },
-    tabBtnActive:     { color: '#3B82F6', borderBottomColor: '#3B82F6' },
-    tabBadge:         { background: '#3B82F6', color: '#FFF', fontSize: 10, fontWeight: 900, borderRadius: 9, padding: '1px 5px' },
+    tabBtnActive:     { color: '#5D91EE', borderBottomColor: '#5D91EE' },
+    tabBadge:         { background: '#5D91EE', color: '#FFF', fontSize: 10, fontWeight: 900, borderRadius: 9, padding: '1px 5px' },
     contactList:      { flex: 1, overflowY: 'auto' },
     emptyList:        { display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 60, color: textMuted },
     contactItem:      { display: 'flex', alignItems: 'center', padding: '12px 14px', cursor: 'pointer', transition: 'background 0.15s', borderBottom: `1px solid ${dividerColor}`, position: 'relative', gap: 10 },
@@ -1699,7 +1699,7 @@ function makeStyles(isDark: boolean): Record<string, React.CSSProperties> {
     contactTime:      { fontSize: 11, fontWeight: 600, flexShrink: 0 },
     contactBot:       { display: 'flex', alignItems: 'center', gap: 6 },
     contactPreview:   { fontSize: 12, color: textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 },
-    unreadBadge:      { background: '#3B82F6', color: '#FFF', fontSize: 10, fontWeight: 900, borderRadius: 9, padding: '1px 6px', flexShrink: 0 },
+    unreadBadge:      { background: '#5D91EE', color: '#FFF', fontSize: 10, fontWeight: 900, borderRadius: 9, padding: '1px 6px', flexShrink: 0 },
     hoverActions:     { position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4, background: sidebarBg, borderRadius: 8, padding: '2px 4px' },
     hoverBtn:         { background: 'none', border: 'none', color: textMuted, cursor: 'pointer', fontSize: 14, padding: '2px 4px', borderRadius: 4, transition: 'color 0.15s' },
 

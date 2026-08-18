@@ -1,17 +1,17 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --blue: #2563EB;
-  --blue-dark: #1D4ED8;
-  --purple: #2563EB;
+  --blue: #1D5FD1;
+  --blue-dark: #123F94;
+  --purple: #1D5FD1;
   --pink: #e040a0;
   --green: #16A34A;
-  --orange: #EA580C;
+  --orange: #F0A202;
   --red: #DC2626;
-  --text: #111827;
-  --text-muted: #6b7280;
-  --border: #e5e7eb;
-  --bg: #f1f5f9;
+  --text: #0B1B33;
+  --text-muted: #4A5A73;
+  --border: #DCE4F1;
+  --bg: #F3F6FC;
   --white: #ffffff;
   --radius: 14px;
   --shadow: 0 2px 12px rgba(0,0,0,0.07);
@@ -31,7 +31,7 @@
 }
 .logo-icon {
   width: 34px; height: 34px; border-radius: 10px;
-  background: linear-gradient(135deg, #2563EB, #1D4ED8);
+  background: linear-gradient(135deg, #1D5FD1, #123F94);
   display: grid; place-items: center; flex-shrink: 0;
 }
 .logo-icon svg { width: 18px; height: 18px; fill: white; }
@@ -649,7 +649,7 @@
 .comment-avatar {
   width: 36px; height: 36px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #2563EB, #1D4ED8);
+  background: linear-gradient(135deg, #1D5FD1, #123F94);
   display: grid; place-items: center;
   color: white; font-weight: 700; font-size: 0.85rem;
   flex-shrink: 0;

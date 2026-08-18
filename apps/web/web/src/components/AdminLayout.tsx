@@ -35,9 +35,9 @@ export default function AdminLayout() {
 
   return (
     <div className="layout-container">
-      <aside className="sidebar" style={{ background: 'linear-gradient(180deg, #1E3A5F 0%, #355068 100%)' }}>
+      <aside className="sidebar" style={{ background: 'linear-gradient(180deg, #1E3A5F 0%, #123F94 100%)' }}>
         <div className="sidebar-logo" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '24px 28px' }}>
-          <div style={{ background: '#FFFFFF', color: '#2563EB', width: '38px', height: '38px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '0.95rem', boxShadow: '0 6px 16px rgba(0,0,0,0.18)' }}>
+          <div style={{ background: '#FFFFFF', color: '#1D5FD1', width: '38px', height: '38px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', fontSize: '0.95rem', boxShadow: '0 6px 16px rgba(0,0,0,0.18)' }}>
             SV
           </div>
           <span style={{ fontSize: '1.4rem', fontWeight: '900', color: '#FFFFFF', letterSpacing: '-0.5px' }}>
@@ -100,7 +100,7 @@ export default function AdminLayout() {
         <header className="topbar">
           <div className="topbar-search" />
           <div className="topbar-profile" onClick={() => navigate('/perfil')} style={{ cursor: 'pointer' }}>
-            <div className="avatar" style={{ background: '#2563EB', color: '#fff', fontWeight: '800', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="avatar" style={{ background: '#1D5FD1', color: '#fff', fontWeight: '800', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {adminFoto
                 ? <img src={adminFoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 : adminAvatar

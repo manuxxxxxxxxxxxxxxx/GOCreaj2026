@@ -191,7 +191,7 @@ export default function AdminOrders() {
                 const ec = estadoConfig(p.estado);
                 return (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '14px 16px', fontWeight: '800', color: '#4A6D8C', fontSize: '0.85rem' }}>#SV-{p.id}</td>
+                    <td style={{ padding: '14px 16px', fontWeight: '800', color: '#1D5FD1', fontSize: '0.85rem' }}>#SV-{p.id}</td>
                     <td style={{ padding: '14px 16px', fontWeight: '600', fontSize: '0.9rem', color: 'var(--text)' }}>{p.comprador_nombre}</td>
                     <td style={{ padding: '14px 16px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>{p.vendedor_nombre}</td>
                     <td style={{ padding: '14px 16px', fontWeight: '800', fontSize: '0.9rem', color: 'var(--text)' }}>${Number(p.total).toFixed(2)}</td>
@@ -227,7 +227,7 @@ export default function AdminOrders() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={e => e.target === e.currentTarget && setVerPedido(null)}>
           <div style={{ background: 'var(--white, #fff)', borderRadius: '20px', width: '100%', maxWidth: '540px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 80px rgba(0,0,0,0.25)' }}>
             {/* Header */}
-            <div style={{ background: 'linear-gradient(135deg, #355068, #4A6D8C)', padding: '24px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ background: 'linear-gradient(135deg, #123F94, #1D5FD1)', padding: '24px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h2 style={{ color: '#fff', fontWeight: '800', fontSize: '1.2rem', margin: 0 }}>Pedido #SV-{verPedido.id}</h2>
                 <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.82rem', margin: '4px 0 0' }}>
@@ -305,7 +305,7 @@ export default function AdminOrders() {
             </div>
 
             <div style={{ padding: '16px 28px', borderTop: '1px solid var(--border, #e2e8f0)' }}>
-              <button onClick={() => setVerPedido(null)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: 'none', background: '#355068', color: '#fff', fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit' }}>
+              <button onClick={() => setVerPedido(null)} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: 'none', background: '#123F94', color: '#fff', fontWeight: '700', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'inherit' }}>
                 Cerrar
               </button>
             </div>

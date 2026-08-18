@@ -26,56 +26,61 @@ export interface ColorPalette {
   shadow: string;
 }
 
-// ─── MODO OSCURO: superficies azuladas profundas + texto BLANCO ABSOLUTO ───
+// ─── Bandera Institucional (ver DESIGN.md) ─────────────────────────────────
+// MODO OSCURO: azul institucional profundo + texto BLANCO ABSOLUTO.
+// React Native no soporta backdrop-filter/blur real de forma nativa barata;
+// `surface`/`card`/`elevated` van casi opacos (no vidrio) para que el fondo
+// ambiental nunca tiña el texto — ver docs/redisenio/PROGRESO.md punto 9
+// sobre si el degradado de fondo en mobile debe animarse o quedar estático.
 export const darkColors: ColorPalette = {
-  background:    '#0B0F19',
-  surface:       '#0D1321',
-  card:          '#121B2D',
-  elevated:      '#1A2236',
+  background:    '#050B16',
+  surface:       '#0A1628',
+  card:          '#122544',
+  elevated:      '#17304F',
   text:          '#FFFFFF',          // ⚡ BLANCO ABSOLUTO
   textSecondary: '#FFFFFF',          // ⚡ Sin texto opacado: el contraste manda
-  accent:        '#3B82F6',
-  accentLight:   'rgba(59,130,246,0.14)',
-  accentDark:    '#1D4ED8',
-  ctaAccent:     '#FB923C',
-  ctaAccentLight:'rgba(251,146,60,0.16)',
+  accent:        '#5D91EE',
+  accentLight:   'rgba(93,145,238,0.14)',
+  accentDark:    '#84AAF4',
+  ctaAccent:     '#F5B93B',
+  ctaAccentLight:'rgba(245,185,59,0.16)',
   contrast:      '#FFFFFF',
-  border:        '#1E293B',
-  borderLight:   '#2D3D55',
-  muted:         '#94A3B8',
+  border:        '#24406B',
+  borderLight:   '#2D4E80',
+  muted:         '#A9B8CE',
   danger:        '#F87171',
-  success:       '#4ADE80',
+  success:       '#34D399',
   warning:       '#FCD34D',
   overlay:       'rgba(0,0,0,0.80)',
-  inputBg:       '#1E293B',
-  tabBar:        '#0D1321',
+  inputBg:       '#122544',
+  tabBar:        '#0A1628',
   shadow:        '#000000',
 };
 
-// ─── MODO CLARO: blanco sofisticado + texto NEGRO ABSOLUTO ────────────────
+// MODO CLARO: blanco azulado sofisticado + texto NEGRO ABSOLUTO.
 export const lightColors: ColorPalette = {
-  background:    '#F8FAFC',
+  background:    '#F3F6FC',
   surface:       '#FFFFFF',
   card:          '#FFFFFF',
-  elevated:      '#F1F5F9',
+  elevated:      '#EDF2FA',
   text:          '#000000',          // ⚡ NEGRO ABSOLUTO
   textSecondary: '#000000',          // ⚡ Contraste pleno
-  accent:        '#2563EB',
-  accentLight:   'rgba(37,99,235,0.10)',
-  accentDark:    '#1D4ED8',
-  ctaAccent:     '#EA580C',
-  ctaAccentLight:'rgba(234,88,12,0.12)',
+  accent:        '#1D5FD1',
+  accentLight:   'rgba(29,95,209,0.10)',
+  accentDark:    '#123F94',
+  ctaAccent:     '#F0A202',
+  ctaAccentLight:'rgba(240,162,2,0.12)',
   contrast:      '#000000',
-  border:        '#E2E8F0',
-  borderLight:   '#CBD5E1',
-  muted:         '#475569',
+  border:        '#DCE4F1',
+  borderLight:   '#C8D5E8',
+  muted:         '#4A5A73',
   danger:        '#DC2626',
   success:       '#16A34A',
   warning:       '#D97706',
-  overlay:       'rgba(15,23,42,0.55)',
+  overlay:       'rgba(11,27,51,0.55)',
   inputBg:       '#FFFFFF',
   tabBar:        '#FFFFFF',
-  shadow:        '#0F172A',
+  shadow:        '#0B1B33',
 };
 
 interface ThemeCtx {

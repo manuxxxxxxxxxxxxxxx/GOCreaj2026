@@ -16,7 +16,7 @@ export interface MapPin {
 // del backend (vendedor_dashboard.php CATS_VALIDAS), no categorías inventadas.
 export const CATEGORY_COLORS: Record<string, string> = {
   comida: '#F97316',
-  bebidas: '#3B82F6',
+  bebidas: '#5D91EE',
   panaderia: '#92400E',
   postres: '#EC4899',
   frutas: '#22C55E',

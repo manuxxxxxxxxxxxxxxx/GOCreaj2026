@@ -165,7 +165,7 @@ function presenceLabel(otro: OtroInfo | null): string {
 }
 
 const ROLE_COLORS: Record<string, string> = {
-  vendedor: '#4A6D8C', repartidor: '#27AE8F', comprador: '#8E44AD', admin: '#C0392B',
+  vendedor: '#1D5FD1', repartidor: '#27AE8F', comprador: '#8E44AD', admin: '#C0392B',
 };
 
 const REACTION_EMOJIS = ['🔥', '👏', '😂', '🙈', '🙏', '😡'];

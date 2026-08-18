@@ -9,14 +9,48 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 /* Self-hosted (no fonts.googleapis.com — evita depender de un CDN externo
-   y coincide con el sistema de tipografía de DESIGN.md: Sora para títulos,
-   Manrope para texto/datos). */
-@font-face { font-family: 'Sora'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/Sora-Bold.ttf') format('truetype'); }
-@font-face { font-family: 'Sora'; font-weight: 800; font-style: normal; font-display: swap; src: url('/fonts/Sora-ExtraBold.ttf') format('truetype'); }
-@font-face { font-family: 'Manrope'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/Manrope-Regular.ttf') format('truetype'); }
-@font-face { font-family: 'Manrope'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/Manrope-SemiBold.ttf') format('truetype'); }
-@font-face { font-family: 'Manrope'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/Manrope-Bold.ttf') format('truetype'); }
-@font-face { font-family: 'Manrope'; font-weight: 800; font-style: normal; font-display: swap; src: url('/fonts/Manrope-ExtraBold.ttf') format('truetype'); }
+   y coincide con el sistema de tipografía de DESIGN.md: Archivo para
+   títulos/números, Hanken Grotesk para texto/datos).
+   Sora/Manrope (sistema anterior) se mantienen en /public/fonts sin usarse
+   hasta que ninguna pantalla los referencie — ver docs/redisenio/PROGRESO.md. */
+@font-face { font-family: 'Archivo'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/Archivo-Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Archivo'; font-weight: 800; font-style: normal; font-display: swap; src: url('/fonts/Archivo-ExtraBold.ttf') format('truetype'); }
+@font-face { font-family: 'Hanken Grotesk'; font-weight: 400; font-style: normal; font-display: swap; src: url('/fonts/HankenGrotesk-Regular.ttf') format('truetype'); }
+@font-face { font-family: 'Hanken Grotesk'; font-weight: 600; font-style: normal; font-display: swap; src: url('/fonts/HankenGrotesk-SemiBold.ttf') format('truetype'); }
+@font-face { font-family: 'Hanken Grotesk'; font-weight: 700; font-style: normal; font-display: swap; src: url('/fonts/HankenGrotesk-Bold.ttf') format('truetype'); }
+@font-face { font-family: 'Hanken Grotesk'; font-weight: 800; font-style: normal; font-display: swap; src: url('/fonts/HankenGrotesk-ExtraBold.ttf') format('truetype'); }
+
+/* ═══ Tokens globales — Bandera Institucional (ver DESIGN.md) ═══
+   Este bloque vive aquí (no en css/index.css) a propósito: global.css es el
+   ÚNICO archivo de CSS que se importa una sola vez, siempre, para toda la
+   app (ver main.tsx). Cada página tiene además su propio css/*.css con un
+   bloque :root duplicado (histórico) — se mantienen alineados a los mismos
+   valores, pero ESTE bloque es la fuente de verdad real: es el único que
+   garantiza que el color, la tipografía y el fondo ambiental existan sin
+   importar qué página cargue primero. */
+:root {
+  --blue: #1D5FD1;
+  --blue-dark: #123F94;
+  --blue-deep: #123F94;
+  --blue-light: #E7EFFC;
+  --purple: #1D5FD1;
+  --accent: #F0A202;
+  --accent-deep: #C97F00;
+  --green: #16A34A;
+  --red: #DC2626;
+  --orange: #F0A202;
+  --text: #0B1B33;
+  --text-muted: #4A5A73;
+  --bg: #F3F6FC;
+  --white: #ffffff;
+  --border: #DCE4F1;
+  --card-shadow: 0 4px 20px rgba(11,27,51,0.06);
+  --radius: 18px;
+  --surface-alpha: .93;
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-body: 'Hanken Grotesk', system-ui, sans-serif;
+  --ambient: linear-gradient(155deg, #F5F8FD 0%, #EEF3FA 18%, #E6EDF8 34%, #DCE5F4 50%, #D2DDF0 64%, #C8D5ED 78%, #BFCEEA 100%);
+}
 
 html {
   scroll-behavior: smooth;
@@ -26,22 +60,24 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #F5F5F5;
-  color: #111111;
+  font-family: var(--font-body), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--ambient);
+  background-attachment: fixed;
+  color: var(--text);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Sora', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-display), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-weight: 800;
 }
 
 html.dark body {
-  background: #0f172a;
-  color: #f1f5f9;
+  background: var(--ambient);
+  background-attachment: fixed;
+  color: var(--text);
 }
 
 #root {

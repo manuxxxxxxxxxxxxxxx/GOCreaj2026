@@ -49,7 +49,7 @@ const CAROUSEL_SLIDES = [
     subtitle: "MÁS DE 30 MILLONES DE PRODUCTOS LOCALES PARA ELEGIR.",
     desc: "Envíos express en minutos por tus repartidores locales favoritos. Seguro y garantizado.",
     badge: "SVGO Express",
-    color: "linear-gradient(135deg, #355068 0%, #4A6D8C 100%)",
+    color: "linear-gradient(135deg, #1D5FD1 0%, #123F94 100%)",
     textColor: "#ffffff"
   },
   {
@@ -58,7 +58,7 @@ const CAROUSEL_SLIDES = [
     subtitle: "PRODUCTOS 100% FRESCOS Y ARTESANALES CULTIVADOS CON AMOR.",
     desc: "Conoce a los panaderos, agricultores y artesanos que dan vida a tu comunidad.",
     badge: "Comunidad",
-    color: "linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)",
+    color: "linear-gradient(135deg, #123F94 0%, #1D5FD1 100%)",
     textColor: "#ffffff"
   },
   {
@@ -451,7 +451,7 @@ export default function Market() {
                       title={savedIds.has(p.id) ? 'Quitar de guardados' : 'Guardar'}
                       style={{ background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
                     >
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill={savedIds.has(p.id) ? '#4A6D8C' : 'none'} stroke={savedIds.has(p.id) ? '#4A6D8C' : '#6B7280'} strokeWidth="2">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill={savedIds.has(p.id) ? '#1D5FD1' : 'none'} stroke={savedIds.has(p.id) ? '#1D5FD1' : '#6B7280'} strokeWidth="2">
                         <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
                       </svg>
                     </button>

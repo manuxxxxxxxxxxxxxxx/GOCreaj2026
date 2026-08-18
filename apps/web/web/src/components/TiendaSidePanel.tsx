@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { X, Star } from 'lucide-react';
 import { api, API_URL } from '../api';
 
-const ACCENT = '#2563EB';
+const ACCENT = '#1D5FD1';
 
 interface TiendaDetalle {
   id: number;

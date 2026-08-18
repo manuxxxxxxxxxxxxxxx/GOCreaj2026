@@ -348,7 +348,7 @@ export default function Reels() {
       style={{
         position: 'fixed', top: 96, left: 24, zIndex: 1500,
         display: 'flex', alignItems: 'center', gap: 6,
-        background: '#2563EB', color: '#FFF', border: 'none', borderRadius: 99,
+        background: '#1D5FD1', color: '#FFF', border: 'none', borderRadius: 99,
         padding: '10px 18px', fontWeight: 800, fontSize: 13, cursor: 'pointer',
         boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
       }}
@@ -371,7 +371,7 @@ export default function Reels() {
         <div style={{ flex: 1, overflowY: 'auto', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
           <label style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6,
-            height: 140, borderRadius: 14, border: `2px dashed ${upVideoFile ? '#2563EB' : 'var(--border, #e2e8f0)'}`,
+            height: 140, borderRadius: 14, border: `2px dashed ${upVideoFile ? '#1D5FD1' : 'var(--border, #e2e8f0)'}`,
             cursor: 'pointer', overflow: 'hidden', position: 'relative', background: 'var(--bg-secondary, #F9FAFB)',
           }}>
             {upVideoPreview ? (
@@ -412,7 +412,7 @@ export default function Reels() {
             disabled={subiendoReel}
             style={{
               width: '100%', padding: '13px 0', borderRadius: 99, border: 'none',
-              background: '#2563EB', color: '#FFF', fontWeight: 800, fontSize: 14,
+              background: '#1D5FD1', color: '#FFF', fontWeight: 800, fontSize: 14,
               cursor: subiendoReel ? 'not-allowed' : 'pointer', opacity: subiendoReel ? 0.6 : 1,
             }}
           >
@@ -643,7 +643,7 @@ export default function Reels() {
               <button
                 onClick={sendComment}
                 disabled={!comText.trim()}
-                style={{ width: 42, height: 42, borderRadius: 21, border: 'none', background: comText.trim() ? '#2563EB' : '#cbd5e1', color: '#FFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: 42, height: 42, borderRadius: 21, border: 'none', background: comText.trim() ? '#1D5FD1' : '#cbd5e1', color: '#FFF', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 <Send size={17} strokeWidth={2.2} />
               </button>
@@ -678,12 +678,12 @@ export default function Reels() {
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
                       padding: '12px 14px', borderRadius: 12, marginBottom: 8, cursor: 'pointer',
-                      border: `1.5px solid ${active ? '#2563EB' : 'var(--border, #e2e8f0)'}`,
+                      border: `1.5px solid ${active ? '#1D5FD1' : 'var(--border, #e2e8f0)'}`,
                       background: active ? 'rgba(37,99,235,0.08)' : 'var(--bg-secondary, #F9FAFB)',
                       fontFamily: 'inherit', fontSize: 13.5, fontWeight: active ? 700 : 500,
                     }}
                   >
-                    {active ? <CircleDot size={18} strokeWidth={2} color="#2563EB" /> : <Circle size={18} strokeWidth={2} color="var(--text-muted, #94a3b8)" />}
+                    {active ? <CircleDot size={18} strokeWidth={2} color="#1D5FD1" /> : <Circle size={18} strokeWidth={2} color="var(--text-muted, #94a3b8)" />}
                     <span>{q}</span>
                   </button>
                 );
@@ -694,12 +694,12 @@ export default function Reels() {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
                   padding: '12px 14px', borderRadius: 12, marginBottom: 8, cursor: 'pointer',
-                  border: `1.5px solid ${askChoice === OTRA_PREGUNTA ? '#2563EB' : 'var(--border, #e2e8f0)'}`,
+                  border: `1.5px solid ${askChoice === OTRA_PREGUNTA ? '#1D5FD1' : 'var(--border, #e2e8f0)'}`,
                   background: askChoice === OTRA_PREGUNTA ? 'rgba(37,99,235,0.08)' : 'var(--bg-secondary, #F9FAFB)',
                   fontFamily: 'inherit', fontSize: 13.5, fontWeight: askChoice === OTRA_PREGUNTA ? 700 : 500,
                 }}
               >
-                {askChoice === OTRA_PREGUNTA ? <CircleDot size={18} strokeWidth={2} color="#2563EB" /> : <Circle size={18} strokeWidth={2} color="var(--text-muted, #94a3b8)" />}
+                {askChoice === OTRA_PREGUNTA ? <CircleDot size={18} strokeWidth={2} color="#1D5FD1" /> : <Circle size={18} strokeWidth={2} color="var(--text-muted, #94a3b8)" />}
                 <span>Escribir otra pregunta</span>
               </button>
 
@@ -719,7 +719,7 @@ export default function Reels() {
                 disabled={askSending || !askChoice || (askChoice === OTRA_PREGUNTA && !askFree.trim())}
                 style={{
                   width: '100%', padding: '13px 0', borderRadius: 99, border: 'none',
-                  background: (!askChoice || (askChoice === OTRA_PREGUNTA && !askFree.trim())) ? '#cbd5e1' : '#2563EB',
+                  background: (!askChoice || (askChoice === OTRA_PREGUNTA && !askFree.trim())) ? '#cbd5e1' : '#1D5FD1',
                   color: '#FFF', fontWeight: 800, fontSize: 14,
                   cursor: (!askChoice || (askChoice === OTRA_PREGUNTA && !askFree.trim())) ? 'not-allowed' : 'pointer',
                 }}
@@ -772,7 +772,7 @@ function CommentNode({ c, depth = 0, onReply, onLike }: {
   return (
     <div style={{ marginLeft: depth * 22, marginBottom: 10 }}>
       <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{ width: 32, height: 32, borderRadius: 16, background: '#2563EB', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 12, overflow: 'hidden', flexShrink: 0 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 16, background: '#1D5FD1', color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 12, overflow: 'hidden', flexShrink: 0 }}>
           {c.foto_perfil ? <img src={imgUri(c.foto_perfil)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : c.nombre.charAt(0).toUpperCase()}
         </div>
         <div style={{ flex: 1 }}>

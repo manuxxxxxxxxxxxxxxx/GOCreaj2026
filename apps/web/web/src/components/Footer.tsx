@@ -10,7 +10,7 @@ export default function Footer() {
 
   const bg      = isDark ? '#080D18' : '#F8FAFC';
   const border  = isDark ? '#1E293B' : '#E2E8F0';
-  const accent  = isDark ? '#3B82F6' : '#2563EB';
+  const accent  = isDark ? '#5D91EE' : '#1D5FD1';
   const text    = isDark ? '#F1F5F9' : '#0F172A';
   const muted   = isDark ? '#64748B' : '#64748B';
 

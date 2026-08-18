@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
   iconInner: {
     width: 88, height: 88, borderRadius: 44,
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#4A6D8C', shadowOffset: { width: 0, height: 8 },
+    shadowColor: '#1D5FD1', shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25, shadowRadius: 16, elevation: 10,
   },
   atSign: { color: '#FFF', fontSize: 42, fontWeight: '900' },

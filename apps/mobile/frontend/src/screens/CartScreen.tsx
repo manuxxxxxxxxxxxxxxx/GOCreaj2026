@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
   proceedBtn: {
     height: 56, borderRadius: Radius.pill,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#4A6D8C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4,
+    shadowColor: '#1D5FD1', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4,
   },
   proceedBtnTxt: { color: '#FFF', fontWeight: '800', fontSize: Fonts.regular + 1, letterSpacing: 0.1 },
 });

@@ -118,7 +118,7 @@ export default function AdminProducts() {
       {/* Summary */}
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 14 }}>
         {[
-          { label: 'Total Productos', value: products.length, color: '#4A6D8C', bg: '#e8f0f7' },
+          { label: 'Total Productos', value: products.length, color: '#1D5FD1', bg: '#e8f0f7' },
           { label: 'Activos', value: products.filter(p => p.status === 'active').length, color: '#10b981', bg: '#d1fae5' },
           { label: 'Inactivos', value: products.filter(p => p.status === 'inactive').length, color: '#6b7280', bg: '#f3f4f6' },
           { label: 'Reportados', value: products.filter(p => p.status === 'flagged').length, color: '#ef4444', bg: '#fee2e2' },
@@ -185,7 +185,7 @@ export default function AdminProducts() {
                     <td style={{ padding: '14px 16px' }}>
                       <div style={{ display: 'flex', gap: 6 }}>
                         <button onClick={() => openEdit(p)} title="Editar"
-                          style={{ padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', color: '#4A6D8C', fontFamily: 'inherit' }}>
+                          style={{ padding: '6px 10px', borderRadius: 8, border: '1.5px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', color: '#1D5FD1', fontFamily: 'inherit' }}>
                           <Edit2 size={13} />
                         </button>
                         <button onClick={() => toggleStatus(p.id)} title="Activar/Desactivar"
@@ -213,7 +213,7 @@ export default function AdminProducts() {
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div style={{ background: 'var(--white)', borderRadius: 24, width: '100%', maxWidth: 480, overflow: 'hidden', boxShadow: '0 24px 80px rgba(0,0,0,0.25)' }}>
-            <div style={{ background: 'linear-gradient(135deg, #1D4ED8, #2563EB)', padding: '24px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ background: 'linear-gradient(135deg, #123F94, #1D5FD1)', padding: '24px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ color: '#fff', fontWeight: 800, fontSize: '1.15rem' }}>{editProduct ? 'Editar Producto' : 'Nuevo Producto'}</h2>
               <button onClick={() => setShowModal(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}><X size={16} /></button>
             </div>
@@ -244,7 +244,7 @@ export default function AdminProducts() {
                   Cancelar
                 </button>
                 <button onClick={handleSave}
-                  style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: '#355068', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  style={{ flex: 1, padding: '12px', borderRadius: 12, border: 'none', background: '#123F94', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                   {editProduct ? 'Guardar Cambios' : 'Agregar Producto'}
                 </button>
               </div>

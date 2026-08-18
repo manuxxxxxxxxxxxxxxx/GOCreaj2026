@@ -21,7 +21,7 @@ interface Props {
 // WebView. Cero SDKs nativos de mapas (Google/Apple Maps) — 100% Expo Go.
 function buildHtml(lat: number, lng: number, markers: MarkerSpec[], pickable: boolean, zoom: number): string {
   const markerJs = markers
-    .map(m => `L.circleMarker([${m.lat},${m.lng}],{radius:9,color:'#fff',weight:2,fillColor:'${m.color ?? '#3B82F6'}',fillOpacity:1}).addTo(map);`)
+    .map(m => `L.circleMarker([${m.lat},${m.lng}],{radius:9,color:'#fff',weight:2,fillColor:'${m.color ?? '#5D91EE'}',fillOpacity:1}).addTo(map);`)
     .join('\n');
 
   return `<!DOCTYPE html>

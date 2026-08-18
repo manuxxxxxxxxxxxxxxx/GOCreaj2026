@@ -46,7 +46,7 @@ const CATEGORIA_LABELS: Record<string, string> = {
 const ESTADO_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
   pendiente_confirmacion: { label: 'Pendiente de aprobación', color: '#D97706', icon: 'hourglass-outline' },
   preparacion:          { label: 'Preparando',  color: '#F59E0B', icon: 'time-outline' },
-  en_camino:            { label: 'En camino',   color: '#3B82F6', icon: 'bicycle-outline' },
+  en_camino:            { label: 'En camino',   color: '#5D91EE', icon: 'bicycle-outline' },
   entregado:            { label: 'Entregado',   color: '#10B981', icon: 'checkmark-circle-outline' },
   cancelado:            { label: 'Cancelado',   color: '#EF4444', icon: 'close-circle-outline' },
   rechazado_repartidor: { label: 'Rechazado',   color: '#EF4444', icon: 'ban-outline' },
@@ -1383,7 +1383,7 @@ const S = StyleSheet.create({
   emptySub:    { fontSize: Fonts.regular, textAlign: 'center', lineHeight: 22, marginBottom: Spacing.xl, fontFamily: FontFamily.bodyRegular, paddingHorizontal: Spacing.md },
 
   // Buttons
-  primaryBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 52, borderRadius: Radius.md + 4, shadowColor: '#3B82F6', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 14, elevation: 8 },
+  primaryBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 52, borderRadius: Radius.md + 4, shadowColor: '#5D91EE', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 14, elevation: 8 },
   primaryBtnTxt: { color: '#FFF', fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.regular + 1, letterSpacing: 0.1 },
 
   // Banner
@@ -1414,7 +1414,7 @@ const S = StyleSheet.create({
   // Tabs
   tabBar:     { flexDirection: 'row', margin: Spacing.md, borderRadius: Radius.pill, padding: 5, borderWidth: 1.5 },
   tabBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 11, borderRadius: Radius.pill },
-  tabBtnActive: { shadowColor: '#3B82F6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
+  tabBtnActive: { shadowColor: '#5D91EE', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4 },
   tabTxt:     { fontFamily: FontFamily.bodyExtraBold, fontSize: Fonts.small },
 
   // Section
@@ -1467,7 +1467,7 @@ const S = StyleSheet.create({
   fab: {
     position: 'absolute', right: 20, width: 60, height: 60, borderRadius: 30,
     justifyContent: 'center', alignItems: 'center',
-    shadowColor: '#3B82F6', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 12,
+    shadowColor: '#5D91EE', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.35, shadowRadius: 16, elevation: 12,
   },
 
   // Profile FAB (cerrar sesión / refrescar rol)

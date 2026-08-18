@@ -1,17 +1,20 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --accent: #2563EB;
-  --accent-dark: #1D4ED8;
+  --accent: #1D5FD1;
+  --accent-dark: #123F94;
   --accent-light: rgba(37,99,235,0.10);
   --accent-mid: rgba(37,99,235,0.18);
+  --blue: #1D5FD1;
+  --blue-dark: #123F94;
+  --purple: #1D5FD1;
   --green: #16A34A;
   --red: #DC2626;
-  --orange: #EA580C;
-  --text: #111827;
-  --text-muted: #6b7280;
-  --border: #e5e7eb;
-  --bg: #f0f4f8;
+  --orange: #F0A202;
+  --text: #0B1B33;
+  --text-muted: #4A5A73;
+  --border: #DCE4F1;
+  --bg: #F3F6FC;
   --white: #ffffff;
   --card: #ffffff;
   --shadow-sm: 0 1px 4px rgba(0,0,0,0.06);

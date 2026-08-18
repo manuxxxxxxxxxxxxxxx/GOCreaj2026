@@ -6,19 +6,19 @@
 
 :root {
   /* SVGO Premium Brand Color Palette */
-  --blue: #2563EB;           /* Corporate blue (evolved) */
-  --blue-dark: #1D4ED8;      /* Darker shade for contrast */
-  --blue-light: #eef4f8;     /* Light accent wash */
-  --purple: #2563EB;
+  --blue: #1D5FD1;           /* Bandera Institucional — ver DESIGN.md */
+  --blue-dark: #123F94;
+  --blue-light: #E7EFFC;
+  --purple: #1D5FD1;
   --green: #16A34A;          /* Soft modern green */
   --green-light: #e8fcf0;
   --red: #DC2626;
-  --orange: #EA580C;
+  --orange: #F0A202;
   
-  --text: #111111;           /* High contrast dark text */
-  --text-muted: #5e697a;     /* Soft slate text */
-  --border: #e2e8f0;         /* Minimal subtle borders */
-  --bg: #F5F5F5;             /* Primary brand background (light gray) */
+  --text: #0B1B33;           /* High contrast dark text */
+  --text-muted: #4A5A73;     /* Soft slate text */
+  --border: #DCE4F1;         /* Minimal subtle borders */
+  --bg: #F3F6FC;             /* Primary brand background */
   --white: #ffffff;
 }
 

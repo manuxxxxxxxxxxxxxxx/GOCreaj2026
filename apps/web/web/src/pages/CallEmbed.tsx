@@ -214,13 +214,13 @@ export default function CallEmbed() {
       )}
 
       <div style={S.card}>
-        <div style={{ ...S.ring, borderColor: connected ? '#22C55E' : '#3B82F6' }}>
+        <div style={{ ...S.ring, borderColor: connected ? '#22C55E' : '#5D91EE' }}>
           <div style={S.avatar}>
             {foto ? <img src={foto} alt="" style={S.avatarImg} /> : <span style={S.avatarTxt}>{getInitials(nombre)}</span>}
           </div>
         </div>
         <div style={S.name}>{nombre}</div>
-        <div style={{ ...S.statusPill, background: connected ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.15)', color: connected ? '#22C55E' : '#3B82F6' }}>
+        <div style={{ ...S.statusPill, background: connected ? 'rgba(34,197,94,0.15)' : 'rgba(59,130,246,0.15)', color: connected ? '#22C55E' : '#5D91EE' }}>
           {connected ? formatDuration(elapsed) : status}
         </div>
 
@@ -233,7 +233,7 @@ export default function CallEmbed() {
               <RotateCw size={20} strokeWidth={2} />
             </button>
           )}
-          <button onClick={() => void toggleSpeaker()} style={{ ...S.ctrlBtn, background: speakerOn ? '#3B82F6' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Altavoz">
+          <button onClick={() => void toggleSpeaker()} style={{ ...S.ctrlBtn, background: speakerOn ? '#5D91EE' : 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Altavoz">
             <Volume2 size={20} strokeWidth={2} />
           </button>
           <button onClick={() => endCall(true)} style={{ ...S.hangupBtn, display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Colgar"><PhoneOff size={20} strokeWidth={2} /></button>
@@ -249,8 +249,8 @@ const S: Record<string, React.CSSProperties> = {
   remoteVideo: { width: '100%', height: '100%', objectFit: 'cover' },
   localVideo:  { position: 'absolute', bottom: 100, right: 16, width: 100, height: 140, borderRadius: 14, objectFit: 'cover', border: '2px solid rgba(255,255,255,0.5)' },
   card:        { position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: 24, zIndex: 2 },
-  ring:        { width: 116, height: 116, borderRadius: 58, border: '3px solid #3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center' },
-  avatar:      { width: 96, height: 96, borderRadius: 48, background: '#3B82F6', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  ring:        { width: 116, height: 116, borderRadius: 58, border: '3px solid #5D91EE', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  avatar:      { width: 96, height: 96, borderRadius: 48, background: '#5D91EE', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarImg:   { width: '100%', height: '100%', objectFit: 'cover' },
   avatarTxt:   { color: '#FFF', fontSize: 34, fontWeight: 800 },
   name:        { fontSize: 24, fontWeight: 800, color: '#F1F5F9' },

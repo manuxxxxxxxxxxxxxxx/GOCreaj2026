@@ -1,20 +1,20 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --blue: #2563EB;
-  --blue-hover: #1D4ED8;
-  --blue-light: #eff6ff;
+  --blue: #1D5FD1;
+  --blue-hover: #123F94;
+  --blue-light: #E7EFFC;
   --success: #16A34A;
   --success-light: #e8fcf0;
-  --orange: #EA580C;
-  --orange-light: #fef5ec;
+  --orange: #F0A202;
+  --orange-light: #FCEFD1;
   --danger: #DC2626;
   --danger-light: #fdedec;
   
-  --text: #111111;
-  --text-muted: #6b7280;
-  --border: #e2e8f0;
-  --bg: #F5F5F5;
+  --text: #0B1B33;
+  --text-muted: #4A5A73;
+  --border: #DCE4F1;
+  --bg: #F3F6FC;
   --white: #ffffff;
   
   --radius-lg: 20px;
@@ -38,7 +38,7 @@
    DUAL ROW DYNAMIC HEADER (SVGO BRAND)
    ══════════════════════════════ */
 .svgo-header {
-  background: #1D4ED8;
+  background: #123F94;
   padding: 14px 48px;
   display: flex;
   flex-direction: column;
@@ -310,7 +310,7 @@
 
 .slide-cta {
   background: #FFFFFF;
-  color: #1D4ED8;
+  color: #123F94;
   border: none;
   border-radius: 30px;
   padding: 10px 22px;

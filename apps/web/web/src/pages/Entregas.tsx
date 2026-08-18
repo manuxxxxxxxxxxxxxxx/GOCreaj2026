@@ -160,7 +160,7 @@ export default function Entregas() {
     let bounds = [[tiendaLat, tiendaLng], [clienteLat, clienteLng]];
     if (pedido.repartidor_lat && pedido.repartidor_lng) {
       const mRep = L.marker([pedido.repartidor_lat, pedido.repartidor_lng], {
-        icon: L.divIcon({ className: '', html: '<div style="background:#2563EB;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>', iconSize: [16, 16] }),
+        icon: L.divIcon({ className: '', html: '<div style="background:#1D5FD1;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>', iconSize: [16, 16] }),
       }).addTo(mapObj.current).bindTooltip(pedido.repartidor_nombre ?? 'Repartidor');
       markersRef.current.push(mRep);
       bounds = [...bounds, [pedido.repartidor_lat, pedido.repartidor_lng]] as any;
@@ -168,7 +168,7 @@ export default function Entregas() {
     mapObj.current.fitBounds(bounds, { padding: [40, 40] });
   }, [pedido]);
 
-  const c = theme === 'dark' ? '#3B82F6' : '#2563EB';
+  const c = theme === 'dark' ? '#5D91EE' : '#1D5FD1';
 
   return (
     <>

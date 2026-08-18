@@ -1,18 +1,30 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --blue: #2563EB;
-    --blue-light: #eef4f8;
-    --purple: #2563EB;
+    /* Bandera Institucional — ver DESIGN.md. Nombres de variable heredados
+       del sistema anterior para no romper los ~25 archivos que ya los
+       consumen; solo cambian los valores. */
+    --blue: #1D5FD1;
+    --blue-light: #E7EFFC;
+    --purple: #1D5FD1;
     --pink: #e040a0;
     --green: #16A34A;
     --cyan: #38bdf8;
-    --text: #111111;
-    --text-muted: #5e697a;
-    --bg: #F5F5F5;
+    --text: #0B1B33;
+    --text-muted: #4A5A73;
+    --bg: #F3F6FC;
     --white: #ffffff;
-    --card-shadow: 0 4px 20px rgba(0,0,0,0.015);
-    --radius: 20px;
+    --card-shadow: 0 4px 20px rgba(11,27,51,0.06);
+    --radius: 18px;
+
+    /* Nuevos tokens de Bandera Institucional (ver DESIGN.md) */
+    --accent: #F0A202;
+    --accent-deep: #C97F00;
+    --blue-deep: #123F94;
+    --surface-alpha: .93;
+    --font-display: 'Archivo', system-ui, sans-serif;
+    --font-body: 'Hanken Grotesk', system-ui, sans-serif;
+    --ambient: linear-gradient(155deg, #F5F8FD 0%, #EEF3FA 18%, #E6EDF8 34%, #DCE5F4 50%, #D2DDF0 64%, #C8D5ED 78%, #BFCEEA 100%);
   }
 
   /* body/html: ver css/global.css (importado una sola vez en main.tsx). */
@@ -23,7 +35,7 @@
   }
   .nav-logo .logo-icon {
     width: 34px; height: 34px; border-radius: 10px;
-    background: linear-gradient(135deg, #2563EB, #1D4ED8);
+    background: linear-gradient(135deg, #1D5FD1, #123F94);
     display: grid; place-items: center;
   }
   .nav-logo .logo-icon svg { width: 18px; height: 18px; fill: currentColor; stroke: currentColor; }
@@ -97,7 +109,7 @@
   .btn-outline-white:hover { background: white; color: var(--blue); }
   .btn-solid-white {
     padding: 12px 26px; border-radius: 10px;
-    border: 2px solid white; background: #2563EB;
+    border: 2px solid white; background: #1D5FD1;
     color: white; font-family: inherit; font-size: 0.92rem; font-weight: 600;
     cursor: pointer; transition: opacity .2s;
   }
@@ -171,7 +183,7 @@
   }
   .role-icon svg { width: 26px; height: 26px; fill: currentColor; stroke: currentColor; }
   .role-icon.green { background: linear-gradient(135deg, #16a34a, #22c55e); }
-  .role-icon.blue  { background: linear-gradient(135deg, #2563eb, #38bdf8); }
+  .role-icon.blue  { background: linear-gradient(135deg, #1D5FD1, #38bdf8); }
   .role-icon.purple{ background: linear-gradient(135deg, #7c3aed, #c026d3); }
   .role-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
   .role-desc { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 22px; line-height: 1.55; }
@@ -218,7 +230,7 @@
     padding: 3px 10px; border-radius: 6px;
     font-size: 0.72rem; font-weight: 700; color: white;
   }
-  .badge-promo  { background: #3b82f6; }
+  .badge-promo  { background: #5D91EE; }
   .badge-new    { background: #059669; }
   .badge-feat   { background: #d97706; }
   .badge-pop    { background: #dc2626; }
@@ -260,7 +272,7 @@
     display: grid; place-items: center; margin-bottom: 16px;
   }
   .feature-icon svg { width: 22px; height: 22px; fill: white; }
-  .feature-icon.blue   { background: linear-gradient(135deg, #2563EB, #1D4ED8); }
+  .feature-icon.blue   { background: linear-gradient(135deg, #1D5FD1, #123F94); }
   .feature-icon.green  { background: linear-gradient(135deg, #16a34a, #22c55e); }
   .feature-icon.purple { background: linear-gradient(135deg, #7c3aed, #a855f7); }
   .feature-icon.pink   { background: linear-gradient(135deg, #db2777, #ec4899); }
@@ -269,7 +281,7 @@
 
   /* ── CTA BANNER ── */
   .cta-banner {
-    background: linear-gradient(135deg, #2563eb 0%, #7c3aed 60%, #a855f7 100%);
+    background: linear-gradient(135deg, #1D5FD1 0%, #7c3aed 60%, #a855f7 100%);
     padding: 72px 80px;
     text-align: center;
   }
@@ -301,7 +313,7 @@
   }
   .footer-brand .logo-icon {
     width: 34px; height: 34px; border-radius: 10px;
-    background: linear-gradient(135deg, #2563EB, #1D4ED8);
+    background: linear-gradient(135deg, #1D5FD1, #123F94);
     display: grid; place-items: center;
   }
   .footer-brand .logo-icon svg { width: 18px; height: 18px; fill: white; }

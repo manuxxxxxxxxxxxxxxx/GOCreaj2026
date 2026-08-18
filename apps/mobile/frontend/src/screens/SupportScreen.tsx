@@ -25,7 +25,7 @@ const MOCK_TICKETS: ReporteSoporte[] = [
 
 const ESTADO_CONFIG = {
   abierto:    { color: '#F59E0B', icon: 'time-outline' as const,        label: 'Abierto' },
-  en_proceso: { color: '#4A6D8C', icon: 'refresh-outline' as const,     label: 'En proceso' },
+  en_proceso: { color: '#1D5FD1', icon: 'refresh-outline' as const,     label: 'En proceso' },
   cerrado:    { color: '#22C55E', icon: 'checkmark-circle-outline' as const, label: 'Cerrado' },
 };
 

@@ -28,6 +28,15 @@ function Root() {
 
 export default function App() {
   const [fontsLoaded] = useFonts({
+    // Bandera Institucional (ver DESIGN.md) — fuentes activas.
+    'Archivo-Bold': require('./assets/fonts/Archivo-Bold.ttf'),
+    'Archivo-ExtraBold': require('./assets/fonts/Archivo-ExtraBold.ttf'),
+    'HankenGrotesk-Regular': require('./assets/fonts/HankenGrotesk-Regular.ttf'),
+    'HankenGrotesk-SemiBold': require('./assets/fonts/HankenGrotesk-SemiBold.ttf'),
+    'HankenGrotesk-Bold': require('./assets/fonts/HankenGrotesk-Bold.ttf'),
+    'HankenGrotesk-ExtraBold': require('./assets/fonts/HankenGrotesk-ExtraBold.ttf'),
+    // Sistema anterior — se mantienen cargadas hasta migrar toda pantalla
+    // que aún las referencie directamente (ver docs/redisenio/PROGRESO.md).
     'Sora-Bold': require('./assets/fonts/Sora-Bold.ttf'),
     'Sora-ExtraBold': require('./assets/fonts/Sora-ExtraBold.ttf'),
     'Manrope-Regular': require('./assets/fonts/Manrope-Regular.ttf'),

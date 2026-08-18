@@ -1,31 +1,31 @@
 :root {
-  /* ── Color ── */
-  --bg:         #f9fafb; /* Gris muy claro para el fondo */
-  --bg-deep:    #f3f4f6; /* Gris secundario para inputs o bloques */
-  --surface:    #ffffff; /* Tarjetas blancas puras */
+  /* ── Color — Bandera Institucional, ver DESIGN.md ── */
+  --bg:         #F3F6FC;
+  --bg-deep:    #EDF2FA;
+  --surface:    #ffffff;
   --surface-hi: #ffffff;
-  
-  --ink:        #111827; /* Texto principal oscuro */
-  --ink-2:      #374151; /* Texto secundario */
-  --ink-3:      #6b7280; /* Subtítulos e iconos */
-  --ink-4:      #9ca3af; /* Elementos deshabilitados o bordes internos */
-  
-  --line:       #e5e7eb; /* Bordes de las tarjetas */
-  --line-soft:  #f3f4f6; /* Separadores suaves */
 
-  --accent:      #2563EB; /* Azul de marca evolucionado */
-  --accent-hi:   #1D4ED8; /* Azul más oscuro para el hover */
-  --accent-soft: #DBEAFE; /* Fondo suave para elementos activos */
-  --accent-tint: rgba(37, 99, 235, 0.08); /* Fondo translúcido para estados de selección */
+  --ink:        #0B1B33;
+  --ink-2:      #4A5A73;
+  --ink-3:      #8494AC;
+  --ink-4:      #A9B4C6;
 
-  --success:      #16a34a; /* Verde para el texto de descuento */
+  --line:       #DCE4F1;
+  --line-soft:  #EDF2FA;
+
+  --accent:      #1D5FD1;
+  --accent-hi:   #123F94;
+  --accent-soft: #E7EFFC;
+  --accent-tint: rgba(29, 95, 209, 0.08);
+
+  --success:      #16a34a;
   --success-soft: #dcfce7;
-  --error:        #DC2626; /* Rojo para el badge del carrito */
+  --error:        #DC2626;
   --error-soft:   #fee2e2;
 
   /* ── Type ── */
-  --f-display: 'Sora', system-ui, sans-serif;
-  --f-body:    'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --f-display: 'Archivo', system-ui, sans-serif;
+  --f-body:    'Hanken Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --f-mono:    ui-monospace, 'SF Mono', Menlo, monospace;
 
   /* ── Radius / Shadow / Motion ── */

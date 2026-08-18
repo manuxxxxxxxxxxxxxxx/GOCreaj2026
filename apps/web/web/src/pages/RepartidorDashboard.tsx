@@ -206,7 +206,7 @@ export default function RepartidorDashboard() {
       const marker = L.marker([o.tiendaLat, o.tiendaLng], {
         icon: L.divIcon({
           className: '', iconSize: [30, 30], iconAnchor: [15, 15],
-          html: `<div style="background:${activo ? '#16A34A' : '#2563EB'};color:#fff;width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.4);border:2px solid #fff;">
+          html: `<div style="background:${activo ? '#16A34A' : '#1D5FD1'};color:#fff;width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.4);border:2px solid #fff;">
                   <svg style="transform:rotate(45deg)" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5"/><path d="M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244"/><path d="M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05"/></svg></div>`,
         }),
       })
@@ -737,7 +737,7 @@ export default function RepartidorDashboard() {
                     <XAxis dataKey="fecha" fontSize={12} />
                     <YAxis fontSize={12} tickFormatter={(v: number) => `$${v}`} />
                     <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`, 'Ganado']} />
-                    <Line type="monotone" dataKey="monto" stroke="var(--blue, #2563EB)" strokeWidth={2.5} dot={{ r: 3 }} />
+                    <Line type="monotone" dataKey="monto" stroke="var(--blue, #1D5FD1)" strokeWidth={2.5} dot={{ r: 3 }} />
                   </LineChart>
                 </ResponsiveContainer>
               )}

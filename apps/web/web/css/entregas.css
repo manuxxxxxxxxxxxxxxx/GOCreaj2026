@@ -5,24 +5,24 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --blue:        #2563EB;
-  --blue-dark:   #1D4ED8;
-  --blue-light:  #eef2ff;
-  --purple:      #2563EB;
+  --blue:        #1D5FD1;
+  --blue-dark:   #123F94;
+  --blue-light:  #E7EFFC;
+  --purple:      #1D5FD1;
   --purple-dark: #6d28d9;
   --pink:        #e040a0;
   --green:       #16A34A;
   --green-dark:  #16a34a;
-  --orange:      #EA580C;
+  --orange:      #F0A202;
   --red:         #DC2626;
   --yellow-bg:   #fffbeb;
   --yellow-br:   #fef3c7;
   --yellow-tx:   #92400e;
-  --text:        #111827;
-  --text-muted:  #6b7280;
+  --text:        #0B1B33;
+  --text-muted:  #4A5A73;
   --text-light:  #9ca3af;
-  --border:      #e5e7eb;
-  --bg:          #f1f5f9;
+  --border:      #DCE4F1;
+  --bg:          #F3F6FC;
   --white:       #ffffff;
   --radius:      14px;
   --radius-lg:   18px;
@@ -38,7 +38,7 @@
 }
 .logo-icon {
   width: 34px; height: 34px; border-radius: 10px;
-  background: linear-gradient(135deg, #2563EB, #1D4ED8);
+  background: linear-gradient(135deg, #1D5FD1, #123F94);
   display: grid; place-items: center; flex-shrink: 0;
 }
 .logo-icon svg { width: 18px; height: 18px; fill: white; }
@@ -178,7 +178,7 @@
    ETA HERO CARD (gradiente azul de marca)
 ══════════════════════════════ */
 .eta-card {
-  background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+  background: linear-gradient(135deg, #1D5FD1 0%, #123F94 100%);
   border-radius: var(--radius-lg);
   padding: 26px 30px;
   color: white;

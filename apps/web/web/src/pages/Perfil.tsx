@@ -13,7 +13,7 @@ const LANGS = [{ code: 'es', label: 'Español' }, { code: 'en', label: 'English'
 
 type Tab = 'likes' | 'guardados' | 'compartidos';
 
-const ACCENT = '#4A6D8C';
+const ACCENT = '#1D5FD1';
 const ACCENT_LIGHT = 'rgba(37, 99, 235,0.1)';
 
 export default function Perfil() {
@@ -499,7 +499,7 @@ export default function Perfil() {
               <div
                 onClick={() => navigate('/admin')}
                 style={{
-                  background: 'linear-gradient(135deg, #1e3a5f 0%, #355068 60%, #4A6D8C 100%)',
+                  background: 'linear-gradient(135deg, #1e3a5f 0%, #123F94 60%, #1D5FD1 100%)',
                   borderRadius: '16px', padding: '20px', marginBottom: '16px',
                   cursor: 'pointer', position: 'relative', overflow: 'hidden',
                   boxShadow: '0 4px 20px rgba(30,58,95,0.25)',

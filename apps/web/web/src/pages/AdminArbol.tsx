@@ -62,7 +62,7 @@ export default function AdminArbol() {
   };
 
   const tabs: Array<{ key: Grupo; label: string; icon: JSX.Element; count: number; color: string }> = [
-    { key: 'vendedores',   label: 'Vendedores',   icon: <ShoppingBag size={18} />, count: data?.vendedores.length ?? 0,   color: '#2563EB' },
+    { key: 'vendedores',   label: 'Vendedores',   icon: <ShoppingBag size={18} />, count: data?.vendedores.length ?? 0,   color: '#1D5FD1' },
     { key: 'repartidores', label: 'Repartidores', icon: <Bike size={18} />,        count: data?.repartidores.length ?? 0, color: '#D97706' },
     { key: 'compradores',  label: 'Compradores',  icon: <Users size={18} />,       count: data?.compradores.length ?? 0,  color: '#6366F1' },
     { key: 'productos',    label: 'Productos',    icon: <Package size={18} />,     count: data?.productos.length ?? 0,    color: '#16A34A' },
@@ -136,7 +136,7 @@ export default function AdminArbol() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
           {userList.filter(u => filtroFn(u.nombre) || filtroFn(u.email ?? '') || filtroFn(u.username ?? '')).map(u => (
             <div key={u.id} style={{ background: '#FFF', borderRadius: 18, padding: 16, border: '1px solid #E2E8F0', boxShadow: '0 4px 14px rgba(15,23,42,0.05)', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 50, height: 50, borderRadius: '50%', background: '#EFF6FF', color: '#2563EB', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.05rem', flexShrink: 0 }}>
+              <div style={{ width: 50, height: 50, borderRadius: '50%', background: '#EFF6FF', color: '#1D5FD1', fontWeight: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.05rem', flexShrink: 0 }}>
                 {u.nombre[0]}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -146,7 +146,7 @@ export default function AdminArbol() {
                   <span style={{ background: u.activo ? '#DCFCE7' : '#FEE2E2', color: u.activo ? '#15803D' : '#B91C1C', padding: '3px 9px', borderRadius: 12, fontSize: '.7rem', fontWeight: 800 }}>
                     {u.activo ? 'ACTIVO' : 'SUSPENDIDO'}
                   </span>
-                  {u.en_linea === 1 && <span style={{ background: '#DBEAFE', color: '#1D4ED8', padding: '3px 9px', borderRadius: 12, fontSize: '.7rem', fontWeight: 800 }}>EN LÍNEA</span>}
+                  {u.en_linea === 1 && <span style={{ background: '#DBEAFE', color: '#123F94', padding: '3px 9px', borderRadius: 12, fontSize: '.7rem', fontWeight: 800 }}>EN LÍNEA</span>}
                 </div>
               </div>
               <button
@@ -171,7 +171,7 @@ export default function AdminArbol() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 800, color: '#000', fontSize: '.94rem' }}>{p.nombre}</div>
                 <div style={{ fontSize: '.78rem', color: '#475569' }}>{p.tienda_nombre} · {p.vendedor_nombre}</div>
-                <div style={{ color: '#2563EB', fontWeight: 900, marginTop: 3, fontSize: '.92rem' }}>US$ {Number(p.precio).toFixed(2)} <span style={{ color: '#475569', fontWeight: 600 }}>· stock {p.stock}</span></div>
+                <div style={{ color: '#1D5FD1', fontWeight: 900, marginTop: 3, fontSize: '.92rem' }}>US$ {Number(p.precio).toFixed(2)} <span style={{ color: '#475569', fontWeight: 600 }}>· stock {p.stock}</span></div>
                 {p.activo === 0 && <span style={{ background: '#FEE2E2', color: '#B91C1C', padding: '3px 9px', borderRadius: 12, fontSize: '.7rem', fontWeight: 800, display: 'inline-block', marginTop: 4 }}>SUSPENDIDO</span>}
               </div>
               {p.activo === 1 && (

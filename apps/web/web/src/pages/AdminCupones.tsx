@@ -102,7 +102,7 @@ export default function AdminCupones() {
           <h1 style={{ margin: 0, fontSize: '1.7rem', fontWeight: 900, color: '#000', letterSpacing: -0.5 }}>Cupones de descuento</h1>
           <p style={{ margin: '4px 0 0', color: '#475569', fontWeight: 600 }}>Crea y administra códigos promocionales de la plataforma</p>
         </div>
-        <button onClick={openCrear} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#2563EB', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 14, cursor: 'pointer', fontWeight: 800, boxShadow: '0 6px 18px rgba(37,99,235,0.3)' }}>
+        <button onClick={openCrear} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#1D5FD1', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 14, cursor: 'pointer', fontWeight: 800, boxShadow: '0 6px 18px rgba(37,99,235,0.3)' }}>
           <Plus size={16} /> Nuevo cupón
         </button>
       </div>
@@ -127,7 +127,7 @@ export default function AdminCupones() {
               <tbody>
                 {cupones.map(c => (
                   <tr key={c.id} style={{ borderBottom: '1px solid #E2E8F0' }}>
-                    <td style={{ padding: '12px 16px', fontWeight: 800, color: '#2563EB', fontFamily: 'monospace' }}>{c.codigo}</td>
+                    <td style={{ padding: '12px 16px', fontWeight: 800, color: '#1D5FD1', fontFamily: 'monospace' }}>{c.codigo}</td>
                     <td style={{ padding: '12px 16px', fontWeight: 700 }}>{c.tipo === 'porcentaje' ? `${c.valor}%` : `$${Number(c.valor).toFixed(2)}`}</td>
                     <td style={{ padding: '12px 16px', color: '#475569' }}>${Number(c.min_compra).toFixed(2)}</td>
                     <td style={{ padding: '12px 16px', color: '#475569' }}>{c.usos_actuales}{c.usos_max !== null ? ` / ${c.usos_max}` : ''}</td>
@@ -159,7 +159,7 @@ export default function AdminCupones() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={e => e.target === e.currentTarget && setShowModal(false)}>
           <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 440, boxShadow: '0 24px 80px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
-            <div style={{ background: 'linear-gradient(135deg, #1E3A5F, #355068)', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ background: 'linear-gradient(135deg, #1E3A5F, #123F94)', padding: '20px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ color: '#fff', fontWeight: 800, fontSize: '1.1rem', margin: 0 }}>Nuevo cupón</h2>
               <button onClick={() => setShowModal(false)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
             </div>
@@ -197,7 +197,7 @@ export default function AdminCupones() {
               </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                 <button onClick={() => setShowModal(false)} style={{ flex: 1, padding: 12, borderRadius: 12, border: '1.5px solid #E2E8F0', background: 'transparent', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
-                <button onClick={crear} disabled={saving} style={{ flex: 1, padding: 12, borderRadius: 12, border: 'none', background: '#2563EB', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
+                <button onClick={crear} disabled={saving} style={{ flex: 1, padding: 12, borderRadius: 12, border: 'none', background: '#1D5FD1', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.7 : 1 }}>
                   {saving ? 'Guardando...' : 'Crear cupón'}
                 </button>
               </div>

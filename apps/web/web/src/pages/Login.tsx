@@ -147,7 +147,7 @@ export default function Login() {
           onClick={() => navigate('/')}
           style={{ cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}
         >
-          <div className="auth-logo-icon" style={{ width: '44px', height: '44px', borderRadius: '14px', background: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', color: '#fff', fontSize: '1.1rem', boxShadow: '0 6px 18px rgba(37,99,235,0.30)' }}>
+          <div className="auth-logo-icon" style={{ width: '44px', height: '44px', borderRadius: '14px', background: 'linear-gradient(135deg, #1D5FD1, #123F94)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900', color: '#fff', fontSize: '1.1rem', boxShadow: '0 6px 18px rgba(29,95,209,0.30)' }}>
             SV
           </div>
           <div>
@@ -220,7 +220,7 @@ export default function Login() {
               className="auth-btn"
               type="submit"
               disabled={loading}
-              style={{ background: '#2563EB', border: 'none', borderRadius: '14px', height: '50px', color: '#fff', fontWeight: '800', fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', boxShadow: '0 6px 18px rgba(37,99,235,0.30)', opacity: loading ? 0.75 : 1, transition: 'transform .15s, box-shadow .15s' }}
+              style={{ background: 'linear-gradient(135deg, #1D5FD1, #123F94)', border: 'none', borderRadius: '14px', height: '50px', color: '#fff', fontWeight: '800', fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', boxShadow: '0 6px 18px rgba(29,95,209,0.30)', opacity: loading ? 0.75 : 1, transition: 'transform .15s, box-shadow .15s' }}
             >
               {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
             </button>
@@ -293,7 +293,7 @@ export default function Login() {
               className="auth-btn"
               type="submit"
               disabled={loading}
-              style={{ background: '#2563EB', border: 'none', borderRadius: '14px', height: '50px', color: '#fff', fontWeight: '800', fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', boxShadow: '0 6px 18px rgba(37,99,235,0.30)', opacity: loading ? 0.75 : 1, transition: 'transform .15s, box-shadow .15s' }}
+              style={{ background: 'linear-gradient(135deg, #1D5FD1, #123F94)', border: 'none', borderRadius: '14px', height: '50px', color: '#fff', fontWeight: '800', fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', boxShadow: '0 6px 18px rgba(29,95,209,0.30)', opacity: loading ? 0.75 : 1, transition: 'transform .15s, box-shadow .15s' }}
             >
               {loading ? 'Creando cuenta...' : 'Crear cuenta'}
             </button>
@@ -306,7 +306,7 @@ export default function Login() {
                 type="button"
                 className="auth-link"
                 onClick={() => setIsRegister(false)}
-                style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontWeight: '700', marginLeft: '5px' }}
+                style={{ background: 'none', border: 'none', color: '#1D5FD1', cursor: 'pointer', fontWeight: '700', marginLeft: '5px' }}
               >Inicia sesión</button>
             </p>
           </form>

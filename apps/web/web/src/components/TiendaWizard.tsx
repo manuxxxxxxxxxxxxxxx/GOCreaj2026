@@ -50,7 +50,7 @@ export default function TiendaWizard({ onCreated, isDark }: { onCreated: () => v
   const border  = isDark ? '#1E293B' : '#E2E8F0';
   const text    = isDark ? '#F1F5F9' : '#0F172A';
   const muted   = isDark ? '#64748B' : '#94A3B8';
-  const accent  = isDark ? '#3B82F6' : '#2563EB';
+  const accent  = isDark ? '#5D91EE' : '#1D5FD1';
   const inputBg = isDark ? '#1E293B' : '#F8FAFC';
 
   const inpStyle: React.CSSProperties = {

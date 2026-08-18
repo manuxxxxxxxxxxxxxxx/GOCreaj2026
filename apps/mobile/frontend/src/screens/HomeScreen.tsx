@@ -17,7 +17,7 @@ import { useNavigation, NavigationProp, useFocusEffect } from '@react-navigation
 
 const { width: W } = Dimensions.get('window');
 
-const BANNER_COLORS = ['#2563EB', '#16A34A', '#7C3AED', '#DC2626', '#D97706'];
+const BANNER_COLORS = ['#1D5FD1', '#16A34A', '#F0A202', '#DC2626', '#D97706'];
 
 interface TiendaNueva {
   id: number;
