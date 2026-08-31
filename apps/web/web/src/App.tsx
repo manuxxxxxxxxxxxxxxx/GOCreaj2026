@@ -25,6 +25,8 @@ import { OrderTracking } from "./pages/OrderTracking";
 import { Chat } from "./pages/Chat";
 import { Reels } from "./pages/Reels";
 import { Profile } from "./pages/Profile";
+import { MiColeccion } from "./pages/MiColeccion";
+import { ConfiguracionAvanzada } from "./pages/ConfiguracionAvanzada";
 import { Direcciones } from "./pages/Direcciones";
 import { Wallet } from "./pages/Wallet";
 import { Notifications } from "./pages/Notifications";
@@ -150,10 +152,18 @@ export default function App() {
                     }
                   />
                   <Route
-                    path="/perfil/seguridad"
+                    path="/perfil/configuracion"
                     element={
                       <RequireAuth>
-                        <ComingSoon label="Sesiones activas" />
+                        <ConfiguracionAvanzada />
+                      </RequireAuth>
+                    }
+                  />
+                  <Route
+                    path="/perfil/coleccion/:tipo"
+                    element={
+                      <RequireAuth>
+                        <MiColeccion />
                       </RequireAuth>
                     }
                   />

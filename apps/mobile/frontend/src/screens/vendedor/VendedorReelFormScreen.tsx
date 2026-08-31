@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { HashIcon, PencilSimpleIcon, TrashIcon, VideoCameraIcon, XIcon } from "phosphor-react-native";
+import { HashIcon, VideoCameraIcon, PencilSimpleIcon, TrashIcon, XIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
 import { vendedorApi, ApiError } from "../../lib/api";
-import { CATEGORIAS, CATEGORIA_LABEL, categoriaColor, categoriaIcon } from "../../lib/categoryIcons";
+import { CategoryPicker } from "../../components/domain/CategoryPicker";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
+
+const MAX_VIDEO_MB = 80;
+const MAX_VIDEO_SECONDS = 90;
 
 type Props = NativeStackScreenProps<RootStackParamList, "VendedorReelForm">;
 
@@ -34,6 +37,7 @@ export function VendedorReelFormScreen({ navigation }: Props) {
   const [categoria, setCategoria] = useState("comida");
   const [hashtags, setHashtags] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [progreso, setProgreso] = useState(0);
 
   useEffect(() => {
     vendedorApi.misTiendas().then((r) => setTiendaId(r.tiendas[0]?.id ?? null));
@@ -48,7 +52,16 @@ export function VendedorReelFormScreen({ navigation }: Props) {
   const elegirVideo = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["videos"], quality: 0.7 });
     if (res.canceled || !res.assets[0]) return;
-    setVideoUri(res.assets[0].uri);
+    const asset = res.assets[0];
+
+    if (asset.duration && asset.duration / 1000 > MAX_VIDEO_SECONDS) {
+      return toast.show(`El video dura más de ${MAX_VIDEO_SECONDS}s — elige uno más corto para que suba rápido.`, "warning");
+    }
+    const info = await FileSystem.getInfoAsync(asset.uri);
+    if (info.exists && info.size && info.size / (1024 * 1024) > MAX_VIDEO_MB) {
+      return toast.show(`El video pesa más de ${MAX_VIDEO_MB}MB — elige uno más liviano o recórtalo.`, "warning");
+    }
+    setVideoUri(asset.uri);
   };
 
   const publicar = async () => {
@@ -56,19 +69,24 @@ export function VendedorReelFormScreen({ navigation }: Props) {
     if (!nombre.trim() || !precio) return toast.show("Nombre y precio son obligatorios.", "warning");
     if (!tiendaId) return toast.show("Primero crea tu tienda.", "warning");
     setGuardando(true);
+    setProgreso(0);
     try {
-      const base64 = await FileSystem.readAsStringAsync(videoUri, { encoding: FileSystem.EncodingType.Base64 });
-      await vendedorApi.crearProducto({
-        tienda_id: tiendaId,
-        nombre,
-        descripcion,
-        precio: Number(precio),
-        stock: Number(stock),
-        categoria,
-        video: `data:video/mp4;base64,${base64}`,
-        es_reel: true,
-        hashtags: hashtags.trim() || undefined,
-      });
+      // El video se manda como archivo (multipart), no como base64 en el JSON: evita el ~33%
+      // de overhead y permite mostrar el progreso real de subida en vez de un spinner ciego.
+      await vendedorApi.crearProductoConVideo(
+        {
+          tienda_id: tiendaId,
+          nombre,
+          descripcion,
+          precio: Number(precio),
+          stock: Number(stock),
+          categoria,
+          es_reel: true,
+          hashtags: hashtags.trim() || undefined,
+        },
+        videoUri,
+        setProgreso,
+      );
       toast.show("Reel publicado", "success");
       navigation.goBack();
     } catch (err) {
@@ -86,6 +104,7 @@ export function VendedorReelFormScreen({ navigation }: Props) {
           <XIcon size={16} color={tokens.textPrimary} />
         </Pressable>
       </View>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <View style={{ flexDirection: "row", gap: 16 }}>
           <Pressable onPress={elegirVideo} style={[styles.videoPicker, { backgroundColor: "#000", borderColor: tokens.borderStrong }]}>
@@ -128,23 +147,7 @@ export function VendedorReelFormScreen({ navigation }: Props) {
 
         <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border, marginTop: 14 }]}>
           <SectionLabel>Categoría</SectionLabel>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {CATEGORIAS.map((c) => {
-              const active = categoria === c;
-              const color = categoriaColor(c);
-              const Icon = categoriaIcon(c);
-              return (
-                <Pressable
-                  key={c}
-                  onPress={() => setCategoria(c)}
-                  style={[styles.catChip, { borderColor: active ? color : tokens.border, backgroundColor: active ? `${color}29` : tokens.surface2 }]}
-                >
-                  <Icon size={13} weight={active ? "fill" : "regular"} color={active ? color : tokens.textSecondary} />
-                  <Text style={{ fontSize: 12, color: active ? color : tokens.textSecondary, fontFamily: "Inter_600SemiBold" }}>{CATEGORIA_LABEL[c]}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <CategoryPicker value={categoria} onChange={setCategoria} />
         </View>
 
         <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border, marginTop: 14 }]}>
@@ -160,10 +163,19 @@ export function VendedorReelFormScreen({ navigation }: Props) {
           />
         </View>
 
-        <Button size="lg" onPress={publicar} loading={guardando} style={{ marginTop: 22 }}>
+        {guardando && (
+          <View style={{ marginTop: 22, gap: 6 }}>
+            <View style={[styles.progressTrack, { backgroundColor: tokens.surface2 }]}>
+              <View style={[styles.progressFill, { backgroundColor: tokens.cyan, width: `${Math.round(progreso * 100)}%` }]} />
+            </View>
+            <Text style={{ fontSize: 11.5, color: tokens.textMuted, textAlign: "center" }}>Subiendo video... {Math.round(progreso * 100)}%</Text>
+          </View>
+        )}
+        <Button size="lg" onPress={publicar} loading={guardando} style={{ marginTop: guardando ? 10 : 22 }}>
           Publicar Reel
         </Button>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -176,5 +188,6 @@ const styles = StyleSheet.create({
   videoBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
   removeBtn: { position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" },
   card: { borderRadius: 16, borderWidth: 1, padding: 16 },
-  catChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
+  progressTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 3 },
 });

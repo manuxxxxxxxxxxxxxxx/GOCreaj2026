@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { adminApi, ApiError } from "../../lib/api";
 import type { EstadoPedido, Pedido } from "../../lib/types";
-import { money, formatDateTime } from "../../lib/format";
+import { money, formatDateTime, numeroPedido } from "../../lib/format";
 import { useToast } from "../../context/ToastContext";
 import { StatusPill } from "../../components/ui/StatusPill";
 import { Card } from "../../components/ui/Card";
@@ -55,7 +55,7 @@ export function AdminPedidos() {
             <Card key={p.id}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 13.5 }}>#SV-{p.id}</div>
+                  <div style={{ fontWeight: 700, fontSize: 13.5 }}>#{numeroPedido(p)}</div>
                   <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>
                     {p.comprador_nombre} → {p.vendedor_nombre} {p.repartidor_nombre ? `· ${p.repartidor_nombre}` : ""}
                   </div>

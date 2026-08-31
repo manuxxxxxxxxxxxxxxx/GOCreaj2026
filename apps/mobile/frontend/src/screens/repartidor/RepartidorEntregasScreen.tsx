@@ -7,7 +7,7 @@ import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
 import { repartidorApi, pedidosApi, ApiError } from "../../lib/api";
 import type { Pedido } from "../../lib/types";
-import { money } from "../../lib/format";
+import { money, numeroPedido } from "../../lib/format";
 import { StatusPill } from "../../components/ui/StatusPill";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -136,7 +136,7 @@ export function RepartidorEntregasScreen() {
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 10 }}>
             <View>
               <Text style={{ fontFamily: "Inter_700Bold", fontSize: 13.5, color: tokens.textPrimary }}>
-                #SV-{p.id} · {p.tienda_nombre}
+                #{numeroPedido(p)} · {p.tienda_nombre}
               </Text>
               <Text style={{ fontSize: 11.5, color: tokens.textMuted, marginTop: 2 }}>
                 {p.comprador_nombre} · {p.direccion_entrega}
@@ -185,7 +185,7 @@ export function RepartidorEntregasScreen() {
             {historial.map((p) => (
               <View key={p.id} style={{ flexDirection: "row", justifyContent: "space-between", padding: 12, borderRadius: 10, borderWidth: 1, borderColor: tokens.border, backgroundColor: tokens.surface1 }}>
                 <Text style={{ fontSize: 13, color: tokens.textPrimary }}>
-                  #SV-{p.id} · {p.tienda_nombre}
+                  #{numeroPedido(p)} · {p.tienda_nombre}
                 </Text>
                 <StatusPill estado={p.estado} />
               </View>

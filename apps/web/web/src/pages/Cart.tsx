@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShoppingCart, Tag, Trash } from "@phosphor-icons/react";
+import { ArrowRight, ShoppingCart, Storefront, Tag, Trash, TrashSimple, WarningCircle, X } from "@phosphor-icons/react";
 import { carritoApi, cuponesApi, ApiError } from "../lib/api";
 import { money } from "../lib/format";
 import { useCart } from "../context/CartContext";
@@ -9,7 +9,10 @@ import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 import { Reveal } from "../components/ui/Reveal";
-import type { Cupon } from "../lib/types";
+import { ConfirmDialog } from "../components/ui/ConfirmDialog";
+import type { CarritoItem, Cupon } from "../lib/types";
+
+const STOCK_BAJO = 5;
 
 export function Cart() {
   const { items, total, cargando, refrescar } = useCart();
@@ -18,6 +21,8 @@ export function Cart() {
   const [codigo, setCodigo] = useState("");
   const [cupon, setCupon] = useState<{ cupon: Cupon; descuento: number } | null>(null);
   const [validando, setValidando] = useState(false);
+  const [vaciando, setVaciando] = useState(false);
+  const [confirmandoVaciar, setConfirmandoVaciar] = useState(false);
 
   const cambiarCantidad = async (carrito_id: number, delta: number, actual: number) => {
     const nueva = actual + delta;
@@ -34,6 +39,19 @@ export function Cart() {
     await refrescar();
   };
 
+  const vaciarCarrito = async () => {
+    setVaciando(true);
+    try {
+      await Promise.all(items.map((it) => carritoApi.eliminar(it.id)));
+      await refrescar();
+      setConfirmandoVaciar(false);
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo vaciar el carrito.", "error");
+    } finally {
+      setVaciando(false);
+    }
+  };
+
   const validarCupon = async () => {
     if (!codigo.trim()) return;
     setValidando(true);
@@ -47,6 +65,11 @@ export function Cart() {
     } finally {
       setValidando(false);
     }
+  };
+
+  const quitarCupon = () => {
+    setCupon(null);
+    setCodigo("");
   };
 
   const irCheckout = () => {
@@ -77,81 +100,160 @@ export function Cart() {
     );
   }
 
-  const porTienda = items.reduce<Record<string, typeof items>>((acc, it) => {
+  const porTienda = items.reduce<Record<string, CarritoItem[]>>((acc, it) => {
     (acc[it.tienda_nombre] ??= []).push(it);
     return acc;
   }, {});
-
+  const tiendas = Object.entries(porTienda);
+  const hayAgotados = items.some((it) => it.estado_stock === "agotado" || it.stock <= 0);
   const totalFinal = Math.max(0, total - (cupon?.descuento ?? 0));
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 28, alignItems: "start", maxWidth: 900 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        <h1 style={{ fontSize: 22 }}>Tu carrito</h1>
-        {Object.entries(porTienda).map(([tiendaNombre, tiendaItems]) => (
-          <div key={tiendaNombre}>
-            <div style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10 }}>{tiendaNombre}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {tiendaItems.map((it, idx) => (
-                <Reveal key={it.id} index={idx} style={{ display: "flex", gap: 12, alignItems: "center", background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: 12 }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 12, background: "var(--surface-2)", overflow: "hidden", flexShrink: 0 }}>
-                    {it.imagen && <img src={it.imagen} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.nombre}</div>
-                    <div className="tabular" style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
-                      {money(it.precio_efectivo)} c/u
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
-                    <button onClick={() => cambiarCantidad(it.id, -1, it.cantidad)} style={{ width: 30, height: 30, background: "none", border: "none", cursor: "pointer" }} aria-label="Restar">
-                      −
-                    </button>
-                    <span className="tabular" style={{ width: 24, textAlign: "center", fontSize: 13 }}>
-                      {it.cantidad}
-                    </span>
-                    <button
-                      onClick={() => cambiarCantidad(it.id, 1, it.cantidad)}
-                      disabled={it.cantidad >= it.stock}
-                      style={{ width: 30, height: 30, background: "none", border: "none", cursor: it.cantidad >= it.stock ? "not-allowed" : "pointer", opacity: it.cantidad >= it.stock ? 0.4 : 1 }}
-                      aria-label="Sumar"
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h1 style={{ fontSize: 22 }}>Tu carrito</h1>
+          <button
+            onClick={() => setConfirmandoVaciar(true)}
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", color: "var(--danger)", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}
+          >
+            <TrashSimple size={14} /> Vaciar carrito
+          </button>
+        </div>
+
+        {tiendas.map(([tiendaNombre, tiendaItems]) => {
+          const subtotalTienda = tiendaItems.reduce((acc, it) => acc + it.precio_efectivo * it.cantidad, 0);
+          return (
+            <div key={tiendaNombre}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700, color: "var(--text-muted)" }}>
+                  <Storefront size={14} /> {tiendaNombre}
+                </span>
+                <span className="tabular" style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                  {money(subtotalTienda)}
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {tiendaItems.map((it, idx) => {
+                  const agotado = it.estado_stock === "agotado" || it.stock <= 0;
+                  const enOferta = !!it.precio_oferta && it.precio_oferta > 0 && it.precio_oferta < it.precio;
+                  const stockBajo = !agotado && it.stock <= STOCK_BAJO;
+                  return (
+                    <Reveal
+                      key={it.id}
+                      index={idx}
+                      style={{
+                        display: "flex",
+                        gap: 12,
+                        alignItems: "center",
+                        background: "var(--surface-1)",
+                        border: `1px solid ${agotado ? "var(--danger)" : "var(--border)"}`,
+                        borderRadius: "var(--radius-md)",
+                        padding: 12,
+                        opacity: agotado ? 0.7 : 1,
+                      }}
                     >
-                      +
-                    </button>
-                  </div>
-                  <span className="tabular" style={{ fontWeight: 700, fontSize: 13.5, width: 64, textAlign: "right" }}>
-                    {money(it.precio_efectivo * it.cantidad)}
-                  </span>
-                  <button onClick={() => eliminar(it.id)} aria-label={`Eliminar ${it.nombre}`} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", display: "flex" }}>
-                    <Trash size={17} />
-                  </button>
-                </Reveal>
-              ))}
+                      <div style={{ width: 56, height: 56, borderRadius: 12, background: "var(--surface-2)", overflow: "hidden", flexShrink: 0 }}>
+                        {it.imagen && (
+                          <img
+                            src={it.imagen}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            style={{ width: "100%", height: "100%", objectFit: "cover", filter: agotado ? "grayscale(0.7)" : undefined }}
+                          />
+                        )}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.nombre}</div>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                          <span className="tabular" style={{ fontSize: 12.5, color: enOferta ? "var(--danger)" : "var(--text-secondary)", fontWeight: enOferta ? 700 : 400 }}>
+                            {money(it.precio_efectivo)} c/u
+                          </span>
+                          {enOferta && (
+                            <span className="tabular" style={{ fontSize: 11, color: "var(--text-muted)", textDecoration: "line-through" }}>
+                              {money(it.precio)}
+                            </span>
+                          )}
+                        </div>
+                        {agotado ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "var(--danger)", marginTop: 2 }}>
+                            <WarningCircle size={12} weight="bold" /> Sin stock — elimínalo para continuar
+                          </span>
+                        ) : stockBajo ? (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--warn)", marginTop: 2, display: "block" }}>¡Solo quedan {it.stock}!</span>
+                        ) : null}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
+                        {it.cantidad <= 1 ? (
+                          <button onClick={() => eliminar(it.id)} style={{ width: 30, height: 30, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--danger)" }} aria-label="Eliminar">
+                            <Trash size={13} />
+                          </button>
+                        ) : (
+                          <button onClick={() => cambiarCantidad(it.id, -1, it.cantidad)} style={{ width: 30, height: 30, background: "none", border: "none", cursor: "pointer" }} aria-label="Restar">
+                            −
+                          </button>
+                        )}
+                        <span className="tabular" style={{ width: 24, textAlign: "center", fontSize: 13 }}>
+                          {it.cantidad}
+                        </span>
+                        <button
+                          onClick={() => cambiarCantidad(it.id, 1, it.cantidad)}
+                          disabled={agotado || it.cantidad >= it.stock}
+                          style={{ width: 30, height: 30, background: "none", border: "none", cursor: agotado || it.cantidad >= it.stock ? "not-allowed" : "pointer", opacity: agotado || it.cantidad >= it.stock ? 0.4 : 1 }}
+                          aria-label="Sumar"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <span className="tabular" style={{ fontWeight: 700, fontSize: 13.5, width: 64, textAlign: "right" }}>
+                        {money(it.precio_efectivo * it.cantidad)}
+                      </span>
+                      <button onClick={() => eliminar(it.id)} aria-label={`Eliminar ${it.nombre}`} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex" }}>
+                        <Trash size={17} />
+                      </button>
+                    </Reveal>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div style={{ position: "sticky", top: 80, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
         <h2 style={{ fontSize: 15 }}>Resumen</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ position: "relative", flex: 1 }}>
-            <Tag size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
-            <input
-              value={codigo}
-              onChange={(e) => setCodigo(e.target.value.toUpperCase())}
-              placeholder="Código de cupón"
-              style={{ width: "100%", height: 38, borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", padding: "0 10px 0 32px", fontSize: 13 }}
-            />
+
+        {cupon ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: "var(--radius-sm)", background: "var(--ok-bg)", color: "var(--ok-ink)" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 700 }}>
+              <Tag size={14} /> {cupon.cupon.codigo}
+            </span>
+            <button onClick={quitarCupon} aria-label="Quitar cupón" style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", display: "flex" }}>
+              <X size={14} />
+            </button>
           </div>
-          <Button size="sm" variant="secondary" onClick={validarCupon} loading={validando}>
-            Aplicar
-          </Button>
-        </div>
+        ) : (
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ position: "relative", flex: 1 }}>
+              <Tag size={15} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
+              <input
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                placeholder="Código de cupón"
+                style={{ width: "100%", height: 38, borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", padding: "0 10px 0 32px", fontSize: 13 }}
+              />
+            </div>
+            <Button size="sm" variant="secondary" onClick={validarCupon} loading={validando}>
+              Aplicar
+            </Button>
+          </div>
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13.5 }}>
           <Row label="Subtotal" value={money(total)} />
           {cupon && <Row label={`Cupón ${cupon.cupon.codigo}`} value={`− ${money(cupon.descuento)}`} tone="var(--ok)" />}
-          <Row label="Envío" value="Se calcula en el checkout" muted />
+          <Row label="Envío" value={tiendas.length > 1 ? `${tiendas.length} tiendas — se calcula en el checkout` : "Se calcula en el checkout"} muted />
         </div>
         <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <span style={{ fontWeight: 700 }}>Total</span>
@@ -159,19 +261,35 @@ export function Cart() {
             {money(totalFinal)}
           </span>
         </div>
-        <Button size="lg" fullWidth hero onClick={irCheckout}>
-          Continuar
+        {hayAgotados && (
+          <p style={{ fontSize: 12, color: "var(--danger)", display: "flex", alignItems: "center", gap: 5 }}>
+            <WarningCircle size={14} weight="bold" /> Elimina los productos sin stock para continuar.
+          </p>
+        )}
+        <Button size="lg" fullWidth hero onClick={irCheckout} disabled={hayAgotados}>
+          Continuar <ArrowRight size={15} weight="bold" />
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={confirmandoVaciar}
+        title="¿Vaciar el carrito?"
+        description="Se eliminarán todos los productos de tu carrito."
+        confirmLabel="Vaciar carrito"
+        danger
+        loading={vaciando}
+        onCancel={() => setConfirmandoVaciar(false)}
+        onConfirm={vaciarCarrito}
+      />
     </div>
   );
 }
 
 function Row({ label, value, tone, muted }: { label: string; value: string; tone?: string; muted?: boolean }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", color: muted ? "var(--text-muted)" : "var(--text-secondary)" }}>
-      <span>{label}</span>
-      <span className="tabular" style={{ color: tone, fontWeight: tone ? 700 : undefined }}>
+    <div style={{ display: "flex", gap: 12, color: muted ? "var(--text-muted)" : "var(--text-secondary)" }}>
+      <span style={{ flexShrink: 0 }}>{label}</span>
+      <span className="tabular" style={{ flex: 1, textAlign: "right", color: tone, fontWeight: tone ? 700 : undefined }}>
         {value}
       </span>
     </div>

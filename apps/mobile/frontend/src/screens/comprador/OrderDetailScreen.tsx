@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { CaretLeftIcon, ChatCircleDotsIcon, CheckCircleIcon, CircleIcon, PhoneIcon, QrCodeIcon, StarIcon, XIcon } from "phosphor-react-native";
+import { CaretLeftIcon, ChatCircleDotsIcon, CheckCircleIcon, CircleIcon, ConfettiIcon, PhoneIcon, QrCodeIcon, ShareNetworkIcon, StarIcon, XIcon } from "phosphor-react-native";
 import { WebMapView } from "../../components/ui/WebMapView";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
 import { pedidosApi, ApiError } from "../../lib/api";
 import type { Pedido } from "../../lib/types";
-import { money, formatDateTime } from "../../lib/format";
+import { money, formatDateTime, numeroPedido } from "../../lib/format";
 import { StatusPill } from "../../components/ui/StatusPill";
 import { Button } from "../../components/ui/Button";
 import { Avatar } from "../../components/ui/Avatar";
@@ -124,12 +124,34 @@ export function OrderDetailScreen({ route, navigation }: Props) {
           <CaretLeftIcon size={16} color={tokens.textPrimary} />
         </Pressable>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 16, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>Pedido #SV-{pedido.id}</Text>
+          <Text style={{ fontSize: 16, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>Pedido #{numeroPedido(pedido)}</Text>
         </View>
         <StatusPill estado={pedido.estado} />
       </View>
 
       <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60, gap: 16 }}>
+        {route.params.recienCreado && (
+          <View style={[styles.successCard, { backgroundColor: tokens.surface1, borderColor: tokens.cyan }]}>
+            <View style={[styles.successIcon, { backgroundColor: tokens.cyanBg }]}>
+              <ConfettiIcon size={24} weight="fill" color={tokens.cyan} />
+            </View>
+            <Text style={{ fontSize: 16, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>¡Pedido confirmado!</Text>
+            <Text style={{ fontSize: 12, color: tokens.textSecondary, textAlign: "center" }}>
+              {(route.params.totalPedidos ?? 1) > 1 ? `Se crearon ${route.params.totalPedidos} pedidos, uno por cada tienda. Este es el primero.` : "Tu número de pedido es"}
+            </Text>
+            <Pressable
+              onPress={() => Share.share({ message: `Mi número de pedido en SV[Go] es #${numeroPedido(pedido)}` })}
+              style={[styles.numeroChip, { backgroundColor: tokens.surface2, borderColor: tokens.border }]}
+            >
+              <Text style={{ fontSize: 17, fontFamily: "IBMPlexMono_500Medium", fontWeight: "700", color: tokens.textPrimary, letterSpacing: 0.5 }}>#{numeroPedido(pedido)}</Text>
+              <ShareNetworkIcon size={15} color={tokens.textMuted} />
+            </Pressable>
+            <Text style={{ fontSize: 12, color: tokens.textMuted, textAlign: "center" }}>
+              Esperando que {pedido.vendedor_nombre ?? "la tienda"} confirme tu pedido — sigue el progreso abajo.
+            </Text>
+          </View>
+        )}
+
         {!["cancelado", "rechazado_repartidor"].includes(pedido.estado) && (
           <View style={[styles.timelineCard, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
             {PASOS.map((paso, i) => {
@@ -305,6 +327,9 @@ function StarPicker({ label, value, onChange }: { label: string; value: number; 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14 },
   backBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  successCard: { alignItems: "center", gap: 8, borderRadius: 18, borderWidth: 1, padding: 22 },
+  successIcon: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center" },
+  numeroChip: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 999, borderWidth: 1, paddingHorizontal: 16, paddingVertical: 8 },
   timelineCard: { borderRadius: 18, borderWidth: 1, padding: 18 },
   repRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 14, borderWidth: 1 },
   iconBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center" },

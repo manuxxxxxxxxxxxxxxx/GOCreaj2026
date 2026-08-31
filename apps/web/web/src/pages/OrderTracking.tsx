@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Bicycle, CheckCircle, ChatCircleDots, Circle, MapPin, Phone, QrCode, Star, Storefront, X } from "@phosphor-icons/react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Bicycle, CheckCircle, ChatCircleDots, Circle, Confetti, Copy, MapPin, Phone, QrCode, Star, Storefront, X } from "@phosphor-icons/react";
 import { pedidosApi, ApiError } from "../lib/api";
 import type { Pedido } from "../lib/types";
-import { money, formatDateTime } from "../lib/format";
+import { money, formatDateTime, numeroPedido } from "../lib/format";
 import { useToast } from "../context/ToastContext";
 import { StatusPill } from "../components/ui/StatusPill";
 import { Button } from "../components/ui/Button";
@@ -35,7 +35,10 @@ function pasoActivoIndex(pedido: Pedido): number {
 export function OrderTracking() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
+  const recienCreado = !!(location.state as { recienCreado?: boolean } | null)?.recienCreado;
+  const totalPedidos = (location.state as { totalPedidos?: number } | null)?.totalPedidos ?? 1;
   const [pedido, setPedido] = useState<Pedido | null>(null);
   const [confirmandoCancelar, setConfirmandoCancelar] = useState(false);
   const [cancelando, setCancelando] = useState(false);
@@ -130,9 +133,60 @@ export function OrderTracking() {
 
   return (
     <div style={{ maxWidth: 640, display: "flex", flexDirection: "column", gap: 20 }}>
+      {recienCreado && (
+        <div
+          className="glow-mesh"
+          style={{
+            position: "relative",
+            background: "var(--surface-1)",
+            border: "1px solid var(--cyan)",
+            borderRadius: "var(--radius-lg)",
+            padding: 24,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            textAlign: "center",
+            gap: 8,
+          }}
+        >
+          <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--cyan-bg)", color: "var(--cyan)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Confetti size={26} weight="fill" />
+          </div>
+          <h2 style={{ fontSize: 17 }}>¡Pedido confirmado!</h2>
+          <p style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
+            {totalPedidos > 1 ? `Se crearon ${totalPedidos} pedidos, uno por cada tienda. Este es el primero.` : "Tu número de pedido es"}
+          </p>
+          <button
+            onClick={() => {
+              navigator.clipboard?.writeText(`#${numeroPedido(pedido)}`);
+              toast.show("Número de pedido copiado", "success");
+            }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
+              borderRadius: "var(--radius-pill)",
+              padding: "8px 16px",
+              cursor: "pointer",
+              color: "var(--text-primary)",
+            }}
+          >
+            <span className="tabular" style={{ fontSize: 17, fontWeight: 800, letterSpacing: 0.5 }}>
+              #{numeroPedido(pedido)}
+            </span>
+            <Copy size={15} color="var(--text-muted)" />
+          </button>
+          <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 4 }}>
+            Esperando que {pedido.vendedor_nombre ?? "la tienda"} confirme tu pedido — sigue el progreso abajo.
+          </p>
+        </div>
+      )}
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
-          <h1 style={{ fontSize: 20 }}>Pedido #SV-{pedido.id}</h1>
+          <h1 style={{ fontSize: 20 }}>Pedido #{numeroPedido(pedido)}</h1>
           <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 2 }}>{formatDateTime(pedido.created_at)} · {pedido.vendedor_nombre}</div>
         </div>
         <StatusPill estado={pedido.estado} buscandoRepartidor={!pedido.repartidor_id} />

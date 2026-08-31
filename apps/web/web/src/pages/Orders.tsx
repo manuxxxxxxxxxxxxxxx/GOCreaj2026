@@ -6,7 +6,7 @@ import { pedidosApi, carritoApi, ApiError } from "../lib/api";
 import type { Pedido } from "../lib/types";
 import { useCart } from "../context/CartContext";
 import { useToast } from "../context/ToastContext";
-import { money, formatDateTime } from "../lib/format";
+import { money, formatDateTime, numeroPedido } from "../lib/format";
 import { StatusPill } from "../components/ui/StatusPill";
 import { Button } from "../components/ui/Button";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -81,7 +81,7 @@ export function Orders() {
                     <Card interactive onClick={() => navigate(`/pedidos/${p.id}`)}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
                         <div>
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>Pedido #SV-{p.id}</div>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>Pedido #{numeroPedido(p)}</div>
                           <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{p.vendedor_nombre} · {formatDateTime(p.created_at)}</div>
                           <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>{p.items.length} producto{p.items.length !== 1 ? "s" : ""}</div>
                         </div>
@@ -112,7 +112,7 @@ export function Orders() {
                   <Card>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>Pedido #SV-{p.id}</div>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>Pedido #{numeroPedido(p)}</div>
                         <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>{p.vendedor_nombre} · {formatDateTime(p.created_at)}</div>
                         <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>{p.items.length} producto{p.items.length !== 1 ? "s" : ""}</div>
                       </div>
@@ -140,7 +140,7 @@ export function Orders() {
       )}
 
       {reciboDe && (
-        <Sheet open onClose={() => setReciboDe(null)} title={`Recibo — Pedido #SV-${reciboDe.id}`}>
+        <Sheet open onClose={() => setReciboDe(null)} title={`Recibo — Pedido #${numeroPedido(reciboDe)}`}>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "var(--text-muted)", marginBottom: 14 }}>
             <span>{formatDateTime(reciboDe.created_at)}</span>
             <span>{reciboDe.vendedor_nombre}</span>

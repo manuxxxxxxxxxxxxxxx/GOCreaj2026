@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
@@ -11,13 +12,22 @@ export function GoogleAuthButton() {
   const { loginSocial } = useAuth();
   const { resolvedTheme } = useTheme();
   const toast = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(false);
+
+  // Igual que el login por correo/contraseña (Login.tsx): si llegamos aquí porque
+  // una ruta protegida nos mandó a /login, vuelve ahí; si no, a inicio. Antes esta
+  // función nunca navegaba -- loginSocial() dejaba la sesión iniciada pero el usuario
+  // se quedaba viendo el formulario de login/registro.
+  const from = (location.state as { from?: string } | null)?.from ?? "/";
 
   const onSuccess = async (cred: CredentialResponse) => {
     if (!cred.credential) return;
     setLoading(true);
     try {
       await loginSocial({ provider: "google", id_token: cred.credential });
+      navigate(from, { replace: true });
     } catch (err) {
       toast.show(err instanceof ApiError ? err.message : "No se pudo iniciar sesión con Google.", "error");
     } finally {

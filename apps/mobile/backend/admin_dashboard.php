@@ -209,9 +209,9 @@ switch ($action) {
 
     case 'actividad_reciente':
         $actividad = [];
-        $pedidos = db()->query("SELECT id, total, estado, created_at FROM pedidos ORDER BY created_at DESC LIMIT 10")->fetchAll();
+        $pedidos = db()->query("SELECT id, numero_pedido, total, estado, created_at FROM pedidos ORDER BY created_at DESC LIMIT 10")->fetchAll();
         foreach ($pedidos as $p) {
-            $actividad[] = ['tipo' => 'pedido', 'descripcion' => "Pedido #SV-{$p['id']} por \${$p['total']} — {$p['estado']}", 'fecha' => $p['created_at']];
+            $actividad[] = ['tipo' => 'pedido', 'descripcion' => "Pedido #{$p['numero_pedido']} por \${$p['total']} — {$p['estado']}", 'fecha' => $p['created_at']];
         }
         $usuarios = db()->query("SELECT id, nombre, rol, created_at FROM usuarios ORDER BY created_at DESC LIMIT 5")->fetchAll();
         foreach ($usuarios as $u) {

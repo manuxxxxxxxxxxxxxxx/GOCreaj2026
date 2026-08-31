@@ -18,7 +18,7 @@ export function MapViewerSheet({ visible, lat, lng, onClose }: Props) {
 
   return (
     <Sheet visible={visible} onClose={onClose} title="Ubicación compartida">
-      <View style={{ height: 320, borderRadius: radius.md, overflow: "hidden", marginBottom: 12 }}>
+      <View style={{ height: 320, borderRadius: radius.md, overflow: "hidden", marginBottom: 12, borderWidth: 1, borderColor: tokens.border }}>
         <WebMapView center={[lng, lat]} zoom={16} markers={[{ id: "u", coordinate: [lng, lat], color: tokens.coral }]} />
       </View>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>

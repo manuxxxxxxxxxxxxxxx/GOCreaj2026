@@ -1,3 +1,5 @@
+import type { Usuario } from "./types";
+
 const currencyFmt = new Intl.NumberFormat("es-SV", { style: "currency", currency: "USD" });
 const dateFmt = new Intl.DateTimeFormat("es-SV", { day: "numeric", month: "short" });
 const dateTimeFmt = new Intl.DateTimeFormat("es-SV", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -31,6 +33,20 @@ export function relativeTime(iso: string): string {
   const day = Math.floor(hr / 24);
   if (day < 7) return `hace ${day} d`;
   return formatDate(iso);
+}
+
+/** Número de pedido visible al comprador. Usa el código aleatorio del backend;
+ * si el pedido es de antes de que existiera esa columna, cae al id (mismo
+ * formato "SV-" que ya se usaba). */
+export function numeroPedido(p: { id: number; numero_pedido?: string | null }): string {
+  return p.numero_pedido || `SV-${p.id}`;
+}
+
+/** % de perfil completo (0–1) para el anillo de avatar del comprador: foto, teléfono
+ * verificado, municipio y correo pesan igual — son los campos que ya pedimos en Perfil. */
+export function calcularPerfilCompleto(usuario: Usuario): number {
+  const campos = [!!usuario.foto_perfil, !!usuario.telefono_verificado, !!usuario.municipio, !!usuario.email];
+  return campos.filter(Boolean).length / campos.length;
 }
 
 export function fileToBase64(file: File): Promise<string> {

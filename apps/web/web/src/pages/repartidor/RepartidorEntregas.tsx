@@ -4,7 +4,7 @@ import { Bicycle, CheckCircle, MapPin, Money, NavigationArrow, Package, Phone, Q
 import { useNavigate } from "react-router-dom";
 import { repartidorApi, pedidosApi, ApiError } from "../../lib/api";
 import type { Pedido } from "../../lib/types";
-import { money } from "../../lib/format";
+import { money, numeroPedido } from "../../lib/format";
 import { useToast } from "../../context/ToastContext";
 import { StatusPill } from "../../components/ui/StatusPill";
 import { Button } from "../../components/ui/Button";
@@ -233,7 +233,7 @@ function Historial({ pedidos }: { pedidos: Pedido[] }) {
         {pedidos.slice(0, 8).map((p) => (
           <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: 12, borderRadius: "var(--radius-sm)", background: "var(--surface-1)", border: "1px solid var(--border)" }}>
             <span style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
-              <Package size={14} color="var(--text-muted)" /> #SV-{p.id} · {p.tienda_nombre}
+              <Package size={14} color="var(--text-muted)" /> #{numeroPedido(p)} · {p.tienda_nombre}
             </span>
             <StatusPill estado={p.estado} />
           </div>

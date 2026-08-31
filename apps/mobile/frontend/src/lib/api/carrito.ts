@@ -29,7 +29,7 @@ export const carritoApi = {
     envio_modo?: "estandar" | "express";
     cupon_codigo?: string;
   }) =>
-    post<{ ok: true; pedidos: number[]; pago_estado: string; pago_referencia: string; descuento_aplicado: number }>(
+    post<{ ok: true; pedidos: number[]; numeros_pedido: string[]; pago_estado: string; pago_referencia: string; descuento_aplicado: number }>(
       "carrito_pagos",
       "checkout",
       data,

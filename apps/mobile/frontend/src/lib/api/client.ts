@@ -116,6 +116,57 @@ export const get = <T = Record<string, unknown>>(file: string, action: string, p
 
 export const post = <T = Record<string, unknown>>(file: string, action: string, body: Record<string, unknown> = {}) => apiCall<T>(file, action, { body });
 
+/**
+ * Sube un archivo (ej. video de reel) como multipart/form-data en vez de meterlo en base64
+ * dentro de un JSON: evita el ~33% de overhead de base64 y, sobre todo, permite reportar
+ * progreso real de subida — con fetch normal (usado en `apiCall`) React Native no expone
+ * eventos de progreso de subida, así que aquí se usa XMLHttpRequest directamente.
+ */
+export function apiUpload<T = Record<string, unknown>>(
+  file: string,
+  action: string,
+  fields: Record<string, string | number | boolean | undefined>,
+  filePart: { field: string; uri: string; name: string; type: string },
+  onProgress?: (fraccion: number) => void,
+): Promise<T> {
+  return hydrateToken().then(
+    () =>
+      new Promise<T>((resolve, reject) => {
+        const url = `${API_BASE}/${file}.php?${buildQuery(action)}`;
+        const form = new FormData();
+        for (const [k, v] of Object.entries(fields)) {
+          if (v !== undefined) form.append(k, String(v));
+        }
+        // React Native's FormData acepta este shape especial para adjuntar un archivo local por uri.
+        form.append(filePart.field, { uri: filePart.uri, name: filePart.name, type: filePart.type } as unknown as Blob);
+
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", url);
+        if (cachedToken) xhr.setRequestHeader("Authorization", `Bearer ${cachedToken}`);
+        xhr.upload.onprogress = (e) => {
+          if (onProgress && e.lengthComputable) onProgress(e.loaded / e.total);
+        };
+        xhr.onerror = () => reject(new ApiError("No se pudo conectar con el servidor. Revisa tu conexión.", 0, {}));
+        xhr.onload = () => {
+          let json: Record<string, unknown>;
+          try {
+            json = JSON.parse(xhr.responseText);
+          } catch {
+            reject(new ApiError("Respuesta inválida del servidor.", xhr.status, {}));
+            return;
+          }
+          if (xhr.status < 200 || xhr.status >= 300 || json.ok === false) {
+            const message = typeof json.error === "string" ? json.error : "Ocurrió un error inesperado.";
+            reject(new ApiError(message, xhr.status, json));
+            return;
+          }
+          resolve(json as T);
+        };
+        xhr.send(form);
+      }),
+  );
+}
+
 export function uploadsBaseUrl(): string {
   return `${API_BASE}/uploads/`;
 }

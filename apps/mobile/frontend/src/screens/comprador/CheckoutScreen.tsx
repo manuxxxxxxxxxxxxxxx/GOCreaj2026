@@ -81,8 +81,9 @@ export function CheckoutScreen({ route, navigation }: Props) {
         cupon_codigo: cupon?.cupon.codigo,
       });
       await refrescar();
-      toast.show("Pedido realizado con éxito", "success");
-      navigation.replace("OrderDetail", { id: res.pedidos[0] });
+      const numero = res.numeros_pedido?.[0];
+      toast.show(numero ? `¡Pedido #${numero} realizado con éxito!` : "Pedido realizado con éxito", "success");
+      navigation.replace("OrderDetail", { id: res.pedidos[0], recienCreado: true, totalPedidos: res.pedidos.length });
     } catch (err) {
       toast.show(err instanceof ApiError ? err.message : "No se pudo completar el pedido.", "error");
     } finally {

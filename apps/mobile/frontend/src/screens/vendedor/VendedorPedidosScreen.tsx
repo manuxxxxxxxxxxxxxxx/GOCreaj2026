@@ -5,7 +5,7 @@ import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
 import { vendedorApi, ApiError } from "../../lib/api";
 import type { Pedido, Usuario } from "../../lib/types";
-import { money, formatDateTime } from "../../lib/format";
+import { money, formatDateTime, numeroPedido } from "../../lib/format";
 import { StatusPill } from "../../components/ui/StatusPill";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -75,7 +75,7 @@ export function VendedorPedidosScreen() {
                 <Avatar nombre={p.comprador_nombre ?? "?"} size={34} />
                 <View>
                   <Text style={{ fontFamily: "Inter_700Bold", fontSize: 13, color: tokens.textPrimary }}>
-                    #SV-{p.id} · {p.comprador_nombre}
+                    #{numeroPedido(p)} · {p.comprador_nombre}
                   </Text>
                   <Text style={{ fontSize: 11, color: tokens.textMuted }}>{formatDateTime(p.created_at)}</Text>
                 </View>

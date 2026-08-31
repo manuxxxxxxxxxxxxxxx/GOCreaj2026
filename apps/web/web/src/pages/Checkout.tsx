@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CreditCard, Money, PaypalLogo, Plus, Rocket, Truck } from "@phosphor-icons/react";
 import { carritoApi, direccionesApi, ApiError } from "../lib/api";
@@ -13,7 +13,7 @@ import { Skeleton } from "../components/ui/Skeleton";
 type MetodoUI = "efectivo" | "tarjeta" | "paypal";
 
 export function Checkout() {
-  const { items, total, refrescar } = useCart();
+  const { items, total, cargando: cargandoCart, refrescar } = useCart();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -30,6 +30,7 @@ export function Checkout() {
   const [paypal2fa, setPaypal2fa] = useState("");
   const [efectivoPagaCon, setEfectivoPagaCon] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const pedidoRealizadoRef = useRef(false);
 
   const cupon: { cupon: Cupon; descuento: number } | null = (() => {
     try {
@@ -48,6 +49,13 @@ export function Checkout() {
     });
     carritoApi.metodosListar().then((r) => setMetodosGuardados(r.metodos));
   }, []);
+
+  // El carrito puede tardar un tick en hidratarse desde CartContext al montar esta
+  // página (ej. navegación directa a /checkout) -- redirigir en un efecto, no durante
+  // el render, evita el falso positivo de "carrito vacío" en ese primer render.
+  useEffect(() => {
+    if (!pedidoRealizadoRef.current && !cargandoCart && items.length === 0) navigate("/carrito", { replace: true });
+  }, [cargandoCart, items.length, navigate]);
 
   const direccion = direcciones?.find((d) => d.id === direccionId) ?? null;
   const costoEnvio = envioModo === "express" ? 4.99 : 2.5;
@@ -84,9 +92,11 @@ export function Checkout() {
         cupon_codigo: cupon?.cupon.codigo,
       });
       sessionStorage.removeItem("gocreaj_cupon");
+      pedidoRealizadoRef.current = true;
       await refrescar();
-      toast.show("Pedido realizado con éxito", "success");
-      navigate(`/pedidos/${res.pedidos[0]}`);
+      const numero = res.numeros_pedido?.[0];
+      toast.show(numero ? `¡Pedido #${numero} realizado con éxito!` : "Pedido realizado con éxito", "success");
+      navigate(`/pedidos/${res.pedidos[0]}`, { state: { recienCreado: true, totalPedidos: res.pedidos.length } });
     } catch (err) {
       toast.show(err instanceof ApiError ? err.message : "No se pudo completar el pedido.", "error");
     } finally {
@@ -95,8 +105,11 @@ export function Checkout() {
   };
 
   if (items.length === 0) {
-    navigate("/carrito", { replace: true });
-    return null;
+    return (
+      <div style={{ maxWidth: 900, display: "flex", flexDirection: "column", gap: 12 }}>
+        <Skeleton height={200} radius="var(--radius-lg)" />
+      </div>
+    );
   }
 
   return (

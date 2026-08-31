@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Image, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
@@ -9,7 +9,7 @@ import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
 import { vendedorApi, ApiError } from "../../lib/api";
 import type { Producto } from "../../lib/types";
-import { CATEGORIAS, CATEGORIA_LABEL } from "../../lib/categoryIcons";
+import { CategoryPicker } from "../../components/domain/CategoryPicker";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Skeleton } from "../../components/ui/Skeleton";
@@ -108,6 +108,7 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
           <XIcon size={16} color={tokens.textPrimary} />
         </Pressable>
       </View>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 60 }}>
         <Pressable onPress={subirImagen} style={[styles.imagePicker, { backgroundColor: tokens.surface2, borderColor: tokens.borderStrong }]}>
           {imagen ? <Image source={{ uri: imagen }} style={StyleSheet.absoluteFill} /> : <Text style={{ fontSize: 12.5, color: tokens.textMuted }}>Subir foto del producto</Text>}
@@ -121,13 +122,7 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
         <Input label="Stock" value={stock} onChangeText={setStock} keyboardType="number-pad" />
         <View>
           <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary, marginBottom: 8 }}>Categoría</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {CATEGORIAS.map((c) => (
-              <Pressable key={c} onPress={() => setCategoria(c)} style={[styles.catChip, { borderColor: categoria === c ? tokens.cyan : tokens.border, backgroundColor: categoria === c ? tokens.cyanBg : tokens.surface1 }]}>
-                <Text style={{ fontSize: 12, color: categoria === c ? tokens.cyan : tokens.textSecondary }}>{CATEGORIA_LABEL[c]}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <CategoryPicker value={categoria} onChange={setCategoria} />
         </View>
         {producto && (
           <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
@@ -152,6 +147,7 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
           {producto ? "Guardar cambios" : "Crear producto"}
         </Button>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -160,5 +156,4 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14 },
   closeBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   imagePicker: { height: 140, borderRadius: 14, borderWidth: 1, borderStyle: "dashed", alignItems: "center", justifyContent: "center", overflow: "hidden" },
-  catChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
 });

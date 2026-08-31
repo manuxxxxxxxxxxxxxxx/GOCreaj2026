@@ -12,6 +12,7 @@ import {
   HeartIcon,
   PlayIcon,
   PlusIcon,
+  QuestionIcon,
   ShareNetworkIcon,
   ShoppingCartIcon,
   SpeakerSimpleHighIcon,
@@ -29,6 +30,7 @@ import { money } from "../../lib/format";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { CommentsSheet } from "../../components/domain/CommentsSheet";
+import { QuestionsSheet } from "../../components/domain/QuestionsSheet";
 
 export function ReelsScreen() {
   const { tokens } = useTheme();
@@ -50,6 +52,7 @@ export function ReelsScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [muted, setMuted] = useState(false);
   const [comentariosDe, setComentariosDe] = useState<Producto | null>(null);
+  const [preguntarA, setPreguntarA] = useState<Producto | null>(null);
   // Medido en vivo con onLayout en vez de Dimensions.get("window") -- el alto
   // real disponible depende del TopBar y de la barra inferior flotante, que
   // Dimensions no conoce. Con un valor fijo mal calculado, cada "página" del
@@ -122,6 +125,7 @@ export function ReelsScreen() {
               muted={muted}
               onToggleMute={() => setMuted((m) => !m)}
               onComentarios={() => setComentariosDe(item)}
+              onPreguntar={() => setPreguntarA(item)}
             />
           )}
         />
@@ -133,6 +137,7 @@ export function ReelsScreen() {
       )}
 
       {comentariosDe && <CommentsSheet producto={comentariosDe} onClose={() => setComentariosDe(null)} />}
+      {preguntarA && <QuestionsSheet producto={preguntarA} onClose={() => setPreguntarA(null)} />}
     </View>
   );
 }
@@ -145,6 +150,7 @@ function ReelCard({
   muted,
   onToggleMute,
   onComentarios,
+  onPreguntar,
 }: {
   producto: Producto;
   height: number;
@@ -153,6 +159,7 @@ function ReelCard({
   muted: boolean;
   onToggleMute: () => void;
   onComentarios: () => void;
+  onPreguntar: () => void;
 }) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { usuario } = useAuth();
@@ -239,7 +246,7 @@ function ReelCard({
             {producto.hashtags.split(/\s+/).filter(Boolean).map((t) => `#${t}`).join(" ")}
           </Text>
         )}
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <Text style={{ color: "#fff", fontFamily: "IBMPlexMono_500Medium", fontWeight: "700", fontSize: 20, textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 4 }}>
             {money(producto.precio_oferta || producto.precio)}
           </Text>
@@ -247,14 +254,18 @@ function ReelCard({
             <ShoppingCartIcon size={14} weight="bold" color="#04141C" />
             <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: "#04141C" }}>Agregar</Text>
           </Pressable>
+          <Pressable onPress={onPreguntar} style={styles.askBtn}>
+            <QuestionIcon size={13} weight="bold" color="#fff" />
+            <Text style={{ fontSize: 11.5, fontFamily: "Inter_700Bold", color: "#fff" }}>Preguntar</Text>
+          </Pressable>
         </View>
       </View>
 
       <View style={[styles.actions, { bottom: bottomSafeSpace }]}>
-        <ReelAction icon={<HeartIcon size={24} weight={estado.like ? "fill" : "regular"} color={estado.like ? "#FF6B6B" : "#fff"} />} label={estado.likes} onPress={toggleLike} />
-        <ReelAction icon={<ChatCircleIcon size={24} color="#fff" />} label={producto.comentarios_count} onPress={onComentarios} />
-        <ReelAction icon={<ShareNetworkIcon size={24} color="#fff" />} label={producto.compartidos_count} onPress={() => interaccionesApi.compartir(producto.id).catch(() => {})} />
-        <ReelAction icon={<BookmarkSimpleIcon size={24} weight={estado.guardado ? "fill" : "regular"} color="#fff" />} onPress={toggleGuardar} />
+        <ReelAction icon={<HeartIcon size={24} weight="fill" color={estado.like ? "#FF6B6B" : "#fff"} />} label={estado.likes} onPress={toggleLike} />
+        <ReelAction icon={<ChatCircleIcon size={24} weight="fill" color="#fff" />} label={producto.comentarios_count} onPress={onComentarios} />
+        <ReelAction icon={<ShareNetworkIcon size={24} weight="fill" color="#fff" />} label={producto.compartidos_count} onPress={() => interaccionesApi.compartir(producto.id).catch(() => {})} />
+        <ReelAction icon={<BookmarkSimpleIcon size={24} weight="fill" color="#fff" />} onPress={toggleGuardar} />
         <Pressable onPress={toggleSeguir} style={[styles.followBtn, { backgroundColor: estado.sigo ? "#38D6FF" : "#fff" }]}>
           <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: estado.sigo ? "#04141C" : "#000" }}>{estado.sigo ? "✓" : "+"}</Text>
         </Pressable>
@@ -265,9 +276,9 @@ function ReelCard({
 
 function ReelAction({ icon, label, onPress }: { icon: React.ReactNode; label?: number; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} style={{ alignItems: "center", gap: 3 }}>
+    <Pressable onPress={onPress} style={styles.reelAction}>
       {icon}
-      {label !== undefined && <Text style={{ color: "#fff", fontSize: 11, fontFamily: "IBMPlexMono_500Medium" }}>{label}</Text>}
+      {label !== undefined && <Text style={[styles.reelActionLabel, { color: "#fff" }]}>{label}</Text>}
     </Pressable>
   );
 }
@@ -293,6 +304,11 @@ const styles = StyleSheet.create({
   muteBtn: { position: "absolute", top: 14, right: 14, width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center" },
   bottomInfo: { position: "absolute", left: 14, right: 76 },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#38D6FF", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  askBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,255,255,0.16)", borderWidth: 1, borderColor: "rgba(255,255,255,0.3)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   actions: { position: "absolute", right: 12, alignItems: "center", gap: 18 },
   followBtn: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  // Los íconos de acción son blancos sólidos sobre el video/foto del reel -- sin esta sombra
+  // se pierden por completo cuando el fondo detrás también es claro/blanco.
+  reelAction: { alignItems: "center", gap: 3, shadowColor: "#000", shadowOpacity: 0.5, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 4 },
+  reelActionLabel: { fontSize: 11, fontFamily: "IBMPlexMono_500Medium", textShadowColor: "rgba(0,0,0,0.6)", textShadowRadius: 3, textShadowOffset: { width: 0, height: 1 } },
 });

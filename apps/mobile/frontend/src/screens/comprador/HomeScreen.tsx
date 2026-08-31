@@ -17,7 +17,7 @@ import { StoreCard } from "../../components/domain/StoreCard";
 import { BentoGrid } from "../../components/domain/BentoGrid";
 import { ElSalvadorMap } from "../../components/domain/ElSalvadorMap";
 import { Footer } from "../../components/domain/Footer";
-import { CATEGORIAS, CATEGORIA_LABEL, categoriaEmoji } from "../../lib/categoryIcons";
+import { CATEGORIA_GRUPOS } from "../../lib/categoryIcons";
 
 export function HomeScreen() {
   const { tokens } = useTheme();
@@ -108,21 +108,21 @@ export function HomeScreen() {
 
       <Text style={[styles.sectionTitle, { color: tokens.textPrimary }]}>Categorías</Text>
       <Carousel
-        data={CATEGORIAS as unknown as string[]}
-        keyExtractor={(c) => c}
+        data={CATEGORIA_GRUPOS}
+        keyExtractor={(g) => g.id}
         itemWidth={64}
         gap={14}
         itemsPerPress={4}
         contentPaddingHorizontal={2}
-        renderItem={(cat) => (
-          <View style={{ alignItems: "center", gap: 4 }}>
+        renderItem={(g) => (
+          <Pressable onPress={() => navigation.navigate("Tabs", { screen: "Explorar", params: { grupo: g.id } })} style={{ alignItems: "center", gap: 4 }}>
             <View style={styles.catEmojiWrap}>
-              <Text style={{ fontSize: 32 }}>{categoriaEmoji(cat)}</Text>
+              <Text style={{ fontSize: 32 }}>{g.emoji}</Text>
             </View>
             <Text numberOfLines={1} style={{ fontSize: 10.5, fontFamily: "Inter_700Bold", color: tokens.textSecondary, textAlign: "center" }}>
-              {CATEGORIA_LABEL[cat as keyof typeof CATEGORIA_LABEL]}
+              {g.label}
             </Text>
-          </View>
+          </Pressable>
         )}
       />
 

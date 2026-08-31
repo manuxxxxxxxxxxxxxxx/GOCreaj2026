@@ -19,6 +19,8 @@ import { VendedorReelFormScreen } from "../screens/vendedor/VendedorReelFormScre
 import { VendedorTiendaScreen } from "../screens/vendedor/VendedorTiendaScreen";
 import { VendedorResenasScreen } from "../screens/vendedor/VendedorResenasScreen";
 import { RepartidorPerfilScreen } from "../screens/repartidor/RepartidorPerfilScreen";
+import { ConfiguracionAvanzadaScreen } from "../screens/shared/ConfiguracionAvanzadaScreen";
+import { MiColeccionScreen } from "../screens/shared/MiColeccionScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -44,6 +46,8 @@ export function MainStack() {
       <Stack.Screen name="VendedorTienda" component={VendedorTiendaScreen} />
       <Stack.Screen name="VendedorResenas" component={VendedorResenasScreen} />
       <Stack.Screen name="RepartidorPerfil" component={RepartidorPerfilScreen} />
+      <Stack.Screen name="Configuracion" component={ConfiguracionAvanzadaScreen} />
+      <Stack.Screen name="MiColeccion" component={MiColeccionScreen} />
     </Stack.Navigator>
   );
 }

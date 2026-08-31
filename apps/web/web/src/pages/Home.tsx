@@ -12,20 +12,8 @@ import { Skeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Carousel } from "../components/ui/Carousel";
 import { Reveal } from "../components/ui/Reveal";
-import { CATEGORIAS, CATEGORIA_LABEL, categoriaEmoji } from "../lib/categoryIcons";
-
-// Loosely scattered, not a grid -- signals "everything ships here", not just
-// food, without competing with the headline for attention.
-const HERO_GLYPHS = [
-  { emoji: "🍔", left: "4%", top: "6%", size: 40, rotate: -8 },
-  { emoji: "🛒", left: "34%", top: "0%", size: 46, rotate: 6 },
-  { emoji: "💊", left: "62%", top: "10%", size: 34, rotate: -10 },
-  { emoji: "👟", left: "84%", top: "2%", size: 38, rotate: 10 },
-  { emoji: "📱", left: "10%", top: "52%", size: 36, rotate: 8 },
-  { emoji: "👕", left: "40%", top: "58%", size: 42, rotate: -6 },
-  { emoji: "🛋️", left: "68%", top: "56%", size: 40, rotate: 5 },
-  { emoji: "🚚", left: "90%", top: "50%", size: 34, rotate: -8 },
-] as const;
+import { CATEGORIA_GRUPOS } from "../lib/categoryIcons";
+import repartidorImg from "../assets/svgo-repartidor.png";
 
 export function Home() {
   const { usuario } = useAuth();
@@ -62,9 +50,9 @@ export function Home() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 36 }}>
-      <section className="glow-mesh hero-banner" style={{ borderRadius: "var(--radius-lg)", background: "var(--surface-1)", border: "1px solid var(--border)", overflow: "hidden" }}>
+      <section className="glow-mesh hero-banner" style={{ position: "relative", borderRadius: "var(--radius-lg)", background: "var(--surface-1)", border: "1px solid var(--border)", overflow: "hidden" }}>
         <Reveal style={{ display: "flex", alignItems: "center", gap: 24, padding: "36px 32px", minHeight: 208 }}>
-          <div className="hero-copy" style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 440, flexShrink: 0 }}>
+          <div className="hero-copy" style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 440, flexShrink: 0, position: "relative", zIndex: 1 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cyan)" }}>
               {saludo}{usuario ? `, ${usuario.nombre.split(" ")[0]}` : ""}
             </span>
@@ -79,23 +67,24 @@ export function Home() {
               Explorar tiendas <ArrowRight size={15} weight="bold" />
             </Link>
           </div>
-          <div className="hero-emoji" aria-hidden="true" style={{ flex: 1, position: "relative", height: 160 }}>
-            {HERO_GLYPHS.map((g) => (
-              <span
-                key={g.emoji}
-                style={{
-                  position: "absolute",
-                  left: g.left,
-                  top: g.top,
-                  fontSize: g.size,
-                  lineHeight: 1,
-                  transform: `rotate(${g.rotate}deg)`,
-                  filter: "drop-shadow(0 10px 14px rgba(0,0,0,0.22))",
-                }}
-              >
-                {g.emoji}
-              </span>
-            ))}
+          <div style={{ flex: 1, position: "relative", alignSelf: "stretch", minWidth: 0 }}>
+            <img
+              src={repartidorImg}
+              alt=""
+              aria-hidden="true"
+              className="hero-character"
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+                height: 340,
+                width: "auto",
+                objectFit: "contain",
+                pointerEvents: "none",
+                filter: "drop-shadow(0 16px 22px rgba(0,0,0,0.35))",
+              }}
+            />
           </div>
         </Reveal>
       </section>
@@ -103,41 +92,36 @@ export function Home() {
       <section>
         <h2 style={{ fontSize: 16, marginBottom: 14 }}>Categorías</h2>
         <Carousel
-          data={CATEGORIAS as unknown as string[]}
-          keyExtractor={(c) => c}
+          data={CATEGORIA_GRUPOS}
+          keyExtractor={(g) => g.id}
           itemWidth={72}
           gap={14}
           itemsPerPress={4}
           ariaLabel="Categorías"
-          renderItem={(cat) => {
-            const emoji = categoriaEmoji(cat);
-            return (
-              <Link
-                to={`/explorar?categoria=${cat}`}
-                className="category-badge"
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, width: 72 }}
+          renderItem={(g) => (
+            <Link
+              to={`/explorar?grupo=${g.id}`}
+              className="category-badge"
+              style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, width: 72 }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 60,
+                  height: 60,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 38,
+                  lineHeight: 1,
+                  filter: "drop-shadow(0 6px 8px rgba(0,0,0,0.28))",
+                }}
               >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 60,
-                    height: 60,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 38,
-                    lineHeight: 1,
-                    filter: "drop-shadow(0 6px 8px rgba(0,0,0,0.28))",
-                  }}
-                >
-                  {emoji}
-                </span>
-                <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-secondary)", textAlign: "center" }}>
-                  {CATEGORIA_LABEL[cat as keyof typeof CATEGORIA_LABEL]}
-                </span>
-              </Link>
-            );
-          }}
+                {g.emoji}
+              </span>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-secondary)", textAlign: "center" }}>{g.label}</span>
+            </Link>
+          )}
         />
       </section>
 

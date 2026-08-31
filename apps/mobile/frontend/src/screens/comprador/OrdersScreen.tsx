@@ -7,7 +7,7 @@ import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { pedidosApi } from "../../lib/api";
 import type { Pedido } from "../../lib/types";
-import { money, formatDateTime } from "../../lib/format";
+import { money, formatDateTime, numeroPedido } from "../../lib/format";
 import { StatusPill } from "../../components/ui/StatusPill";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
@@ -49,7 +49,7 @@ export function OrdersScreen({ navigation }: Props) {
             <AnimatedListItem index={index}>
               <Pressable onPress={() => navigation.navigate("OrderDetail", { id: item.id })} style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13.5, color: tokens.textPrimary }}>Pedido #SV-{item.id}</Text>
+                  <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13.5, color: tokens.textPrimary }}>Pedido #{numeroPedido(item)}</Text>
                   <Text style={{ fontSize: 11.5, color: tokens.textMuted, marginTop: 2 }}>
                     {item.vendedor_nombre} · {formatDateTime(item.created_at)}
                   </Text>

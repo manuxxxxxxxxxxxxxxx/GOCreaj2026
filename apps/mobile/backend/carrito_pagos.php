@@ -200,6 +200,7 @@ switch ($action) {
         $costoEnvioPorVendedor = round($costoEnvioTotal / $numVendedores, 2);
 
         $pedidoIds = [];
+        $numerosPedido = [];
         db()->beginTransaction();
         try {
             foreach ($porVendedor as $vendedor_id => $arr) {
@@ -209,12 +210,14 @@ switch ($action) {
                     ? round($descuentoGlobal * ($subtotal / $subtotalGlobal), 2)
                     : 0;
                 $total = max(0, $subtotal - $descuentoVendedor) + $costoEnvioPorVendedor;
+                $numeroPedido = generar_numero_pedido();
                 $ins = db()->prepare(
                     "INSERT INTO pedidos
-                     (comprador_id, vendedor_id, total, metodo_pago, direccion_entrega, lat_entrega, lng_entrega, pago_estado, pago_referencia, efectivo_paga_con, municipio_entrega, departamento_entrega, cupon_codigo, descuento_cupon, estado)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente_confirmacion')"
+                     (numero_pedido, comprador_id, vendedor_id, total, metodo_pago, direccion_entrega, lat_entrega, lng_entrega, pago_estado, pago_referencia, efectivo_paga_con, municipio_entrega, departamento_entrega, cupon_codigo, descuento_cupon, estado)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente_confirmacion')"
                 );
                 $ins->execute([
+                    $numeroPedido,
                     $user['id'], $vendedor_id, round($total, 2),
                     $data['metodo_pago'], $data['direccion_entrega'],
                     $data['lat'] ?? null, $data['lng'] ?? null,
@@ -224,6 +227,7 @@ switch ($action) {
                 ]);
                 $pid = (int)db()->lastInsertId();
                 $pedidoIds[] = $pid;
+                $numerosPedido[] = $numeroPedido;
 
                 $insItem = db()->prepare("INSERT INTO pedido_items (pedido_id, producto_id, cantidad, precio_unitario) VALUES (?, ?, ?, ?)");
                 // ── Decremento ATÓMICO de stock (ACID): el WHERE stock >= ? es la única fuente de verdad.
@@ -245,8 +249,8 @@ switch ($action) {
                 }
 
                 db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
-                    ->execute([$user['id'], (int)$vendedor_id, "🛎️ Nuevo pedido #SV-{$pid} recibido. Total US$ " . number_format($total, 2)]);
-                crear_notificacion((int)$vendedor_id, 'pedido', 'Nuevo pedido recibido', "Pedido #SV-{$pid} · US\$ " . number_format($total, 2), $pid);
+                    ->execute([$user['id'], (int)$vendedor_id, "🛎️ Nuevo pedido #{$numeroPedido} recibido. Total US$ " . number_format($total, 2)]);
+                crear_notificacion((int)$vendedor_id, 'pedido', 'Nuevo pedido recibido', "Pedido #{$numeroPedido} · US\$ " . number_format($total, 2), $pid);
             }
             if ($cupon && $descuentoGlobal > 0) {
                 db()->prepare("INSERT INTO cupones_usos (cupon_id, usuario_id, pedido_id, monto_descontado) VALUES (?, ?, ?, ?)")
@@ -259,6 +263,7 @@ switch ($action) {
             jout([
                 'ok' => true,
                 'pedidos' => $pedidoIds,
+                'numeros_pedido' => $numerosPedido,
                 'pago_estado' => $pago_estado,
                 'pago_referencia' => $pago_ref,
                 'descuento_aplicado' => $descuentoGlobal,

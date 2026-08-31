@@ -128,6 +128,7 @@ export interface PedidoItem {
 
 export interface Pedido {
   id: number;
+  numero_pedido?: string | null;
   comprador_id: number;
   vendedor_id: number;
   repartidor_id: number | null;

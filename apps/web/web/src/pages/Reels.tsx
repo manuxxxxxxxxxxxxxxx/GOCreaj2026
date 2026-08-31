@@ -400,10 +400,10 @@ function ReelCard({
       </div>
 
       <div style={{ position: "absolute", right: 12, bottom: 16, display: "flex", flexDirection: "column", alignItems: "center", gap: 15 }}>
-        <ReelAction icon={<Heart size={24} weight={estado.like ? "fill" : "regular"} color={estado.like ? "var(--danger)" : "#fff"} />} label={estado.likes} onClick={toggleLike} />
-        <ReelAction icon={<ChatCircle size={24} color="#fff" />} label={producto.comentarios_count} onClick={onComentarios} />
+        <ReelAction icon={<Heart size={24} weight="fill" color={estado.like ? "var(--danger)" : "#fff"} />} label={estado.likes} onClick={toggleLike} />
+        <ReelAction icon={<ChatCircle size={24} weight="fill" color="#fff" />} label={producto.comentarios_count} onClick={onComentarios} />
         <ReelAction
-          icon={<ShareNetwork size={24} color="#fff" />}
+          icon={<ShareNetwork size={24} weight="fill" color="#fff" />}
           label={producto.compartidos_count}
           onClick={() => {
             interaccionesApi.compartir(producto.id).catch(() => {});
@@ -411,7 +411,7 @@ function ReelCard({
             toast.show("Enlace copiado", "success");
           }}
         />
-        <ReelAction icon={<BookmarkSimple size={24} weight={estado.guardado ? "fill" : "regular"} color="#fff" />} onClick={toggleGuardar} />
+        <ReelAction icon={<BookmarkSimple size={24} weight="fill" color="#fff" />} onClick={toggleGuardar} />
         <button
           onClick={toggleSeguir}
           style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: estado.sigo ? "var(--cyan)" : "#fff", color: estado.sigo ? "var(--cyan-ink)" : "#000", fontSize: 15, fontWeight: 800, cursor: "pointer" }}
@@ -466,9 +466,11 @@ function ReelCard({
   );
 }
 
+const REEL_ICON_SHADOW = "drop-shadow(0 1px 2px rgba(0,0,0,0.6)) drop-shadow(0 2px 6px rgba(0,0,0,0.35))";
+
 function ReelAction({ icon, label, onClick }: { icon: React.ReactNode; label?: number; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer" }}>
+    <button onClick={onClick} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", filter: REEL_ICON_SHADOW }}>
       {icon}
       {label !== undefined && (
         <span className="tabular" style={{ fontSize: 11, fontWeight: 700, color: "#fff" }}>

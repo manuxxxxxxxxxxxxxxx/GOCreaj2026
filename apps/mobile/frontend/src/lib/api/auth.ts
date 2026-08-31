@@ -46,4 +46,22 @@ export const authApi = {
   sesionesCerrar: (id: number) => post<{ ok: true }>("auth", "sesiones_cerrar", { id }),
 
   sesionesCerrarOtras: () => post<{ ok: true }>("auth", "sesiones_cerrar_otras"),
+
+  enviarSms: () => post<{ ok: true; codigo: string; telefono: string }>("auth", "enviar_sms"),
+
+  verificarSms: (codigo: string) => post<{ ok: true; usuario: Usuario }>("auth", "verificar_sms", { codigo }),
+
+  actualizarIdioma: (idioma: "es" | "en" | "fr") => post<{ ok: true }>("auth", "actualizar_idioma", { idioma }),
+
+  actualizarVisibilidad: (perfil_publico: boolean) => post<{ ok: true }>("auth", "actualizar_visibilidad", { perfil_publico }),
+
+  usuariosBloqueados: () =>
+    get<{ ok: true; bloqueados: { id: number; bloqueado_id: number; created_at: string; nombre: string; username: string | null; foto_perfil: string | null }[] }>(
+      "auth",
+      "usuarios_bloqueados",
+    ),
+
+  bloquearUsuario: (usuario_id: number) => post<{ ok: true }>("auth", "bloquear_usuario", { usuario_id }),
+
+  desbloquearUsuario: (usuario_id: number) => post<{ ok: true }>("auth", "desbloquear_usuario", { usuario_id }),
 };

@@ -648,12 +648,20 @@ function MensajeContenido({
     const lat = Number(m.lat);
     const lng = Number(m.lng);
     return (
-      <button onClick={() => onAbrirMapa(lat, lng)} style={{ display: "block", width: "100%", color: "inherit", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left" }}>
-        <div style={{ pointerEvents: "none" }}>
-          <MapView markers={[{ id: "u", lat, lng, color: "var(--coral)" }]} height={130} zoom={15} fitToMarkers={false} center={[lng, lat]} radius="10px" />
+      <button
+        onClick={() => onAbrirMapa(lat, lng)}
+        style={{ position: "relative", display: "block", width: 224, height: 156, color: "inherit", background: "none", border: "1px solid var(--border)", borderRadius: 14, padding: 0, cursor: "pointer", textAlign: "left", overflow: "hidden" }}
+      >
+        <div style={{ pointerEvents: "none", height: "100%" }}>
+          <MapView markers={[{ id: "u", lat, lng, color: "var(--coral)" }]} height="100%" zoom={15.3} fitToMarkers={false} center={[lng, lat]} radius="0" />
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 6px 2px", fontSize: 12 }}>
-          <MapPin size={13} weight="fill" /> Ver ubicación
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 0%, transparent 55%, rgba(8,11,20,0.85) 100%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", left: 10, right: 10, bottom: 9, display: "flex", alignItems: "center", gap: 7 }}>
+          <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--coral)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <MapPin size={13} weight="fill" color="#fff" />
+          </div>
+          <span style={{ flex: 1, fontSize: 12, color: "#fff", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>Ubicación compartida</span>
+          <span style={{ fontSize: 10, color: "rgba(255,255,255,0.75)", fontWeight: 600, flexShrink: 0 }}>Ver mapa</span>
         </div>
       </button>
     );

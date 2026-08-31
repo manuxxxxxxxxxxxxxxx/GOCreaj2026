@@ -95,17 +95,23 @@ switch ($action) {
 
     case 'crear_producto':
         require_fields($data, ['tienda_id','nombre','precio']);
-        $CATS_VALIDAS = ['comida','bebidas','panaderia','general','postres','frutas','verduras'];
         $cat = $data['categoria'] ?? 'general';
-        if (!in_array($cat, $CATS_VALIDAS, true)) jout(['ok' => false, 'error' => 'Categoría inválida'], 400);
+        if (!in_array($cat, CATEGORIAS_VALIDAS, true)) jout(['ok' => false, 'error' => 'Categoría inválida'], 400);
 
         $imagen = !empty($data['imagen']) ? save_base64_image($data['imagen'], 'productos', 'p_' . $user['id']) : null;
-        $videoRaw = $data['video'] ?? null;
         $video = null;
-        if (!empty($videoRaw)) {
-            $video = str_starts_with($videoRaw, 'data:video')
-                ? save_base64_video($videoRaw, 'reels', 'r_' . $user['id'])
-                : $videoRaw;
+        if (!empty($_FILES['video'])) {
+            // Reel subido como multipart/form-data (ver apps/mobile/frontend/src/lib/api/client.ts,
+            // apiUpload) -- evita el overhead de base64 y permite progreso real de subida.
+            $video = save_uploaded_video($_FILES['video'], 'reels', 'r_' . $user['id']);
+            if ($video === null) {
+                // No crear el producto sin video en silencio -- el vendedor pensaría que se publicó bien.
+                jout(['ok' => false, 'error' => 'No se pudo subir el video. Prueba con uno más liviano o revisa tu conexión.'], 400);
+            }
+        } elseif (!empty($data['video'])) {
+            $video = str_starts_with($data['video'], 'data:video')
+                ? save_base64_video($data['video'], 'reels', 'r_' . $user['id'])
+                : $data['video'];
         }
         $stock = (int)($data['stock'] ?? 0);
         $estado_stock = $stock > 0 ? 'disponible' : 'agotado';
@@ -147,8 +153,7 @@ switch ($action) {
 
     case 'actualizar_producto':
         require_fields($data, ['producto_id']);
-        $CATS_VALIDAS = ['comida','bebidas','panaderia','general','postres','frutas','verduras'];
-        if (isset($data['categoria']) && !in_array($data['categoria'], $CATS_VALIDAS, true)) {
+        if (isset($data['categoria']) && !in_array($data['categoria'], CATEGORIAS_VALIDAS, true)) {
             jout(['ok' => false, 'error' => 'Categoría inválida'], 400);
         }
 
@@ -243,7 +248,7 @@ switch ($action) {
             jout(['ok' => false, 'error' => 'Estado invalido'], 400);
         }
         $pid = (int)$data['pedido_id'];
-        $sel = db()->prepare("SELECT comprador_id FROM pedidos WHERE id = ? AND vendedor_id = ?");
+        $sel = db()->prepare("SELECT comprador_id, numero_pedido FROM pedidos WHERE id = ? AND vendedor_id = ?");
         $sel->execute([$pid, $user['id']]);
         $ped = $sel->fetch();
         if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
@@ -252,7 +257,7 @@ switch ($action) {
         $st->execute([$data['estado'], $pid, $user['id']]);
 
         // El vendedor confirma el pedido: se notifica al comprador (sistema → comprador).
-        crear_notificacion((int)$ped['comprador_id'], 'pedido', 'Pedido confirmado', "El vendedor confirmó tu pedido #SV-{$pid} y lo está preparando.", $pid);
+        crear_notificacion((int)$ped['comprador_id'], 'pedido', 'Pedido confirmado', "El vendedor confirmó tu pedido #{$ped['numero_pedido']} y lo está preparando.", $pid);
 
         jout(['ok' => true]);
         break;
@@ -369,7 +374,7 @@ switch ($action) {
         if (!$rSt->fetch()) jout(['ok' => false, 'error' => 'El repartidor ya no está disponible'], 400);
 
         db()->prepare("UPDATE pedidos SET repartidor_id = ?, repartidor_asignado_at = NOW() WHERE id = ?")->execute([$rid, $pid]);
-        crear_notificacion($rid, 'pedido', 'Nueva entrega asignada', "Una tienda te asignó el pedido #SV-{$pid} directamente.", $pid);
+        crear_notificacion($rid, 'pedido', 'Nueva entrega asignada', "Una tienda te asignó el pedido #{$ped['numero_pedido']} directamente.", $pid);
         jout(['ok' => true]);
         break;
 
@@ -393,7 +398,7 @@ switch ($action) {
         $yaConfirmadoRepartidor = (int)$ped['confirmado_repartidor_recogida'] === 1;
         if ($yaConfirmadoRepartidor) {
             db()->prepare("UPDATE pedidos SET estado = 'en_camino' WHERE id = ?")->execute([$pid]);
-            crear_notificacion((int)$ped['comprador_id'], 'pedido', '¡Tu pedido va en camino!', "El repartidor recogió tu pedido #SV-{$pid} y va hacia ti.", $pid);
+            crear_notificacion((int)$ped['comprador_id'], 'pedido', '¡Tu pedido va en camino!', "El repartidor recogió tu pedido #{$ped['numero_pedido']} y va hacia ti.", $pid);
         }
         jout(['ok' => true, 'en_camino' => $yaConfirmadoRepartidor, 'qr_token' => $token]);
         break;
@@ -468,12 +473,18 @@ switch ($action) {
 
     // ─── Ganancias por día + producto más vendido (para la gráfica de "Mi cuenta") ───
     case 'ganancias':
+        // DESC + LIMIT trae los 30 días MÁS RECIENTES con ventas; se revierte después
+        // para devolverlos en orden cronológico ascendente (lo que espera el frontend
+        // para el gráfico). Un ASC + LIMIT aquí traería los 30 primeros días desde que
+        // la tienda abrió -- los más viejos, nunca los recientes, una vez que la tienda
+        // lleva más de 30 días con ventas.
         $stG = db()->prepare(
             "SELECT DATE(p.created_at) AS fecha, SUM(p.total_vendedor) AS monto
              FROM pedidos p WHERE p.vendedor_id = ? AND p.estado = 'entregado'
-             GROUP BY DATE(p.created_at) ORDER BY fecha ASC LIMIT 30"
+             GROUP BY DATE(p.created_at) ORDER BY fecha DESC LIMIT 30"
         );
         $stG->execute([$user['id']]);
+        $gananciasPorDia = array_reverse($stG->fetchAll());
 
         $stP = db()->prepare(
             "SELECT pr.id, pr.nombre, SUM(pi.cantidad) AS total_vendido
@@ -485,7 +496,7 @@ switch ($action) {
         );
         $stP->execute([$user['id']]);
 
-        jout(['ok' => true, 'ganancias_por_dia' => $stG->fetchAll(), 'producto_top' => $stP->fetch() ?: null]);
+        jout(['ok' => true, 'ganancias_por_dia' => $gananciasPorDia, 'producto_top' => $stP->fetch() ?: null]);
         break;
 
     default:

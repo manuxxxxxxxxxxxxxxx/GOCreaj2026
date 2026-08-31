@@ -361,6 +361,48 @@ video {
   background-size: 16px 16px;
 }
 
+/* MapLibre's own popup CSS ships a plain white box with a barely-visible "x"
+   -- against this app's dark map style that reads as a near-transparent
+   overlay and swallows the card's text, so it's overridden to a solid,
+   theme-aware card with a clearly visible close button. */
+.maplibregl-popup-content {
+  background: var(--surface-1) !important;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+  padding: 13px 19px 15px !important;
+}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: var(--surface-1) !important;
+}
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: var(--surface-1) !important;
+}
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--surface-1) !important;
+}
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--surface-1) !important;
+}
+.maplibregl-popup-close-button {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  top: 8px !important;
+  right: 8px !important;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.maplibregl-popup-close-button:hover {
+  background: var(--border-strong);
+}
+
 .spinner {
   width: 16px;
   height: 16px;

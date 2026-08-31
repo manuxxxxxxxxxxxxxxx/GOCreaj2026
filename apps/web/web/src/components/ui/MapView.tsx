@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 // Vite must bundle the worker as a self-contained same-origin chunk (its own
@@ -20,12 +21,20 @@ if (typeof window !== "undefined" && !maplibregl.getWorkerUrl()) {
   maplibregl.setWorkerUrl(maplibreWorkerUrl);
 }
 
+interface PinIconProps {
+  size?: number | string;
+  weight?: "thin" | "light" | "regular" | "bold" | "fill" | "duotone";
+  color?: string;
+}
+
 export interface MapMarkerData {
   id: string | number;
   lat: number;
   lng: number;
   color?: string;
   label?: string;
+  /** Category glyph shown inside the pin head -- takes priority over `photo`/`icon`. */
+  emoji?: string;
   /** Circular avatar shown on the pin itself instead of a plain dot. */
   photo?: string | null;
   /** Wide banner image shown at the top of the popup when the pin is clicked. */
@@ -33,8 +42,15 @@ export interface MapMarkerData {
   subtitle?: string;
   rating?: number;
   ratingCount?: number;
+  /** "abierto"/"cerrado" ahora mismo, según hora_apertura/hora_cierre -- omitido cuando la tienda no publicó horario. */
+  estado?: "abierto" | "cerrado" | null;
   actionLabel?: string;
   onClick?: () => void;
+  /** Renders as a classic map-pin shape with this icon inside (falls back
+   * to a photo avatar or plain dot when omitted, same as before). */
+  icon?: ComponentType<PinIconProps>;
+  /** Slightly enlarges and adds a glow ring -- e.g. the currently selected pin. */
+  active?: boolean;
 }
 
 export interface MapRouteData {
@@ -88,12 +104,43 @@ function markerElement(m: MapMarkerData, color: string): HTMLDivElement {
   return el;
 }
 
+const PIN_W = 30;
+const PIN_H = 38;
+
+/** Classic teardrop map pin -- a category glyph (emoji, falling back to a
+ * store photo or Phosphor icon for callers that don't pass one) sits in the
+ * round head, the point anchors to the exact coordinate. */
+function PinShape({ color, Icon, emoji, photo, active }: { color: string; Icon?: ComponentType<PinIconProps>; emoji?: string; photo?: string | null; active?: boolean }) {
+  const scale = active ? 1.18 : 1;
+  return (
+    <div style={{ width: PIN_W, height: PIN_H, position: "relative", transform: `scale(${scale})`, transformOrigin: "50% 100%", transition: "transform var(--dur-fast) var(--ease-spring)" }}>
+      <svg width={PIN_W} height={PIN_H} viewBox="0 0 30 38" style={{ position: "absolute", inset: 0, filter: "drop-shadow(0 3px 5px rgba(0,0,0,0.4))" }}>
+        <path d="M15 0C6.7 0 0 6.7 0 15c0 11.2 15 23 15 23s15-11.8 15-23C30 6.7 23.3 0 15 0z" fill={color} stroke="#fff" strokeWidth="2" />
+        {active && <circle cx="15" cy="15" r="16.5" fill="none" stroke={color} strokeWidth="2" opacity="0.5" />}
+      </svg>
+      <div style={{ position: "absolute", top: 3, left: 3, width: 24, height: 24, borderRadius: "50%", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {emoji ? (
+          <span style={{ fontSize: 14, lineHeight: 1 }}>{emoji}</span>
+        ) : photo ? (
+          <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : Icon ? (
+          <Icon size={14} weight="fill" color="#fff" />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function buildPopupContent(m: MapMarkerData): HTMLDivElement {
   const card = document.createElement("div");
   card.style.width = "200px";
   card.style.fontFamily = "var(--font-body)";
+  const estadoBadge =
+    m.estado != null
+      ? `<div style="position:absolute;top:6px;right:6px;padding:2px 8px;border-radius:999px;font-size:9.5px;font-weight:700;color:#fff;background:${m.estado === "abierto" ? "rgba(16,185,129,0.92)" : "rgba(100,116,139,0.9)"}">${m.estado === "abierto" ? "Abierto ahora" : "Cerrado"}</div>`
+      : "";
   card.innerHTML = `
-    ${m.banner ? `<div style="height:84px;margin:-13px -19px 8px;border-radius:2px 2px 0 0;overflow:hidden;background:var(--surface-2)"><img src="${m.banner}" style="width:100%;height:100%;object-fit:cover" /></div>` : ""}
+    ${m.banner ? `<div style="position:relative;height:84px;margin:-13px -19px 8px;border-radius:2px 2px 0 0;overflow:hidden;background:var(--surface-2)"><img src="${m.banner}" style="width:100%;height:100%;object-fit:cover" />${estadoBadge}</div>` : ""}
     <div style="font-weight:700;font-size:13.5px;color:var(--text-primary);margin-bottom:2px;font-family:var(--font-display)">${m.label ?? ""}</div>
     ${m.subtitle ? `<div style="font-size:11.5px;color:var(--text-muted);margin-bottom:5px">${m.subtitle}</div>` : ""}
     ${
@@ -124,6 +171,7 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<Map<string | number, maplibregl.Marker>>(new Map());
+  const pinRootsRef = useRef<Map<string | number, Root>>(new Map());
   const popupsRef = useRef<Map<string | number, maplibregl.Popup>>(new Map());
   const animRef = useRef<Map<string | number, number>>(new Map());
   const lastFitIdsRef = useRef<string>("");
@@ -135,6 +183,14 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
   const [baseLayer, setBaseLayer] = useState<BaseLayer>("default");
   const [pickerOpen, setPickerOpen] = useState(false);
   const baseLayerRef = useRef(baseLayer);
+  // The mount effect below already sets the correct initial style when it
+  // constructs the map. Without this guard, the theme/base-layer effect
+  // ALSO fires on that same initial mount (effects run for every dependency
+  // on first render, not just on subsequent changes) and calls setStyle()
+  // again a moment later -- MapLibre aborts the still-loading first style
+  // ("Unable to perform style diff... Rebuilding from scratch") and restarts,
+  // which can blow past the load timeout and land on the error state.
+  const skipNextStyleEffectRef = useRef(true);
   const pinColor = resolvedTheme === "dark" ? PIN_YELLOW_DARK : PIN_YELLOW;
 
   useEffect(() => {
@@ -181,9 +237,11 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
     if (!containerRef.current) return;
     let cancelled = false;
     let timeoutId = 0;
+    let resizeObserver: ResizeObserver | undefined;
     setLoaded(false);
     setErrored(false);
     lastFitIdsRef.current = "";
+    skipNextStyleEffectRef.current = true;
 
     (async () => {
       const styleValue = await resolveStyle(resolvedTheme, baseLayerRef.current);
@@ -199,9 +257,16 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
       });
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
-      timeoutId = window.setTimeout(() => setErrored(true), 8000);
+      timeoutId = window.setTimeout(() => setErrored(true), 12000);
       map.on("load", () => {
         window.clearTimeout(timeoutId);
+        // A slow first Voyager fetch (uncached, all its sprite/glyph
+        // dependencies) can legitimately take longer than the watchdog
+        // above on a cold cache -- if 'load' still ends up firing after
+        // that already flipped errored to true, this undoes it instead of
+        // being stuck showing the error screen over a map that's actually
+        // fine now.
+        setErrored(false);
         setLoaded(true);
         ensureRouteLayer(map);
       });
@@ -212,15 +277,29 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
       });
 
       mapRef.current = map;
+
+      // MapLibre reads the container's size once at construction time and
+      // otherwise relies on its own internal resize tracking, which doesn't
+      // reliably catch every layout change this component can go through
+      // (the error/retry screen swap, a sidebar collapsing, this panel
+      // becoming visible after being display:none) -- when it misses one,
+      // the canvas stays frozen at a stale/default size instead of filling
+      // its container. Watching the container directly and forcing a
+      // resize on every change is the robust fix.
+      resizeObserver = new ResizeObserver(() => map.resize());
+      resizeObserver.observe(containerRef.current!);
     })();
 
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);
+      resizeObserver?.disconnect();
       animRef.current.forEach((id) => cancelAnimationFrame(id));
       animRef.current.clear();
       markersRef.current.forEach((m) => m.remove());
       markersRef.current.clear();
+      pinRootsRef.current.forEach((root) => root.unmount());
+      pinRootsRef.current.clear();
       popupsRef.current.clear();
       mapRef.current?.remove();
       mapRef.current = null;
@@ -234,6 +313,10 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
   // survive this automatically; the route layer doesn't, so `style.load`
   // above re-adds it.
   useEffect(() => {
+    if (skipNextStyleEffectRef.current) {
+      skipNextStyleEffectRef.current = false;
+      return;
+    }
     let cancelled = false;
     (async () => {
       const styleValue = await resolveStyle(resolvedTheme, baseLayer);
@@ -255,6 +338,13 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    // `loaded` isn't read below, but it's a required dependency: on remount
+    // (e.g. toggling Mapa/Lista unmounts and recreates this component) this
+    // effect's first run can land before the async map-construction effect
+    // above has set mapRef.current, so it bails out via the guard above and
+    // never runs again once the map is actually ready -- markers never got
+    // added. Re-running when `loaded` flips true closes that race.
+    if (!loaded) return;
 
     const seen = new Set<string | number>();
 
@@ -265,13 +355,17 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
       const existing = markersRef.current.get(m.id);
 
       if (existing) {
-        const el = existing.getElement();
-        const size = m.photo ? 40 : 16;
-        el.style.width = `${size}px`;
-        el.style.height = `${size}px`;
-        el.style.border = `3px solid ${color}`;
-        el.style.boxShadow = `0 0 0 2px rgba(0,0,0,0.15), 0 2px 10px ${color}66`;
-        el.style.background = m.photo ? `var(--surface-1) url('${m.photo}') center/cover no-repeat` : color;
+        if (m.icon || m.emoji) {
+          pinRootsRef.current.get(m.id)?.render(<PinShape color={color} Icon={m.icon} emoji={m.emoji} photo={m.photo} active={m.active} />);
+        } else {
+          const el = existing.getElement();
+          const size = m.photo ? 40 : 16;
+          el.style.width = `${size}px`;
+          el.style.height = `${size}px`;
+          el.style.border = `3px solid ${color}`;
+          el.style.boxShadow = `0 0 0 2px rgba(0,0,0,0.15), 0 2px 10px ${color}66`;
+          el.style.background = m.photo ? `var(--surface-1) url('${m.photo}') center/cover no-repeat` : color;
+        }
 
         const from = existing.getLngLat();
         const fromArr: [number, number] = [from.lng, from.lat];
@@ -302,7 +396,17 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
           }
         }
       } else {
-        const marker = new maplibregl.Marker({ element: markerElement(m, color) }).setLngLat(to);
+        let marker: maplibregl.Marker;
+        if (m.icon || m.emoji) {
+          const el = document.createElement("div");
+          el.style.cursor = "pointer";
+          const root = createRoot(el);
+          root.render(<PinShape color={color} Icon={m.icon} emoji={m.emoji} photo={m.photo} active={m.active} />);
+          pinRootsRef.current.set(m.id, root);
+          marker = new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat(to);
+        } else {
+          marker = new maplibregl.Marker({ element: markerElement(m, color) }).setLngLat(to);
+        }
         if (hasPopupContent(m)) {
           const popup = new maplibregl.Popup({ closeButton: true, maxWidth: "220px", offset: 14 }).setDOMContent(buildPopupContent(m));
           marker.setPopup(popup);
@@ -323,6 +427,8 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
         marker.remove();
         markersRef.current.delete(id);
         popupsRef.current.delete(id);
+        pinRootsRef.current.get(id)?.unmount();
+        pinRootsRef.current.delete(id);
       }
     });
 
@@ -343,7 +449,7 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
       map.fitBounds(bounds, { padding: 60, maxZoom: 15, animate: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [markers, fitToMarkers, pinColor]);
+  }, [markers, fitToMarkers, pinColor, loaded]);
 
   return (
     <div style={{ position: "relative", width: "100%", height, borderRadius: radius, overflow: "hidden", ...style }}>
@@ -427,12 +533,12 @@ function LayersPicker({
   ];
 
   return (
-    <div ref={rootRef} style={{ position: "absolute", left: 12, bottom: 12, zIndex: 5 }}>
+    <div ref={rootRef} style={{ position: "absolute", left: 12, top: 12, zIndex: 5 }}>
       {open && (
         <div
           style={{
             position: "absolute",
-            bottom: "calc(100% + 8px)",
+            top: "calc(100% + 8px)",
             left: 0,
             background: "var(--surface-1)",
             border: "1px solid var(--border)",

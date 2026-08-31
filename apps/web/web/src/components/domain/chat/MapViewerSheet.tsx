@@ -12,7 +12,9 @@ interface Props {
 export function MapViewerSheet({ lat, lng, onClose }: Props) {
   return (
     <Sheet open onClose={onClose} title="Ubicación compartida" maxWidth={560}>
-      <MapView markers={[{ id: "u", lat, lng, color: "var(--coral)", label: "Ubicación compartida" }]} height={420} zoom={16} fitToMarkers={false} center={[lng, lat]} radius="var(--radius-md)" />
+      <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+        <MapView markers={[{ id: "u", lat, lng, color: "var(--coral)", label: "Ubicación compartida" }]} height={420} zoom={16} fitToMarkers={false} center={[lng, lat]} radius="0" />
+      </div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-secondary)", fontSize: 12 }}>
           <MapPin size={14} weight="fill" color="var(--coral)" />

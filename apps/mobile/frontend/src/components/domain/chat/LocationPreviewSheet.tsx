@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import * as Location from "expo-location";
+import { LinearGradient } from "expo-linear-gradient";
 import { MapPinIcon, PaperPlaneTiltIcon, WarningCircleIcon } from "phosphor-react-native";
 import { useTheme } from "../../../theme/ThemeContext";
 import { radius } from "../../../theme/tokens";
@@ -41,24 +42,34 @@ export function LocationPreviewSheet({ visible, enviando, onCancel, onConfirm }:
 
   return (
     <Sheet visible={visible} onClose={onCancel} title="Compartir ubicación">
-      <View style={{ height: 220, borderRadius: radius.md, overflow: "hidden", backgroundColor: tokens.surface2, marginBottom: 14 }}>
+      <View style={{ height: 220, borderRadius: radius.md, overflow: "hidden", backgroundColor: tokens.surface2, marginBottom: 14, borderWidth: 1, borderColor: tokens.border }}>
         {error ? (
           <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 8, padding: 20 }}>
             <WarningCircleIcon size={24} color={tokens.textMuted} />
             <Text style={{ fontSize: 12.5, color: tokens.textSecondary, textAlign: "center" }}>{error}</Text>
           </View>
         ) : !coords ? (
-          <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 10 }}>
             <ActivityIndicator color={tokens.cyan} />
+            <Text style={{ fontSize: 12, color: tokens.textMuted }}>Buscando tu ubicación…</Text>
           </View>
         ) : (
-          <WebMapView center={[coords.lng, coords.lat]} zoom={16} interactive={false} markers={[{ id: "yo", coordinate: [coords.lng, coords.lat], color: tokens.cyan }]} />
+          <>
+            <WebMapView center={[coords.lng, coords.lat]} zoom={16} interactive={false} markers={[{ id: "yo", coordinate: [coords.lng, coords.lat], color: tokens.coral }]} />
+            <LinearGradient colors={["transparent", "rgba(8,11,20,0.05)", "rgba(8,11,20,0.8)"]} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+            <View style={{ position: "absolute", left: 12, right: 12, bottom: 10, flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: tokens.coral, alignItems: "center", justifyContent: "center" }}>
+                <MapPinIcon size={14} weight="fill" color="#fff" />
+              </View>
+              <Text style={{ flex: 1, fontSize: 12.5, color: "#fff", fontFamily: "Inter_700Bold" }}>Tu ubicación actual</Text>
+            </View>
+          </>
         )}
       </View>
 
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <MapPinIcon size={14} weight="fill" color={tokens.cyan} />
-        <Text style={{ fontSize: 12.5, color: tokens.textSecondary }}>{coords ? "Esta es tu ubicación aproximada actual." : "Buscando tu ubicación…"}</Text>
+        <Text style={{ fontSize: 12.5, color: tokens.textSecondary }}>Se compartirá tu ubicación aproximada con esta persona.</Text>
       </View>
 
       <Pressable

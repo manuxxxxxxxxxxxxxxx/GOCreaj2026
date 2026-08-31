@@ -148,15 +148,33 @@ switch ($action) {
         break;
 
     case 'mis_likes':
-        $st = db()->prepare("SELECT p.*, t.nombre as tienda_nombre FROM video_likes l JOIN productos p ON p.id = l.producto_id JOIN tiendas t ON t.id = p.tienda_id WHERE l.usuario_id = ? ORDER BY l.created_at DESC");
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = min(60, max(1, (int)($_GET['limit'] ?? 30)));
+        $offset = ($page - 1) * $limit;
+        $stTotal = db()->prepare("SELECT COUNT(*) FROM video_likes WHERE usuario_id = ?");
+        $stTotal->execute([$user['id']]);
+        $total = (int)$stTotal->fetchColumn();
+        $st = db()->prepare(
+            "SELECT p.*, t.nombre as tienda_nombre FROM video_likes l JOIN productos p ON p.id = l.producto_id JOIN tiendas t ON t.id = p.tienda_id
+             WHERE l.usuario_id = ? ORDER BY l.created_at DESC LIMIT $limit OFFSET $offset"
+        );
         $st->execute([$user['id']]);
-        jout(['ok' => true, 'productos' => $st->fetchAll()]);
+        jout(['ok' => true, 'productos' => $st->fetchAll(), 'total' => $total]);
         break;
 
     case 'mis_guardados':
-        $st = db()->prepare("SELECT p.*, t.nombre as tienda_nombre FROM video_guardados g JOIN productos p ON p.id = g.producto_id JOIN tiendas t ON t.id = p.tienda_id WHERE g.usuario_id = ? ORDER BY g.created_at DESC");
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $limit = min(60, max(1, (int)($_GET['limit'] ?? 30)));
+        $offset = ($page - 1) * $limit;
+        $stTotal = db()->prepare("SELECT COUNT(*) FROM video_guardados WHERE usuario_id = ?");
+        $stTotal->execute([$user['id']]);
+        $total = (int)$stTotal->fetchColumn();
+        $st = db()->prepare(
+            "SELECT p.*, t.nombre as tienda_nombre FROM video_guardados g JOIN productos p ON p.id = g.producto_id JOIN tiendas t ON t.id = p.tienda_id
+             WHERE g.usuario_id = ? ORDER BY g.created_at DESC LIMIT $limit OFFSET $offset"
+        );
         $st->execute([$user['id']]);
-        jout(['ok' => true, 'productos' => $st->fetchAll()]);
+        jout(['ok' => true, 'productos' => $st->fetchAll(), 'total' => $total]);
         break;
 
     case 'mis_compartidos':

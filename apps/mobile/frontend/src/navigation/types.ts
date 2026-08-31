@@ -2,7 +2,7 @@ import type { NavigatorScreenParams } from "@react-navigation/native";
 
 export type TabsParamList = {
   Inicio: undefined;
-  Explorar: { departamento?: string } | undefined;
+  Explorar: { departamento?: string; grupo?: string; categoria?: string } | undefined;
   Reels: { tiendaId?: number; productoId?: number } | undefined;
   Chat: undefined;
   Perfil: undefined;
@@ -17,7 +17,7 @@ export type RootStackParamList = {
   Cart: undefined;
   Checkout: { cuponCodigo?: string } | undefined;
   Orders: undefined;
-  OrderDetail: { id: number };
+  OrderDetail: { id: number; recienCreado?: boolean; totalPedidos?: number };
   ChatThread: { otroId: number };
   Notifications: undefined;
   Direcciones: undefined;
@@ -30,6 +30,8 @@ export type RootStackParamList = {
   VendedorTienda: undefined;
   VendedorResenas: undefined;
   RepartidorPerfil: undefined;
+  Configuracion: undefined;
+  MiColeccion: { tipo: "likes" | "guardados" };
 };
 
 export type AuthStackParamList = {

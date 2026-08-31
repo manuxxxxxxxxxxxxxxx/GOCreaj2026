@@ -56,8 +56,8 @@ export const interaccionesApi = {
   likeComentario: (comentario_id: number) => post<{ ok: true; accion: "like" | "unlike" }>("interacciones", "like_comentario", { comentario_id }),
   seguirTienda: (tienda_id: number) =>
     post<{ ok: true; accion: "follow" | "unfollow"; total_seguidores: number }>("interacciones", "seguir_tienda", { tienda_id }),
-  misLikes: () => get<{ ok: true; productos: Producto[] }>("interacciones", "mis_likes"),
-  misGuardados: () => get<{ ok: true; productos: Producto[] }>("interacciones", "mis_guardados"),
+  misLikes: (page = 1, limit = 30) => get<{ ok: true; productos: Producto[]; total: number }>("interacciones", "mis_likes", { page, limit }),
+  misGuardados: (page = 1, limit = 30) => get<{ ok: true; productos: Producto[]; total: number }>("interacciones", "mis_guardados", { page, limit }),
   misCompartidos: () => get<{ ok: true; productos: Producto[] }>("interacciones", "mis_compartidos"),
 };
 

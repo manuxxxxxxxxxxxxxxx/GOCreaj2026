@@ -3,21 +3,61 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
-import { CameraIcon, CaretRightIcon, HandshakeIcon, HeadsetIcon, MapPinLineIcon, MapTrifoldIcon, MoonIcon, SignOutIcon, StorefrontIcon, SunIcon, UserIcon, WalletIcon } from "phosphor-react-native";
+import {
+  BellIcon,
+  BookmarkSimpleIcon,
+  CameraIcon,
+  CaretRightIcon,
+  GearSixIcon,
+  HandshakeIcon,
+  HeartIcon,
+  HeadsetIcon,
+  MapPinLineIcon,
+  MapTrifoldIcon,
+  MopedIcon,
+  PencilSimpleIcon,
+  SignOutIcon,
+  StarIcon,
+  StorefrontIcon,
+  TrophyIcon,
+  UserIcon,
+  WalletIcon,
+  XIcon,
+} from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
+import type { ThemeTokens } from "../../theme/tokens";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
-import { authApi, ApiError } from "../../lib/api";
+import { authApi, pedidosApi, vendedorApi, interaccionesApi, ApiError } from "../../lib/api";
+import type { Producto } from "../../lib/types";
+import { calcularPerfilCompleto } from "../../lib/format";
 import { Avatar } from "../../components/ui/Avatar";
+import { AvatarRing } from "../../components/ui/AvatarRing";
+import { VerifiedBadge } from "../../components/ui/VerifiedBadge";
 import { Input } from "../../components/ui/Input";
 import { PhoneInput } from "../../components/ui/PhoneInput";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
+import { GlowBackground } from "../../components/ui/GlowBackground";
+import { ScreenReveal } from "../../components/ui/Motion";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { Skeleton } from "../../components/ui/Skeleton";
+import { ProductGrid } from "../../components/domain/ProductGrid";
+import { ProfileBadges, type ProfileBadge } from "../../components/domain/ProfileBadges";
+
+/** Cuántos productos se muestran en el grid de vista previa (Me gusta / Guardados) antes de "Ver todo". */
+const COLECCION_PREVIEW = 9;
+
+const ROLE_META: Record<string, { label: string; fg: (t: ThemeTokens) => string; bg: (t: ThemeTokens) => string; icon: (color: string) => React.ReactNode }> = {
+  comprador: { label: "Comprador", fg: (t) => t.cyan, bg: (t) => t.cyanBg, icon: (c) => <UserIcon size={12} weight="bold" color={c} /> },
+  vendedor: { label: "Vendedor", fg: (t) => t.violet, bg: (t) => t.violetBg, icon: (c) => <StorefrontIcon size={12} weight="bold" color={c} /> },
+  repartidor: { label: "Repartidor", fg: (t) => t.coral, bg: (t) => t.coralBg, icon: (c) => <MopedIcon size={12} weight="bold" color={c} /> },
+};
 
 export function ProfileScreen() {
-  const { tokens, theme, setTheme } = useTheme();
+  const { tokens } = useTheme();
   const { usuario, actualizarUsuarioLocal, cambiarRol, logout } = useAuth();
   const toast = useToast();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -25,12 +65,58 @@ export function ProfileScreen() {
   const [email, setEmail] = useState(usuario?.email ?? "");
   const [telefono, setTelefono] = useState(usuario?.telefono ?? "");
   const [guardando, setGuardando] = useState(false);
+  const [editando, setEditando] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
   const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
+  const [stats, setStats] = useState<{ label: string; value: number }[] | null>(null);
+  const [tab, setTab] = useState<"likes" | "guardados">("likes");
+  const [likes, setLikes] = useState<Producto[] | null>(null);
+  const [likesTotal, setLikesTotal] = useState(0);
+  const [guardados, setGuardados] = useState<Producto[] | null>(null);
+  const [guardadosTotal, setGuardadosTotal] = useState(0);
 
   useEffect(() => {
     authApi.misRoles().then((r) => setRoles(r.roles)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    // Se cargan ambas de una vez (no solo la pestaña activa): el hero del comprador
+    // ya necesita los conteos de Favoritos/Guardados apenas entra al perfil. Solo se
+    // trae una vista previa (COLECCION_PREVIEW) — "Ver todo" lleva a la lista completa paginada.
+    interaccionesApi
+      .misLikes(1, COLECCION_PREVIEW)
+      .then((r) => {
+        setLikes(r.productos);
+        setLikesTotal(r.total);
+      })
+      .catch(() => setLikes([]));
+    interaccionesApi
+      .misGuardados(1, COLECCION_PREVIEW)
+      .then((r) => {
+        setGuardados(r.productos);
+        setGuardadosTotal(r.total);
+      })
+      .catch(() => setGuardados([]));
+  }, []);
+
+  useEffect(() => {
+    if (!usuario) return;
+    if (usuario.rol === "comprador") {
+      pedidosApi.misPedidos().then((r) => setStats([{ label: "Pedidos", value: r.pedidos.length }])).catch(() => setStats(null));
+    } else if (usuario.rol === "vendedor") {
+      Promise.all([vendedorApi.misProductos(), vendedorApi.misVentas()])
+        .then(([p, v]) =>
+          setStats([
+            { label: "Productos", value: p.productos.length },
+            { label: "Reels", value: p.productos.filter((x) => x.es_reel).length },
+            { label: "Ventas", value: v.pedidos.length },
+          ]),
+        )
+        .catch(() => setStats(null));
+    } else {
+      setStats(null);
+    }
+  }, [usuario?.rol]);
 
   if (!usuario) return null;
 
@@ -40,11 +126,19 @@ export function ProfileScreen() {
       const r = await authApi.actualizarPerfil({ nombre, email, telefono });
       actualizarUsuarioLocal(r.usuario);
       toast.show("Perfil actualizado", "success");
+      setEditando(false);
     } catch (err) {
       toast.show(err instanceof ApiError ? err.message : "No se pudo actualizar.", "error");
     } finally {
       setGuardando(false);
     }
+  };
+
+  const cancelarEdicion = () => {
+    setNombre(usuario.nombre);
+    setEmail(usuario.email ?? "");
+    setTelefono(usuario.telefono ?? "");
+    setEditando(false);
   };
 
   const subirFoto = async () => {
@@ -60,18 +154,121 @@ export function ProfileScreen() {
     }
   };
 
+  const roleMeta = ROLE_META[usuario.rol] ?? ROLE_META.comprador;
+  const pedidosCount = stats?.find((s) => s.label === "Pedidos")?.value;
+  const heroStats: { label: string; value: string }[] | null =
+    usuario.rol === "repartidor"
+      ? [
+          { label: "Calificación", value: usuario.repartidor_calificacion_promedio ? usuario.repartidor_calificacion_promedio.toFixed(1) : "Nuevo" },
+          { label: "Reseñas", value: String(usuario.repartidor_total_resenas ?? 0) },
+        ]
+      : usuario.rol === "comprador"
+        ? [
+            { label: "Pedidos", value: pedidosCount !== undefined ? String(pedidosCount) : "-" },
+            { label: "Favoritos", value: likes !== null ? String(likesTotal) : "-" },
+            { label: "Guardados", value: guardados !== null ? String(guardadosTotal) : "-" },
+          ]
+        : stats
+          ? stats.map((s) => ({ label: s.label, value: String(s.value) }))
+          : null;
+
+  const compradorBadges: ProfileBadge[] = [
+    { icon: <TrophyIcon size={13} weight="fill" color={tokens.warn} />, label: "Primera compra", achieved: (pedidosCount ?? 0) >= 1 },
+    { icon: <TrophyIcon size={13} weight="fill" color={tokens.warn} />, label: "Comprador frecuente", achieved: (pedidosCount ?? 0) >= 10 },
+  ];
+
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 20 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-        <View>
-          <Avatar nombre={usuario.nombre} foto={usuario.foto_perfil} size={72} />
-          <Pressable onPress={subirFoto} style={[styles.camBtn, { backgroundColor: tokens.cyan, borderColor: tokens.bg }]}>
-            <CameraIcon size={13} weight="bold" color={tokens.cyanInk} />
-          </Pressable>
+      <View style={[styles.hero, { borderColor: tokens.border }]}>
+        <GlowBackground />
+        <Pressable onPress={() => navigation.navigate("Configuracion")} style={[styles.gearBtn, { backgroundColor: tokens.surface2, borderColor: tokens.border }]}>
+          <GearSixIcon size={16} color={tokens.textSecondary} />
+        </Pressable>
+        <ScreenReveal style={{ gap: 18 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 18 }}>
+            <View>
+              {usuario.rol === "comprador" ? (
+                <AvatarRing nombre={usuario.nombre} foto={usuario.foto_perfil} size={84} progress={calcularPerfilCompleto(usuario)} color="cyan" />
+              ) : (
+                <Avatar nombre={usuario.nombre} foto={usuario.foto_perfil} size={84} />
+              )}
+              <Pressable
+                onPress={subirFoto}
+                style={[styles.camBtn, { backgroundColor: tokens.cyan, borderColor: tokens.surface1 }, usuario.rol === "comprador" && { bottom: 3, right: 3 }]}
+              >
+                <CameraIcon size={14} weight="bold" color={tokens.cyanInk} />
+              </Pressable>
+            </View>
+            <View style={{ flex: 1, gap: 8 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text numberOfLines={1} style={{ fontSize: 20, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>{usuario.nombre}</Text>
+                {usuario.rol === "comprador" && !!usuario.telefono_verificado && <VerifiedBadge />}
+              </View>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                <View style={[styles.pill, { backgroundColor: roleMeta.bg(tokens) }]}>
+                  {roleMeta.icon(roleMeta.fg(tokens))}
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: roleMeta.fg(tokens) }}>{roleMeta.label}</Text>
+                </View>
+                <View style={[styles.pill, { borderWidth: 1, borderColor: tokens.border }]}>
+                  <MapPinLineIcon size={12} color={tokens.textSecondary} />
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary }}>{usuario.municipio ?? "Sin ubicación"}</Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 12, color: tokens.textMuted }}>{usuario.email}</Text>
+            </View>
+          </View>
+
+          {heroStats && (
+            <View style={[styles.statsRow, { borderTopColor: tokens.border }]}>
+              {heroStats.map((s, i) => (
+                <View key={s.label} style={[styles.statItem, i > 0 && { borderLeftWidth: 1, borderLeftColor: tokens.border }]}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    {s.label === "Calificación" && <StarIcon size={14} weight="fill" color={tokens.warn} />}
+                    <Text style={{ fontSize: 17, fontFamily: "SpaceGrotesk_700Bold", color: tokens.textPrimary }}>{s.value}</Text>
+                  </View>
+                  <Text style={{ fontSize: 11, color: tokens.textMuted }}>{s.label}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {usuario.rol === "comprador" && stats && <ProfileBadges badges={compradorBadges} />}
+        </ScreenReveal>
+      </View>
+
+      <View>
+        <View style={[styles.tabsRow, { borderBottomColor: tokens.border }]}>
+          <TabButton active={tab === "likes"} icon={<HeartIcon size={16} weight={tab === "likes" ? "fill" : "regular"} color={tab === "likes" ? tokens.cyan : tokens.textMuted} />} label="Me gusta" onPress={() => setTab("likes")} />
+          <TabButton
+            active={tab === "guardados"}
+            icon={<BookmarkSimpleIcon size={16} weight={tab === "guardados" ? "fill" : "regular"} color={tab === "guardados" ? tokens.cyan : tokens.textMuted} />}
+            label="Guardados"
+            onPress={() => setTab("guardados")}
+          />
         </View>
-        <View>
-          <Text style={{ fontSize: 19, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>{usuario.nombre}</Text>
-          <Text style={{ fontSize: 12, color: tokens.textMuted }}>{usuario.email}</Text>
+        <View style={{ paddingTop: 12 }}>
+          {tab === "likes" &&
+            (likes === null ? (
+              <Skeleton height={160} />
+            ) : likes.length === 0 ? (
+              <EmptyState icon={<HeartIcon size={22} color={tokens.textMuted} />} title="Sin likes todavía" description="Los productos y reels que te gusten aparecerán aquí." />
+            ) : (
+              <>
+                <ProductGrid productos={likes} />
+                {likesTotal > likes.length && <VerTodoButton onPress={() => navigation.navigate("MiColeccion", { tipo: "likes" })} total={likesTotal} />}
+              </>
+            ))}
+          {tab === "guardados" &&
+            (guardados === null ? (
+              <Skeleton height={160} />
+            ) : guardados.length === 0 ? (
+              <EmptyState icon={<BookmarkSimpleIcon size={22} color={tokens.textMuted} />} title="Sin guardados todavía" description="Guarda productos y reels para verlos aquí." />
+            ) : (
+              <>
+                <ProductGrid productos={guardados} />
+                {guardadosTotal > guardados.length && <VerTodoButton onPress={() => navigation.navigate("MiColeccion", { tipo: "guardados" })} total={guardadosTotal} />}
+              </>
+            ))}
         </View>
       </View>
 
@@ -79,65 +276,100 @@ export function ProfileScreen() {
         <Card>
           <Text style={{ fontSize: 13, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary, marginBottom: 10 }}>Cambiar de rol</Text>
           <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-            {roles.map((r) => (
-              <Pressable key={r} onPress={() => cambiarRol(r as "comprador" | "vendedor" | "repartidor")} style={[styles.roleChip, { borderColor: usuario.rol === r ? tokens.cyan : tokens.border, backgroundColor: usuario.rol === r ? tokens.cyanBg : tokens.surface1 }]}>
-                <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: usuario.rol === r ? tokens.cyan : tokens.textSecondary, textTransform: "capitalize" }}>{r}</Text>
-              </Pressable>
-            ))}
+            {roles.map((r) => {
+              const meta = ROLE_META[r] ?? ROLE_META.comprador;
+              const active = usuario.rol === r;
+              return (
+                <Pressable
+                  key={r}
+                  onPress={() => cambiarRol(r as "comprador" | "vendedor" | "repartidor")}
+                  style={[styles.roleChip, { borderColor: active ? meta.fg(tokens) : tokens.border, backgroundColor: active ? meta.bg(tokens) : tokens.surface1 }]}
+                >
+                  {meta.icon(active ? meta.fg(tokens) : tokens.textSecondary)}
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: active ? meta.fg(tokens) : tokens.textSecondary }}>{meta.label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         </Card>
       )}
 
       <Card>
-        <Text style={{ fontSize: 13, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary, marginBottom: 14 }}>Información personal</Text>
-        <View style={{ gap: 14 }}>
-          <Input label="Nombre" value={nombre} onChangeText={setNombre} />
-          <Input label="Correo" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
-          <PhoneInput value={telefono} onChangeText={setTelefono} />
-          <Button size="sm" onPress={guardar} loading={guardando} style={{ alignSelf: "flex-start" }}>
-            Guardar cambios
-          </Button>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: editando ? 14 : 4 }}>
+          <Text style={{ fontSize: 13, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>Información personal</Text>
+          {!editando && (
+            <Pressable onPress={() => setEditando(true)} style={{ flexDirection: "row", alignItems: "center", gap: 5, padding: 4 }}>
+              <PencilSimpleIcon size={13} weight="bold" color={tokens.cyan} />
+              <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: tokens.cyan }}>Editar</Text>
+            </Pressable>
+          )}
         </View>
+
+        {editando ? (
+          <View style={{ gap: 14 }}>
+            <Input label="Nombre" value={nombre} onChangeText={setNombre} />
+            <Input label="Correo" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" />
+            <PhoneInput value={telefono} onChangeText={setTelefono} />
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Button size="sm" onPress={guardar} loading={guardando}>
+                Guardar cambios
+              </Button>
+              <Button size="sm" variant="ghost" icon={<XIcon size={14} color={tokens.textPrimary} />} onPress={cancelarEdicion} disabled={guardando}>
+                Cancelar
+              </Button>
+            </View>
+          </View>
+        ) : (
+          <View>
+            <InfoRow label="Nombre" value={usuario.nombre} />
+            <InfoRow label="Correo" value={usuario.email ?? "Sin registrar"} />
+            <InfoRow label="Teléfono" value={usuario.telefono || "Sin registrar"} last />
+          </View>
+        )}
       </Card>
 
-      <Card>
-        <Text style={{ fontSize: 13, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary, marginBottom: 10 }}>Apariencia</Text>
-        <View style={{ flexDirection: "row", gap: 8 }}>
-          <ThemeChip label="Claro" icon={<SunIcon size={14} color={theme === "light" ? tokens.cyan : tokens.textSecondary} />} active={theme === "light"} onPress={() => setTheme("light")} />
-          <ThemeChip label="Oscuro" icon={<MoonIcon size={14} color={theme === "dark" ? tokens.cyan : tokens.textSecondary} />} active={theme === "dark"} onPress={() => setTheme("dark")} />
-          <ThemeChip label="Sistema" icon={null} active={theme === "system"} onPress={() => setTheme("system")} />
-        </View>
-      </Card>
+      <NavSection
+        title="Cuenta"
+        items={[
+          { icon: <MapPinLineIcon size={18} color={tokens.cyan} />, label: "Direcciones", onPress: () => navigation.navigate("Direcciones") },
+          { icon: <WalletIcon size={18} color={tokens.cyan} />, label: "Billetera", onPress: () => navigation.navigate("Wallet") },
+          { icon: <BellIcon size={18} color={tokens.cyan} />, label: "Notificaciones", onPress: () => navigation.navigate("Notifications") },
+        ]}
+      />
 
-      <View>
-        <NavRow icon={<MapPinLineIcon size={18} color={tokens.cyan} />} label="Direcciones" onPress={() => navigation.navigate("Direcciones")} />
-        <NavRow icon={<WalletIcon size={18} color={tokens.cyan} />} label="Billetera" onPress={() => navigation.navigate("Wallet")} />
-        {usuario.rol === "comprador" && <NavRow icon={<MapTrifoldIcon size={18} color={tokens.cyan} />} label="Mis pedidos" onPress={() => navigation.navigate("Orders")} />}
-        {usuario.rol === "comprador" && <NavRow icon={<HandshakeIcon size={18} color={tokens.cyan} />} label="Convertirse en socio" onPress={() => navigation.navigate("Convertirse")} />}
-        {usuario.rol === "vendedor" && <NavRow icon={<StorefrontIcon size={18} color={tokens.cyan} />} label="Mi tienda" onPress={() => navigation.navigate("VendedorTienda")} />}
-        {usuario.rol === "repartidor" && <NavRow icon={<UserIcon size={18} color={tokens.cyan} />} label="Mi perfil de repartidor" onPress={() => navigation.navigate("RepartidorPerfil")} />}
-        <NavRow icon={<HeadsetIcon size={18} color={tokens.cyan} />} label="Soporte" onPress={() => navigation.navigate("Soporte")} />
-      </View>
+      <NavSection
+        title="Actividad"
+        items={[
+          ...(usuario.rol === "comprador" ? [{ icon: <MapTrifoldIcon size={18} color={tokens.cyan} />, label: "Mis pedidos", onPress: () => navigation.navigate("Orders") }] : []),
+          ...(usuario.rol === "comprador" ? [{ icon: <HandshakeIcon size={18} color={tokens.cyan} />, label: "Convertirse en socio", onPress: () => navigation.navigate("Convertirse") }] : []),
+          ...(usuario.rol === "vendedor" ? [{ icon: <StorefrontIcon size={18} color={tokens.cyan} />, label: "Mi tienda", onPress: () => navigation.navigate("VendedorTienda") }] : []),
+          ...(usuario.rol === "repartidor" ? [{ icon: <MopedIcon size={18} color={tokens.cyan} />, label: "Mi perfil de repartidor", onPress: () => navigation.navigate("RepartidorPerfil") }] : []),
+        ]}
+      />
 
-      <View style={{ flexDirection: "row", gap: 10 }}>
-        <View style={{ flex: 1 }}>
-          <Button variant="secondary" icon={<SignOutIcon size={16} color={tokens.textPrimary} />} onPress={logout}>
-            Cerrar sesión
-          </Button>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Button
-            variant="danger"
-            onPress={() =>
-              Alert.alert("¿Eliminar tu cuenta?", "Esta acción desactiva tu cuenta de inmediato.", [
-                { text: "Cancelar", style: "cancel" },
-                { text: "Eliminar", style: "destructive", onPress: () => setConfirmandoEliminar(true) },
-              ])
-            }
-          >
-            Eliminar cuenta
-          </Button>
-        </View>
+      <NavSection
+        title="Más"
+        items={[
+          { icon: <GearSixIcon size={18} color={tokens.cyan} />, label: "Configuración avanzada", onPress: () => navigation.navigate("Configuracion") },
+          { icon: <HeadsetIcon size={18} color={tokens.cyan} />, label: "Soporte", onPress: () => navigation.navigate("Soporte") },
+        ]}
+      />
+
+      <View style={{ gap: 12, alignItems: "center" }}>
+        <Button variant="secondary" fullWidth icon={<SignOutIcon size={16} color={tokens.textPrimary} />} onPress={logout}>
+          Cerrar sesión
+        </Button>
+        <Pressable
+          onPress={() =>
+            Alert.alert("¿Eliminar tu cuenta?", "Esta acción desactiva tu cuenta de inmediato.", [
+              { text: "Cancelar", style: "cancel" },
+              { text: "Eliminar", style: "destructive", onPress: () => setConfirmandoEliminar(true) },
+            ])
+          }
+          style={{ padding: 4 }}
+        >
+          <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: tokens.danger }}>Eliminar cuenta</Text>
+        </Pressable>
       </View>
 
       <ConfirmDialog
@@ -160,30 +392,72 @@ export function ProfileScreen() {
   );
 }
 
-function ThemeChip({ label, icon, active, onPress }: { label: string; icon: React.ReactNode; active: boolean; onPress: () => void }) {
+function VerTodoButton({ onPress, total }: { onPress: () => void; total: number }) {
   const { tokens } = useTheme();
   return (
-    <Pressable onPress={onPress} style={[styles.themeChip, { borderColor: active ? tokens.cyan : tokens.border, backgroundColor: active ? tokens.cyanBg : tokens.surface1 }]}>
-      {icon}
-      <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: active ? tokens.cyan : tokens.textSecondary }}>{label}</Text>
+    <Pressable onPress={onPress} style={{ paddingVertical: 10, alignItems: "center" }}>
+      <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: tokens.cyan }}>Ver todo ({total})</Text>
     </Pressable>
   );
 }
 
-function NavRow({ icon, label, onPress }: { icon: React.ReactNode; label: string; onPress: () => void }) {
+function TabButton({ active, icon, label, onPress }: { active: boolean; icon: React.ReactNode; label: string; onPress: () => void }) {
   const { tokens } = useTheme();
   return (
-    <Pressable onPress={onPress} style={[styles.navRow, { borderBottomColor: tokens.border }]}>
+    <Pressable onPress={onPress} style={[styles.tabBtn, { borderBottomColor: active ? tokens.cyan : "transparent" }]}>
       {icon}
+      <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: active ? tokens.cyan : tokens.textMuted }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function NavSection({ title, items }: { title: string; items: { icon: React.ReactNode; label: string; onPress: () => void }[] }) {
+  const { tokens } = useTheme();
+  if (items.length === 0) return null;
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", letterSpacing: 0.5, textTransform: "uppercase", color: tokens.textMuted, paddingHorizontal: 2 }}>{title}</Text>
+      <Card style={{ paddingVertical: 4, paddingHorizontal: 14 }}>
+        {items.map((item, i) => (
+          <NavRow key={item.label} icon={item.icon} label={item.label} onPress={item.onPress} last={i === items.length - 1} />
+        ))}
+      </Card>
+    </View>
+  );
+}
+
+function NavRow({ icon, label, onPress, last }: { icon: React.ReactNode; label: string; onPress: () => void; last?: boolean }) {
+  const { tokens } = useTheme();
+  return (
+    <Pressable onPress={onPress} style={[styles.navRow, { borderBottomColor: tokens.border, borderBottomWidth: last ? 0 : 1 }]}>
+      <View style={[styles.navIconBadge, { backgroundColor: tokens.cyanBg }]}>{icon}</View>
       <Text style={{ flex: 1, fontSize: 13.5, fontFamily: "Inter_600SemiBold", color: tokens.textPrimary }}>{label}</Text>
       <CaretRightIcon size={14} color={tokens.textMuted} />
     </Pressable>
   );
 }
 
+function InfoRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  const { tokens } = useTheme();
+  return (
+    <View style={[styles.infoRow, { borderBottomColor: tokens.border, borderBottomWidth: last ? 0 : 1 }]}>
+      <Text style={{ fontSize: 12, color: tokens.textMuted }}>{label}</Text>
+      <Text numberOfLines={1} style={{ flex: 1, textAlign: "right", marginLeft: 12, fontSize: 13.5, fontFamily: "Inter_600SemiBold", color: tokens.textPrimary }}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
-  camBtn: { position: "absolute", bottom: -2, right: -2, width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: "center", justifyContent: "center" },
-  roleChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
-  navRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 13, borderBottomWidth: 1 },
-  themeChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 9, borderRadius: 10, borderWidth: 1 },
+  hero: { borderRadius: 24, borderWidth: 1, overflow: "hidden", padding: 22 },
+  gearBtn: { position: "absolute", top: 14, right: 14, zIndex: 1, width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  camBtn: { position: "absolute", bottom: -2, right: -2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: "center", justifyContent: "center" },
+  pill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
+  statsRow: { flexDirection: "row", borderTopWidth: 1, paddingTop: 16 },
+  statItem: { flex: 1, alignItems: "center", gap: 2 },
+  roleChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
+  tabsRow: { flexDirection: "row", borderBottomWidth: 1 },
+  tabBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderBottomWidth: 2 },
+  navRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+  navIconBadge: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  infoRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 11 },
 });

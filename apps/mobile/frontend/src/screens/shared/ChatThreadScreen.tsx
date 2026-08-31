@@ -25,6 +25,7 @@ import {
   XIcon,
 } from "phosphor-react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
+import { LinearGradient } from "expo-linear-gradient";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { WebMapView } from "../../components/ui/WebMapView";
 import { AttachmentPreviewSheet, type PendienteAdjunto } from "../../components/domain/chat/AttachmentPreviewSheet";
@@ -326,16 +327,23 @@ export function ChatThreadScreen({ route, navigation }: Props) {
                   </Pressable>
                 )}
                 {item.tipo === "ubicacion" && item.lat && item.lng && (
-                  <Pressable onPress={() => setVerMapaDe({ lat: item.lat!, lng: item.lng! })} style={{ width: 200, height: 140, borderRadius: 10, overflow: "hidden", marginBottom: 6 }}>
+                  <Pressable
+                    onPress={() => setVerMapaDe({ lat: item.lat!, lng: item.lng! })}
+                    style={{ width: 224, height: 156, borderRadius: 14, overflow: "hidden", marginBottom: 6, borderWidth: 1, borderColor: "rgba(255,255,255,0.14)" }}
+                  >
                     <WebMapView
                       center={[item.lng, item.lat]}
-                      zoom={15}
+                      zoom={15.3}
                       interactive={false}
-                      markers={[{ id: "loc", coordinate: [item.lng, item.lat], color: tokens.danger }]}
+                      markers={[{ id: "loc", coordinate: [item.lng, item.lat], color: tokens.coral }]}
                     />
-                    <View style={{ position: "absolute", left: 6, bottom: 6, flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "rgba(0,0,0,0.55)", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 }}>
-                      <MapPinIcon size={11} color="#fff" />
-                      <Text style={{ fontSize: 10.5, color: "#fff", fontFamily: "Inter_600SemiBold" }}>Ver ubicación</Text>
+                    <LinearGradient colors={["transparent", "rgba(8,11,20,0.05)", "rgba(8,11,20,0.85)"]} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} pointerEvents="none" />
+                    <View style={{ position: "absolute", left: 10, right: 10, bottom: 9, flexDirection: "row", alignItems: "center", gap: 7 }}>
+                      <View style={{ width: 24, height: 24, borderRadius: 12, backgroundColor: tokens.coral, alignItems: "center", justifyContent: "center" }}>
+                        <MapPinIcon size={13} weight="fill" color="#fff" />
+                      </View>
+                      <Text numberOfLines={1} style={{ flex: 1, fontSize: 12, color: "#fff", fontFamily: "Inter_700Bold" }}>Ubicación compartida</Text>
+                      <Text style={{ fontSize: 10, color: "rgba(255,255,255,0.75)", fontFamily: "Inter_600SemiBold" }}>Ver mapa</Text>
                     </View>
                   </Pressable>
                 )}

@@ -5,6 +5,9 @@ import type { ComponentType } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { Avatar } from "../ui/Avatar";
+import { TopNav } from "./TopNav";
+
+const TOPNAV_HEIGHT = 68;
 
 export interface SidebarNavItem {
   to: string;
@@ -34,8 +37,10 @@ export function SidebarLayout({ sections, children }: Props) {
   const width = collapsed ? 76 : 240;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <aside
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <TopNav />
+      <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+        <aside
         className="glow-mesh"
         style={{
           width,
@@ -47,8 +52,8 @@ export function SidebarLayout({ sections, children }: Props) {
           padding: "18px 12px",
           transition: "width var(--dur-base) var(--ease-out)",
           position: "sticky",
-          top: 0,
-          height: "100vh",
+          top: TOPNAV_HEIGHT,
+          height: `calc(100vh - ${TOPNAV_HEIGHT}px)`,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 6px", marginBottom: 22 }}>
@@ -147,32 +152,12 @@ export function SidebarLayout({ sections, children }: Props) {
             </button>
           </div>
         </div>
-      </aside>
+        </aside>
 
-      <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-        <div
-          style={{
-            position: "sticky",
-            top: 0,
-            zIndex: "var(--z-topbar)" as unknown as number,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            height: 52,
-            padding: "0 24px",
-            background: "var(--surface-1)",
-            borderBottom: "1px solid var(--border)",
-            flexShrink: 0,
-          }}
-        >
-          <img
-            src={resolvedTheme === "dark" ? "/brand/logo-dark.png" : "/brand/logo-light.png"}
-            alt="SV[Go]"
-            style={{ height: 20, width: "auto", display: "block" }}
-          />
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
-      </main>
+        <main style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflowY: "auto" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+        </main>
+      </div>
     </div>
   );
 }

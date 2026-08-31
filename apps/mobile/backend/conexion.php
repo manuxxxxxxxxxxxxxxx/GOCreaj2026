@@ -22,7 +22,39 @@ define('AUTH_TTL_SECONDS', 60 * 60 * 24 * 30); // 30 días
 // en el ID token (ver GOOGLE_AUTH_SETUP.md). Puede llevar varios separados por coma
 // (ej. el mismo Web Client ID que usan mobile y web, más los de builds iOS/Android
 // de producción si se generan). Vacío = login con Google desactivado en el backend.
-define('GOOGLE_CLIENT_IDS', '1075913007504-q6r0l435ah4h4l007i7k83m35chsnso4.apps.googleusercontent.com');
+define('GOOGLE_CLIENT_IDS', '195559019978-sqfadh1srban3akat11eiko3hpciq6pv.apps.googleusercontent.com');
+
+/**
+ * Espejo de CATEGORIAS en apps/mobile/frontend/src/lib/categoryIcons.tsx — mantener sincronizado
+ * si se agregan categorías ahí. Antes esta validación vivía duplicada en vendedor_dashboard.php
+ * con solo 7 categorías viejas, así que crear/editar un producto en cualquiera de las otras 122
+ * fallaba con "Categoría inválida" (400) sin razón visible para el vendedor.
+ */
+define('CATEGORIAS_VALIDAS', [
+    'comida', 'mercado', 'farmacia', 'bebidas', 'panaderia', 'postres', 'frutas', 'verduras',
+    'ropa', 'calzado', 'electronica', 'hogar', 'envios', 'general',
+    'comida_rapida', 'restaurantes', 'comida_saludable', 'vegana', 'comida_tipica', 'pizza', 'sushi',
+    'mexicana', 'italiana', 'pollo', 'mariscos', 'parrilla', 'desayunos', 'almuerzos', 'catering', 'dieta_especial',
+    'cafe', 'jugos', 'cerveceria', 'vinos', 'energeticas', 'te', 'agua_refrescos',
+    'reposteria', 'heladeria', 'chocolateria', 'dulces_tipicos', 'snacks',
+    'carniceria', 'pescaderia', 'organicos', 'granel', 'lacteos', 'huevos', 'especias',
+    'optica', 'dental', 'suplementos', 'equipo_medico', 'adulto_mayor', 'primeros_auxilios',
+    'cosmeticos', 'cuidado_piel', 'peluqueria', 'perfumeria', 'higiene', 'barberia', 'unas',
+    'ropa_mujer', 'ropa_hombre', 'ropa_infantil', 'ropa_deportiva', 'lenceria', 'uniformes',
+    'accesorios', 'joyeria', 'lentes_sol',
+    'muebles', 'decoracion', 'electrodomesticos', 'electro_pequeno', 'blancos', 'cocina',
+    'ferreteria', 'pintura', 'jardineria', 'limpieza',
+    'celulares', 'computadoras', 'videojuegos', 'audio', 'camaras', 'domotica',
+    'bebes', 'juguetes', 'escolar_ninos', 'sillas_auto',
+    'mascotas', 'veterinaria', 'peluqueria_canina',
+    'papeleria', 'libreria', 'oficina', 'impresiones',
+    'deportes', 'suple_deportivo', 'bicicletas', 'gimnasio',
+    'repuestos', 'accesorios_auto', 'lubricantes', 'llantas', 'lavado_autos', 'motos',
+    'flores', 'regalos', 'pinateria', 'globos', 'tarjetas', 'peluches',
+    'construccion', 'herramientas', 'electricidad_plomeria', 'instrumentos', 'manualidades', 'fotografia',
+    'entretenimiento', 'lavanderia', 'mudanzas', 'reparaciones', 'cerrajeria',
+    'segunda_mano', 'importados', 'religiosos', 'souvenirs',
+]);
 
 function db(): PDO {
     static $pdo = null;
@@ -415,6 +447,11 @@ function db_migrate(): void {
 
         // productos — hashtags del Reel, separados por espacio, sin el "#" (se agrega al mostrarlos)
         "ALTER TABLE productos ADD COLUMN hashtags VARCHAR(255) NULL",
+
+        // pedidos — número de pedido visible al comprador: aleatorio y único, en vez del id
+        // autoincremental (que es secuencial y deja adivinar cuántos pedidos van en el sistema).
+        "ALTER TABLE pedidos ADD COLUMN numero_pedido VARCHAR(12) NULL AFTER id",
+        "ALTER TABLE pedidos ADD UNIQUE INDEX uk_pedidos_numero (numero_pedido)",
     ];
     foreach ($stmts as $sql) {
         try { db()->exec($sql); } catch (PDOException $e) {}
@@ -549,6 +586,25 @@ function require_fields(array $data, array $fields): void {
 }
 
 /**
+ * Número de pedido aleatorio y único (ej. "SV-8F42KD"), distinto del id autoincremental
+ * de `pedidos` -- ese es secuencial y no debe mostrarse al comprador. Alfabeto sin 0/O/1/I
+ * para que no se confundan al leerlo en voz alta o escribirlo. Reintenta en el
+ * (extremadamente improbable) caso de colisión contra la columna UNIQUE.
+ */
+function generar_numero_pedido(): string {
+    $alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    for ($intento = 0; $intento < 5; $intento++) {
+        $codigo = '';
+        for ($i = 0; $i < 6; $i++) $codigo .= $alfabeto[random_int(0, strlen($alfabeto) - 1)];
+        $codigo = 'SV-' . $codigo;
+        $st = db()->prepare("SELECT 1 FROM pedidos WHERE numero_pedido = ?");
+        $st->execute([$codigo]);
+        if (!$st->fetch()) return $codigo;
+    }
+    return 'SV-' . strtoupper(bin2hex(random_bytes(4)));
+}
+
+/**
  * URL pública de /uploads/, derivada del Host real de CADA petición en vez de un
  * valor fijo. Así funciona igual desde localhost (web) que desde la IP de LAN
  * (teléfono en Expo Go) o un dominio real en producción.
@@ -585,6 +641,25 @@ function save_base64_video(string $b64, string $subdir, string $prefix): ?string
     if (!is_dir($dir)) mkdir($dir, 0777, true);
     $name = $prefix . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
     file_put_contents($dir . '/' . $name, $data);
+    return upload_url() . $subdir . '/' . $name;
+}
+
+/**
+ * Guarda un video subido como multipart/form-data ($_FILES[...]) con move_uploaded_file en vez
+ * de decodificar base64 -- mucho más liviano para archivos grandes (sin el ~33% de overhead de
+ * base64 ni tener que traer el archivo completo a memoria como string). Devuelve la URL pública,
+ * o null si el archivo no llegó bien o no es un formato de video soportado.
+ */
+function save_uploaded_video(array $file, string $subdir, string $prefix): ?string {
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || empty($file['tmp_name']) || !is_uploaded_file($file['tmp_name'])) {
+        return null;
+    }
+    $ext = strtolower(pathinfo($file['name'] ?? '', PATHINFO_EXTENSION));
+    if (!in_array($ext, ['mp4', 'webm', 'mov', 'm4v'])) $ext = 'mp4';
+    $dir = UPLOAD_BASE . $subdir;
+    if (!is_dir($dir)) mkdir($dir, 0777, true);
+    $name = $prefix . '_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $name)) return null;
     return upload_url() . $subdir . '/' . $name;
 }
 

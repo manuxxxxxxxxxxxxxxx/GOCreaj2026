@@ -4,7 +4,7 @@ import { Bicycle, CheckCircle, ChatCircleDots, Package, QrCode, X } from "@phosp
 import { useNavigate } from "react-router-dom";
 import { vendedorApi, ApiError } from "../../lib/api";
 import type { Pedido, Usuario } from "../../lib/types";
-import { money, formatDateTime } from "../../lib/format";
+import { money, formatDateTime, numeroPedido } from "../../lib/format";
 import { useToast } from "../../context/ToastContext";
 import { StatusPill } from "../../components/ui/StatusPill";
 import { Button } from "../../components/ui/Button";
@@ -153,7 +153,7 @@ export function VendedorPedidos() {
                           <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                             <Avatar nombre={p.comprador_nombre ?? "?"} size={32} />
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ fontWeight: 700, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#SV-{p.id} · {p.comprador_nombre}</div>
+                              <div style={{ fontWeight: 700, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>#{numeroPedido(p)} · {p.comprador_nombre}</div>
                               <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatDateTime(p.created_at)}</div>
                             </div>
                           </div>
@@ -277,7 +277,7 @@ function RechazarSheet({ pedido, onClose, onDone }: { pedido: Pedido; onClose: (
   };
 
   return (
-    <Sheet open onClose={onClose} title={`Rechazar pedido #SV-${pedido.id}`}>
+    <Sheet open onClose={onClose} title={`Rechazar pedido #${numeroPedido(pedido)}`}>
       <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 14 }}>Se reembolsará {money(pedido.total)} al comprador de inmediato. Indica el motivo — el cliente lo verá.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
         {RAZONES_RECHAZO.map((r) => (

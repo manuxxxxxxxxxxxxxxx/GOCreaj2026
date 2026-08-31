@@ -153,7 +153,7 @@ switch ($action) {
         $yaConfirmadoVendedor = (int)$ped['confirmado_vendedor_recogida'] === 1;
         if ($yaConfirmadoVendedor) {
             db()->prepare("UPDATE pedidos SET estado = 'en_camino', progreso_repartidor = 'camino_cliente' WHERE id = ?")->execute([$pid]);
-            crear_notificacion((int)$ped['comprador_id'], 'pedido', '¡Tu pedido va en camino!', "El repartidor recogió tu pedido #SV-{$pid} y va hacia ti.", $pid);
+            crear_notificacion((int)$ped['comprador_id'], 'pedido', '¡Tu pedido va en camino!', "El repartidor recogió tu pedido #{$ped['numero_pedido']} y va hacia ti.", $pid);
         }
         jout(['ok' => true, 'en_camino' => $yaConfirmadoVendedor]);
         break;

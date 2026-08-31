@@ -1,4 +1,4 @@
-import { get, post } from "./client";
+import { apiUpload, get, post } from "./client";
 import type { Pedido, Producto, Tienda, Usuario } from "../types";
 
 export const vendedorApi = {
@@ -39,6 +39,30 @@ export const vendedorApi = {
     tiempo_preparacion?: string;
     hashtags?: string;
   }) => post<{ ok: true; id: number }>("vendedor_dashboard", "crear_producto", data),
+
+  /** Como `crearProducto`, pero el video se manda como archivo (multipart) en vez de base64 —
+   * más rápido y permite reportar progreso real de subida vía `onProgress`. */
+  crearProductoConVideo: (
+    data: {
+      tienda_id: number;
+      nombre: string;
+      descripcion?: string;
+      precio: number;
+      stock?: number;
+      categoria?: string;
+      es_reel?: boolean;
+      hashtags?: string;
+    },
+    videoUri: string,
+    onProgress?: (fraccion: number) => void,
+  ) =>
+    apiUpload<{ ok: true; id: number }>(
+      "vendedor_dashboard",
+      "crear_producto",
+      { ...data, es_reel: data.es_reel ? 1 : 0 },
+      { field: "video", uri: videoUri, name: "reel.mp4", type: "video/mp4" },
+      onProgress,
+    ),
 
   actualizarProducto: (data: { producto_id: number } & Record<string, unknown>) =>
     post<{ ok: true; estado_stock: string | null; imagen: string | null; video_url: string | null }>(
