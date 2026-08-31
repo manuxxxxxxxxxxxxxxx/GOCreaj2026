@@ -1,43 +1,39 @@
 {
-  "name": "admin-web",
+  "name": "web",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "dev:backend": "cd backend && npm run dev",
-    "build:backend": "cd backend && npm run build",
-    "start:backend": "cd backend && npm run start",
-    "install:backend": "cd backend && npm install",
-    "migrate": "cd backend && npm run migrate:win"
+    "lint": "oxlint",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "axios": "^1.16.1",
-    "i18next": "^26.3.6",
-    "i18next-browser-languagedetector": "^8.2.1",
-    "lucide-react": "^1.16.0",
-    "react": "^19.2.6",
-    "react-dom": "^19.2.6",
-    "react-i18next": "^17.0.11",
-    "react-router-dom": "^7.15.1",
-    "recharts": "^3.10.1",
-    "socket.io-client": "^4.8.3"
+    "@phosphor-icons/react": "^2.1.10",
+    "@react-oauth/google": "^0.13.5",
+    "@tailwindcss/vite": "^4.3.3",
+    "clsx": "^2.1.1",
+    "framer-motion": "^13.1.1",
+    "jwt-decode": "^4.0.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.33.0",
+    "maplibre-gl": "^6.5.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-router-dom": "^7.18.2",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@types/node": "^24.12.3",
-    "@types/react": "^19.2.14",
+    "@types/geojson": "^7946.0.16",
+    "@types/leaflet": "^1.9.22",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
-    "eslint": "^10.3.0",
-    "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.2",
-    "globals": "^17.6.0",
+    "@vitejs/plugin-react": "^6.0.4",
+    "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
-    "typescript-eslint": "^8.59.2",
-    "vite": "^8.0.12"
+    "vite": "^8.2.0"
   }
 }

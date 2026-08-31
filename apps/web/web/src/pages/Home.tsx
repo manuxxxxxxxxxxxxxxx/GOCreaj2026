@@ -1,268 +1,234 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useGlobal } from '../context/GlobalContext';
-import '../../css/index.css';
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Storefront } from "@phosphor-icons/react";
+import { productosApi } from "../lib/api";
+import type { Producto, Tienda } from "../lib/types";
+import { useAuth } from "../context/AuthContext";
+import { useZonaSeleccionada } from "../hooks/useZonaSeleccionada";
+import { StoreCard } from "../components/domain/StoreCard";
+import { ProductCard } from "../components/domain/ProductCard";
+import { ElSalvadorMap } from "../components/domain/ElSalvadorMap";
+import { Skeleton } from "../components/ui/Skeleton";
+import { EmptyState } from "../components/ui/EmptyState";
+import { Carousel } from "../components/ui/Carousel";
+import { Reveal } from "../components/ui/Reveal";
+import { CATEGORIAS, CATEGORIA_LABEL, categoriaEmoji } from "../lib/categoryIcons";
 
-export default function Home() {
-  const { theme, toggleTheme, cartCount } = useGlobal();
-  const navigate = useNavigate();
+// Loosely scattered, not a grid -- signals "everything ships here", not just
+// food, without competing with the headline for attention.
+const HERO_GLYPHS = [
+  { emoji: "🍔", left: "4%", top: "6%", size: 40, rotate: -8 },
+  { emoji: "🛒", left: "34%", top: "0%", size: 46, rotate: 6 },
+  { emoji: "💊", left: "62%", top: "10%", size: 34, rotate: -10 },
+  { emoji: "👟", left: "84%", top: "2%", size: 38, rotate: 10 },
+  { emoji: "📱", left: "10%", top: "52%", size: 36, rotate: 8 },
+  { emoji: "👕", left: "40%", top: "58%", size: 42, rotate: -6 },
+  { emoji: "🛋️", left: "68%", top: "56%", size: 40, rotate: 5 },
+  { emoji: "🚚", left: "90%", top: "50%", size: 34, rotate: -8 },
+] as const;
+
+export function Home() {
+  const { usuario } = useAuth();
+  const { municipio, elegirZona } = useZonaSeleccionada();
+  const [destacadas, setDestacadas] = useState<Tienda[] | null>(null);
+  const [nuevas, setNuevas] = useState<Tienda[] | null>(null);
+  const [productos, setProductos] = useState<Producto[] | null>(null);
+  const [conteoDepartamentos, setConteoDepartamentos] = useState<Record<string, number> | null>(null);
+
+  useEffect(() => {
+    productosApi.tiendasPorDepartamento().then((r) => setConteoDepartamentos(r.conteo)).catch(() => setConteoDepartamentos({}));
+  }, []);
+
+  useEffect(() => {
+    productosApi
+      .tiendasDestacadas({ municipio, limit: 8 })
+      .then((r) => (r.tiendas.length === 0 && municipio ? productosApi.tiendasDestacadas({ limit: 8 }).then((r2) => r2.tiendas) : r.tiendas))
+      .then(setDestacadas)
+      .catch(() => setDestacadas([]));
+    productosApi
+      .nuevasTiendas({ municipio, limit: 8 })
+      .then((r) => (r.tiendas.length === 0 && municipio ? productosApi.nuevasTiendas({ limit: 8 }).then((r2) => r2.tiendas) : r.tiendas))
+      .then(setNuevas)
+      .catch(() => setNuevas([]));
+    productosApi
+      .listar({ municipio, page: 1, limit: 16 })
+      .then((r) => (r.productos.length === 0 && municipio ? productosApi.listar({ page: 1, limit: 16 }).then((r2) => r2.productos) : r.productos))
+      .then(setProductos)
+      .catch(() => setProductos([]));
+  }, [municipio]);
+
+  const hora = new Date().getHours();
+  const saludo = hora < 12 ? "Buenos días" : hora < 19 ? "Buenas tardes" : "Buenas noches";
 
   return (
-    <div className="home-page">
-      <nav>
-        <Link to="/" className="nav-logo">
-          <div className="logo-icon" style={{color: '#fff'}}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M3 9h18v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9Z"/>
-              <path d="M9 22V12h6v10M2 9l10-7 10 7"/>
-            </svg>
+    <div style={{ display: "flex", flexDirection: "column", gap: 36 }}>
+      <section className="glow-mesh hero-banner" style={{ borderRadius: "var(--radius-lg)", background: "var(--surface-1)", border: "1px solid var(--border)", overflow: "hidden" }}>
+        <Reveal style={{ display: "flex", alignItems: "center", gap: 24, padding: "36px 32px", minHeight: 208 }}>
+          <div className="hero-copy" style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 440, flexShrink: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--cyan)" }}>
+              {saludo}{usuario ? `, ${usuario.nombre.split(" ")[0]}` : ""}
+            </span>
+            <h1 style={{ fontSize: "clamp(24px, 3vw, 34px)" }}>¿Qué se te antoja pedir hoy?</h1>
+            <p style={{ fontSize: 14, color: "var(--text-secondary)" }}>
+              Comida, mercado, farmacia, moda y envíos — todo en un mismo lugar, con seguimiento en vivo hasta tu puerta.
+            </p>
+            <Link
+              to="/explorar"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 12, background: "var(--cyan)", color: "var(--cyan-ink)", width: "fit-content", padding: "10px 18px", borderRadius: "var(--radius-sm)", fontWeight: 600, fontSize: 13.5 }}
+            >
+              Explorar tiendas <ArrowRight size={15} weight="bold" />
+            </Link>
           </div>
-          LocalMarket
+          <div className="hero-emoji" aria-hidden="true" style={{ flex: 1, position: "relative", height: 160 }}>
+            {HERO_GLYPHS.map((g) => (
+              <span
+                key={g.emoji}
+                style={{
+                  position: "absolute",
+                  left: g.left,
+                  top: g.top,
+                  fontSize: g.size,
+                  lineHeight: 1,
+                  transform: `rotate(${g.rotate}deg)`,
+                  filter: "drop-shadow(0 10px 14px rgba(0,0,0,0.22))",
+                }}
+              >
+                {g.emoji}
+              </span>
+            ))}
+          </div>
+        </Reveal>
+      </section>
+
+      <section>
+        <h2 style={{ fontSize: 16, marginBottom: 14 }}>Categorías</h2>
+        <Carousel
+          data={CATEGORIAS as unknown as string[]}
+          keyExtractor={(c) => c}
+          itemWidth={72}
+          gap={14}
+          itemsPerPress={4}
+          ariaLabel="Categorías"
+          renderItem={(cat) => {
+            const emoji = categoriaEmoji(cat);
+            return (
+              <Link
+                to={`/explorar?categoria=${cat}`}
+                className="category-badge"
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, width: 72 }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 60,
+                    height: 60,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: 38,
+                    lineHeight: 1,
+                    filter: "drop-shadow(0 6px 8px rgba(0,0,0,0.28))",
+                  }}
+                >
+                  {emoji}
+                </span>
+                <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-secondary)", textAlign: "center" }}>
+                  {CATEGORIA_LABEL[cat as keyof typeof CATEGORIA_LABEL]}
+                </span>
+              </Link>
+            );
+          }}
+        />
+      </section>
+
+      <ElSalvadorMap counts={conteoDepartamentos} productosZona={productos} municipio={municipio} onZonaChange={elegirZona} />
+
+      <Section title="Para ti" seeAll="/explorar">
+        {productos === null ? (
+          <BentoSkeleton />
+        ) : productos.length === 0 ? (
+          <EmptyState icon={<Storefront size={26} />} title="Aún no hay productos en tu zona" description="Prueba explorando otras categorías o vuelve más tarde." />
+        ) : (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+            {productos.map((p, i) => (
+              <Reveal key={p.id} index={i} style={{ gridColumn: i === 0 ? "span 2" : "span 1", gridRow: i === 0 ? "span 2" : undefined }}>
+                <ProductCard producto={p} variant={i === 0 ? "large" : "medium"} />
+              </Reveal>
+            ))}
+          </div>
+        )}
+      </Section>
+
+      <Section title="Nuevas en tu zona" seeAll="/explorar">
+        <HorizontalStores tiendas={nuevas} />
+      </Section>
+
+      <Section title="Tiendas destacadas" seeAll="/explorar">
+        <HorizontalStores tiendas={destacadas} />
+      </Section>
+
+      <style>{`
+        @media (max-width: 760px) {
+          .hero-emoji { display: none; }
+          .hero-banner > div { min-height: 0 !important; }
+          .hero-copy { max-width: none !important; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function Section({ title, seeAll, children }: { title: string; seeAll: string; children: React.ReactNode }) {
+  return (
+    <section>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h2 style={{ fontSize: 16 }}>{title}</h2>
+        <Link to={seeAll} style={{ fontSize: 12.5, fontWeight: 700, color: "var(--cyan)" }}>
+          Ver todo
         </Link>
+      </div>
+      {children}
+    </section>
+  );
+}
 
-        <ul className="nav-links">
-          <li><Link to="/market" className="active">Marketplace</Link></li>
-          <li><Link to="/reels">Reels</Link></li>
-          <li><Link to="/chat">Mensajes</Link></li>
-        </ul>
+function HorizontalStores({ tiendas }: { tiendas: Tienda[] | null }) {
+  if (tiendas === null) {
+    return (
+      <div style={{ display: "flex", gap: 14 }}>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} style={{ width: 200, flexShrink: 0 }}>
+            <Skeleton height={150} radius="var(--radius-md)" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (tiendas.length === 0) {
+    return <EmptyState icon={<Storefront size={24} />} title="Nada por aquí todavía" description="Vuelve pronto — se están sumando tiendas en tu zona." />;
+  }
+  return (
+    <Carousel
+      data={tiendas}
+      keyExtractor={(t) => String(t.id)}
+      itemWidth={200}
+      gap={14}
+      itemsPerPress={2}
+      ariaLabel="Tiendas"
+      renderItem={(t) => <StoreCard tienda={t} />}
+    />
+  );
+}
 
-        <div className="nav-right">
-          <button 
-            className="lm-theme-toggle" 
-            onClick={toggleTheme} 
-            title={theme === 'light' ? 'Activar modo oscuro' : 'Activar modo claro'}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            {theme === 'light' ? (
-              <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="18" height="18">
-                <circle cx="12" cy="12" r="5" fill="currentColor"/>
-                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-              </svg>
-            )}
-          </button>
-          <button className="cart-btn" onClick={() => navigate('/carritoypago')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-            <span className="cart-badge">{cartCount}</span>
-          </button>
-          <button className="roles-btn" onClick={() => navigate('/login')}>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            Perfil / Ingresar
-          </button>
-        </div>
-      </nav>
-
-      <section className="hero">
-        <div className="hero-content">
-          <h1 className="hero-title">Impulsa tu Comunidad<br />Local</h1>
-          <p className="hero-desc">Marketplace digital que conecta emprendedores locales con su comunidad. Compra, vende, invierte y aprende todo en un solo lugar.</p>
-          <div className="hero-btns">
-            <button className="btn-outline-white" onClick={() => navigate('/market')}>Explorar Productos</button>
-            <button className="btn-solid-white" onClick={() => navigate('/market')}>Explorar como Comprador</button>
-          </div>
-        </div>
-        <div className="hero-image-wrap">
-          <div className="hero-img-placeholder"></div>
-        </div>
-      </section>
-
-      <section className="stats">
-        <div className="stat">
-          <div className="stat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </div>
-          <div className="stat-num">1,234</div>
-          <div className="stat-label">Emprendedores Activos</div>
-        </div>
-        <div className="stat">
-          <div className="stat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>
-          </div>
-          <div className="stat-num">5,678</div>
-          <div className="stat-label">Productos Disponibles</div>
-        </div>
-        <div className="stat">
-          <div className="stat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-          </div>
-          <div className="stat-num">890</div>
-          <div className="stat-label">Entregas Hoy</div>
-        </div>
-        <div className="stat">
-          <div className="stat-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          </div>
-          <div className="stat-num">4.8</div>
-          <div className="stat-label">Calificación Promedio</div>
-        </div>
-      </section>
-
-      <section className="section section-bg-light">
-        <div className="centered">
-          <h2 className="section-title">¿Cómo Quieres Participar?</h2>
-          <p className="section-sub">Accede al panel según tu rol en la plataforma</p>
-        </div>
-        <div className="roles-grid">
-          <div className="role-card">
-            <div className="role-icon green">
-              <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
-            </div>
-            <div className="role-title">Soy Vendedor</div>
-            <div className="role-desc">Publica productos, gestiona pedidos y aumenta tus ventas</div>
-            <button className="role-btn green" onClick={() => navigate('/login?role=vendedor&tab=register')}>
-              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-              70% de ganancias
-            </button>
-          </div>
-          <div className="role-card">
-            <div className="role-icon blue">
-              <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-            </div>
-            <div className="role-title">Soy Repartidor</div>
-            <div className="role-desc">Acepta entregas, gana dinero y optimiza tus rutas</div>
-            <button className="role-btn blue" onClick={() => navigate('/login?role=repartidor&tab=register')}>
-              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-              20% de ganancias
-            </button>
-          </div>
-          <div className="role-card">
-            <div className="role-icon purple">
-              <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            </div>
-            <div className="role-title">Soy Comprador</div>
-            <div className="role-desc">Explora productos locales y recibe entregas rápidas</div>
-            <button className="role-btn purple" onClick={() => navigate('/market')}>
-              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-              Ofertas exclusivas
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section className="section section-bg-light" style={{paddingTop: 0}}>
-        <div className="products-header">
-          <div>
-            <h2 className="section-title">Productos Destacados</h2>
-            <p className="section-sub" style={{marginBottom: 0}}>Los más populares en tu zona</p>
-          </div>
-          <a href="#" className="see-all">Ver todos →</a>
-        </div>
-        <div className="products-grid">
-          {[
-            { img: 'https://images.unsplash.com/photo-1608198093002-ad4e005484ec?w=400', name: 'Pan Artesanal Integral', seller: 'Panadería Don José', badge: 'Promoción', badgeCls: 'badge-promo', price: '$4.50' },
-            { img: 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400', name: 'Verduras Orgánicas Mix', seller: 'Huerto Verde', badge: 'Nuevo', badgeCls: 'badge-new', price: '$12.00' },
-            { img: 'https://images.unsplash.com/photo-1442512595331-e89e73853f31?w=400', name: 'Café Premium 250g', seller: 'Café del Barrio', badge: 'Destacado', badgeCls: 'badge-feat', price: '$8.75' },
-            { img: 'https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=400', name: 'Artesanías Decorativas', seller: 'Manos Creativas', badge: 'Popular', badgeCls: 'badge-pop', price: '$25.00' },
-          ].map((item, i) => (
-            <div className="product-card" key={i}>
-              <div className="product-img">
-                <img src={item.img} alt={item.name} />
-                <span className={`product-badge ${item.badgeCls}`}>{item.badge}</span>
-              </div>
-              <div className="product-body">
-                <div className="product-name">{item.name}</div>
-                <div className="product-seller">{item.seller}</div>
-                <div className="product-meta">
-                  <span className="rating"><span className="star">★</span> 4.8</span>
-                  <span className="dot"></span>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="11" height="11"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> 0.5 km</span>
-                </div>
-                <div className="product-footer">
-                  <span className="product-price">{item.price}</span>
-                  <button className="add-btn" onClick={() => navigate('/market')}>Agregar</button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="section features-section">
-        <div className="centered">
-          <h2 className="section-title">Todo lo que Necesitas en un Solo Lugar</h2>
-          <p className="section-sub">Una plataforma completa diseñada para impulsar el comercio local y la economía comunitaria</p>
-        </div>
-        <div className="features-grid">
-          <div className="feature-card">
-            <div className="feature-icon blue">
-              <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
-            </div>
-            <div className="feature-name">Marketplace Local</div>
-            <div className="feature-desc">Descubre productos de emprendedores de tu zona</div>
-          </div>
-          <div className="feature-card">
-            <div className="feature-icon green">
-              <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-            </div>
-            <div className="feature-name">Entregas en Tiempo Real</div>
-            <div className="feature-desc">Seguimiento GPS con información de tráfico en vivo</div>
-          </div>
-          <div className="feature-card">
-            <div className="feature-icon purple">
-              <svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="4"/><circle cx="8" cy="12" r="2"/><path d="M16 8l-4 4 4 4"/></svg>
-            </div>
-            <div className="feature-name">Reels Promocionales</div>
-            <div className="feature-desc">Videos cortos de productos y negocios locales</div>
-          </div>
-          <div className="feature-card">
-            <div className="feature-icon pink">
-              <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-            </div>
-            <div className="feature-name">Chat Integrado</div>
-            <div className="feature-desc">Comunicación directa entre todos los participantes</div>
-          </div>
-        </div>
-      </section>
-
-      <section className="cta-banner">
-        <h2>¿Listo para Empezar?</h2>
-        <p>Únete a nuestra comunidad de emprendedores y forma parte del cambio económico local</p>
-        <div className="cta-btns">
-          <button className="cta-btn" onClick={() => navigate('/market')}>Explorar como Comprador</button>
-          <button className="cta-btn" onClick={() => navigate('/login')}>Registrarme como Vendedor</button>
-          <button className="cta-btn" onClick={() => navigate('/login')}>Ser Repartidor</button>
-        </div>
-      </section>
-
-      <footer>
-        <div className="footer-top">
-          <div className="footer-brand">
-            <div className="logo-wrap">
-              <div className="logo-icon">
-                <svg viewBox="0 0 24 24"><path d="M3 3h18v2H3V3zm0 4h18v2H3V7zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
-              </div>
-              <span className="brand-name">LocalMarket</span>
-            </div>
-            <p>Impulsando la economía local a través de la tecnología</p>
-          </div>
-          <div className="footer-col">
-            <h4>Comprador</h4>
-            <ul>
-              <li><a href="#">Explorar Productos</a></li>
-              <li><a href="#">Reels</a></li>
-              <li><a href="#">Invertir</a></li>
-            </ul>
-          </div>
-          <div className="footer-col">
-            <h4>Vendedor</h4>
-            <ul>
-              <li><a href="#">Dashboard</a></li>
-              <li><a href="#">Capacitación</a></li>
-              <li><a href="#">Financiamiento</a></li>
-            </ul>
-          </div>
-          <div className="footer-col">
-            <h4>Repartidor</h4>
-            <ul>
-              <li><a href="#">Dashboard</a></li>
-              <li><a href="#">Entregas</a></li>
-            </ul>
-          </div>
-        </div>
-        <div className="footer-copy">© 2026 LocalMarket. Todos los derechos reservados.</div>
-      </footer>
+function BentoSkeleton() {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+      <div style={{ gridColumn: "span 2", gridRow: "span 2" }}>
+        <Skeleton height={356} radius="var(--radius-md)" />
+      </div>
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <Skeleton key={i} height={170} radius="var(--radius-md)" />
+      ))}
     </div>
   );
 }

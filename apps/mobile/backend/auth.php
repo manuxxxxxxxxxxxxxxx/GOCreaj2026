@@ -54,16 +54,32 @@ switch ($action) {
         break;
 
     case 'social':
-        require_fields($data, ['provider', 'provider_uid', 'nombre']);
+        require_fields($data, ['provider']);
         $prov = $data['provider'];
         if (!in_array($prov, ['google','apple'])) jout(['ok' => false, 'error' => 'Provider invalido'], 400);
-        $email = $data['email'] ?? null;
+
+        if ($prov === 'google') {
+            // El cliente nunca manda su identidad "de palabra": manda el ID token firmado
+            // por Google y el backend lo verifica antes de confiar en sub/email/name.
+            require_fields($data, ['id_token']);
+            $verificado = verificar_google_id_token($data['id_token']);
+            if (!$verificado) jout(['ok' => false, 'error' => 'Token de Google inválido o expirado'], 401);
+            $providerUid = $verificado['sub'];
+            $email = $verificado['email'];
+            $nombre = $verificado['name'] ?? 'Usuario de Google';
+        } else {
+            require_fields($data, ['provider_uid', 'nombre']);
+            $providerUid = $data['provider_uid'];
+            $email = $data['email'] ?? null;
+            $nombre = $data['nombre'];
+        }
+
         $st = db()->prepare("SELECT * FROM usuarios WHERE (auth_provider = ? AND provider_uid = ?) OR email = ? LIMIT 1");
-        $st->execute([$prov, $data['provider_uid'], $email]);
+        $st->execute([$prov, $providerUid, $email]);
         $u = $st->fetch();
         if (!$u) {
             $ins = db()->prepare("INSERT INTO usuarios (nombre, email, auth_provider, provider_uid, rol) VALUES (?, ?, ?, ?, 'comprador')");
-            $ins->execute([$data['nombre'], $email, $prov, $data['provider_uid']]);
+            $ins->execute([$nombre, $email, $prov, $providerUid]);
             $uid = (int)db()->lastInsertId();
             $u = db()->query("SELECT * FROM usuarios WHERE id = $uid")->fetch();
         }
@@ -103,10 +119,12 @@ switch ($action) {
     case 'actualizar_ubicacion':
         $u = current_user();
         if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
-        require_fields($data, ['municipio']);
+        if (!array_key_exists('municipio', $data)) jout(['ok' => false, 'error' => 'Campo requerido: municipio'], 400);
+        $municipio = $data['municipio'] === '' ? null : $data['municipio'];
         $st = db()->prepare("UPDATE usuarios SET municipio = ?, lat = ?, lng = ? WHERE id = ?");
-        $st->execute([$data['municipio'], $data['lat'] ?? null, $data['lng'] ?? null, $u['id']]);
-        jout(['ok' => true]);
+        $st->execute([$municipio, $data['lat'] ?? null, $data['lng'] ?? null, $u['id']]);
+        $updated = db()->query("SELECT id,nombre,username,email,telefono,rol,foto_perfil,municipio,lat,lng,auth_provider FROM usuarios WHERE id = " . (int)$u['id'])->fetch();
+        jout(['ok' => true, 'usuario' => $updated]);
         break;
 
     case 'check_username':

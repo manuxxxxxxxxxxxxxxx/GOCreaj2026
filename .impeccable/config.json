@@ -1,61 +1,61 @@
-|{
+{
   "detector": {
     "ignoreRules": [],
     "ignoreFiles": [],
     "ignoreValues": [
-      {
-        "rule": "bounce-easing",
-        "value": "typingbounce",
-        "files": [
-          "apps/web/web/css/Chat.css"
-        ],
-        "createdAt": "2026-08-17T03:29:41.405Z",
-        "reason": "Typing-indicator dot bounce is the universal chat-app convention (WhatsApp/iMessage/Messenger/Slack all bounce the three dots) — removing it would make the indicator read as broken, not calmer."
-      },
-      {
-        "rule": "layout-transition",
-        "value": "*",
-        "files": [
-          "apps/web/web/css/Chat.css"
-        ],
-        "createdAt": "2026-08-17T03:31:39.905Z",
-        "reason": "poll-bar width transition directly represents a vote-percentage fill; low-frequency updates (on vote), not a perf-sensitive continuous animation — same pattern already accepted for the checkout progress fill and upload progress bar elsewhere in the app."
-      },
-      {
-        "rule": "layout-transition",
-        "value": "*",
-        "files": [
-          "apps/web/web/css/carritoypago.css"
-        ],
-        "createdAt": "2026-08-17T03:31:41.044Z",
-        "reason": "step-connector-fill width transition directly represents checkout step progress; fires once per step change, not a perf-sensitive continuous animation."
-      },
       {
         "rule": "side-tab",
         "value": "*",
         "files": [
           "apps/web/web/src/pages/Chat.tsx"
         ],
-        "createdAt": "2026-08-17T03:32:52.748Z",
-        "reason": "Left border on the ReplySnapshot/ReplyBar quoted-message blocks is the standard messaging-app reply-quote indicator (WhatsApp/Telegram/iMessage), not a generic card decoration — it marks which message is being answered."
+        "createdAt": "2026-08-27T04:16:19.493Z",
+        "reason": "left accent border is a reply-quote indicator inside chat bubbles (WhatsApp/Telegram/Discord pattern), not a decorative card border"
+      },
+      {
+        "rule": "overused-font",
+        "value": "space grotesk",
+        "createdAt": "2026-08-29T01:08:39.284Z",
+        "reason": "Documented deliberate typography system in FRONTEND_HANDOFF.md (Space Grotesk display + Inter body + IBM Plex Mono numerals), chosen in an earlier design session, not a default I introduced"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "createdAt": "2026-08-29T01:08:40.259Z",
+        "reason": "token de spring pre-existente en el sistema de diseño del proyecto (nivel de animación 'cinematográfico' documentado en FRONTEND_HANDOFF.md), no introducido en esta sesión"
       },
       {
         "rule": "layout-transition",
-        "value": "*",
+        "value": "width var(--dur-base) var(--ease-out)",
         "files": [
-          "apps/web/web/css/Reels.css"
+          "apps/web/web/src/components/layout/SidebarLayout.tsx"
         ],
-        "createdAt": "2026-08-17T03:34:20.492Z",
-        "reason": "Volume-slider expand (32px->130px pill, user-triggered, one-shot) and story-style progress-dot width (6px->18px, negligible reflow) are small, infrequent, purposeful — not continuous/scroll animation."
+        "createdAt": "2026-08-29T01:09:03.355Z",
+        "reason": "Pre-existing sidebar collapse/expand toggle (76px<->240px), predates this session. Discrete, user-initiated, low-frequency interaction (one click, ~220ms), not a continuous/scroll-linked animation -- the reflow cost this rule targets is negligible here. Restructuring to transform-based collapse is out of scope for this session's mobile-app-focused request."
       },
       {
-        "rule": "layout-transition",
-        "value": "*",
+        "rule": "overused-font",
+        "value": "space grotesk",
         "files": [
-          "apps/web/web/src/pages/VendedorDashboard.tsx"
+          "apps/web/web/index.html"
         ],
-        "createdAt": "2026-08-17T03:34:21.507Z",
-        "reason": "Upload progress bar width directly represents real upload percentage from state; updates infrequently (network progress events), not a perf-sensitive continuous animation."
+        "createdAt": "2026-08-29T01:49:26.954Z",
+        "reason": "Deliberate, documented design-system typeface (FRONTEND_HANDOFF.md): Space Grotesk (display) + Inter (body) is the intentional, already-shipped brand pairing across web and mobile, not a lazy default."
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(0.34, 1.56, 0.64, 1)",
+        "files": [
+          "apps/web/web/src/styles/tokens.css"
+        ],
+        "createdAt": "2026-08-29T01:49:27.871Z",
+        "reason": "Documented design-system spring token (--ease-spring, FRONTEND_HANDOFF.md 'nivel cinematografico') used deliberately for discrete button/card press feedback elsewhere in the web dashboard. Distinct from this session's fix, which removed springify()/bounce specifically from React Native auth-screen entrance animations after user feedback that those felt exaggerated -- unrelated component, unrelated context."
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "var(--ease-spring)",
+        "createdAt": "2026-08-30T22:35:42.988Z",
+        "reason": "user confirmed: rebote del badge en IconButton pedido explícitamente en la pasada de animaciones (plan aprobado por el usuario), usa el mismo token de spring ya presente en el proyecto"
       }
     ]
   }

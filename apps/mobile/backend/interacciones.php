@@ -1,11 +1,18 @@
 <?php
 require_once __DIR__ . '/conexion.php';
 
+// Ver reels/comentarios es público; solo las acciones que escriben (dar like,
+// comentar, seguir, etc.) exigen sesión -- cada case que la necesita la valida.
 $user = current_user();
-if (!$user) jout(['ok' => false, 'error' => 'No autenticado'], 401);
 
 $action = $_GET['action'] ?? '';
 $data = jread();
+
+// Acciones de solo lectura, alcanzables sin sesión.
+$PUBLICAS = ['listar_comentarios'];
+if (!$user && !in_array($action, $PUBLICAS, true)) {
+    jout(['ok' => false, 'error' => 'No autenticado'], 401);
+}
 
 function contadores(int $pid): array {
     $pdo = db();
@@ -81,6 +88,7 @@ switch ($action) {
 
     case 'listar_comentarios':
         $pid = (int)($_GET['producto_id'] ?? 0);
+        $meId = $user ? (int)$user['id'] : 0;
         // Devuelve TODOS los comentarios; el frontend arma el árbol con parent_id
         $st = db()->prepare(
             "SELECT c.id, c.producto_id, c.comentario, c.created_at, c.parent_id, c.likes_count,
@@ -91,7 +99,7 @@ switch ($action) {
              WHERE c.producto_id = ?
              ORDER BY c.created_at ASC LIMIT 200"
         );
-        $st->execute([$user['id'], $pid]);
+        $st->execute([$meId, $pid]);
         jout(['ok' => true, 'comentarios' => $st->fetchAll()]);
         break;
 

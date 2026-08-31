@@ -1,0 +1,120 @@
+@import "tailwindcss";
+@import "./styles/global.css";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* shadcn/mapcn tokens, mapped onto SV[Go]'s own cyan design system instead of
+   a generic neutral palette -- kept in sync with styles/tokens.css by hand. */
+:root {
+  --radius: 0.875rem;
+  --background: #f4f6fa;
+  --foreground: #0b1220;
+  --card: #ffffff;
+  --card-foreground: #0b1220;
+  --popover: #ffffff;
+  --popover-foreground: #0b1220;
+  --primary: #0891b2;
+  --primary-foreground: #ffffff;
+  --secondary: #ebeef5;
+  --secondary-foreground: #0b1220;
+  --muted: #ebeef5;
+  --muted-foreground: #8992a8;
+  --accent: #dff3f8;
+  --accent-foreground: #0891b2;
+  --destructive: #c23b3b;
+  --destructive-foreground: #ffffff;
+  --border: #dce1ec;
+  --input: #dce1ec;
+  --ring: #0891b2;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --background: #080b14;
+    --foreground: #f1f4fc;
+    --card: #0f1420;
+    --card-foreground: #f1f4fc;
+    --popover: #0f1420;
+    --popover-foreground: #f1f4fc;
+    --primary: #38d6ff;
+    --primary-foreground: #04141c;
+    --secondary: #161c2c;
+    --secondary-foreground: #f1f4fc;
+    --muted: #161c2c;
+    --muted-foreground: #68708a;
+    --accent: #0e2934;
+    --accent-foreground: #38d6ff;
+    --destructive: #ff6b6b;
+    --destructive-foreground: #04141c;
+    --border: #212a3e;
+    --input: #212a3e;
+    --ring: #38d6ff;
+  }
+}
+
+:root[data-theme="dark"] {
+  --background: #080b14;
+  --foreground: #f1f4fc;
+  --card: #0f1420;
+  --card-foreground: #f1f4fc;
+  --popover: #0f1420;
+  --popover-foreground: #f1f4fc;
+  --primary: #38d6ff;
+  --primary-foreground: #04141c;
+  --secondary: #161c2c;
+  --secondary-foreground: #f1f4fc;
+  --muted: #161c2c;
+  --muted-foreground: #68708a;
+  --accent: #0e2934;
+  --accent-foreground: #38d6ff;
+  --destructive: #ff6b6b;
+  --destructive-foreground: #04141c;
+  --border: #212a3e;
+  --input: #212a3e;
+  --ring: #38d6ff;
+}
+
+@layer base {
+  .maplibregl-popup-content {
+    @apply bg-transparent! shadow-none! p-0! rounded-none!;
+  }
+  .maplibregl-popup-tip {
+    @apply hidden!;
+  }
+  .maplibregl-ctrl-attrib {
+    @apply bg-background! text-muted-foreground! border-border! rounded-md! border! shadow-sm!;
+  }
+  .maplibregl-ctrl-attrib a {
+    @apply text-muted-foreground!;
+  }
+  .maplibregl-ctrl-attrib a:hover {
+    @apply text-foreground!;
+  }
+  .maplibregl-ctrl-attrib-button {
+    @apply bg-transparent! dark:invert;
+  }
+}

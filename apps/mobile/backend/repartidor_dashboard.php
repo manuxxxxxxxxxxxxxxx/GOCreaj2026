@@ -7,15 +7,14 @@ if (!$user || $user['rol'] !== 'repartidor') jout(['ok' => false, 'error' => 'Ac
 $action = $_GET['action'] ?? 'disponibles';
 $data = jread();
 
-// Configuración de comisiones (centralizada)
-const COMISION_PLATAFORMA_PCT = 0.10;   // 10% para la plataforma
-const COMISION_REPARTIDOR_PCT = 0.20;   // 20% del subtotal para el repartidor (envío base)
+// Configuración de comisiones: ver COMISION_PLATAFORMA_PCT / COMISION_REPARTIDOR_PCT
+// en conexion.php (centralizada ahí junto con finalizar_entrega_pedido()).
 
 // Secuencia de sub-estados de una entrega en curso
 const PROGRESO_SECUENCIA = [null, 'camino_tienda', 'recolectado', 'camino_cliente'];
 
-// Un repartidor no puede traer más de N entregas en curso a la vez
-const MAX_PEDIDOS_ACTIVOS = 3;
+// Single Order Lock: un repartidor solo puede traer una entrega en curso a la vez.
+const MAX_PEDIDOS_ACTIVOS = 1;
 
 /** Agrega a cada pedido su lista de items con el stock actual del producto. */
 function adjuntar_items_con_stock(array &$pedidos): void {
@@ -40,6 +39,14 @@ switch ($action) {
         $r->execute([$user['id']]);
         $yo = $r->fetch();
         if (!$yo || !(int)$yo['en_linea']) { jout(['ok' => true, 'pedidos' => [], 'en_linea' => false]); }
+
+        // Single Order Lock: con una entrega activa, no se muestran más solicitudes.
+        $activos = (int)db()->query(
+            "SELECT COUNT(*) FROM pedidos WHERE repartidor_id = {$user['id']} AND estado IN ('preparacion','en_camino')"
+        )->fetchColumn();
+        if ($activos >= MAX_PEDIDOS_ACTIVOS) {
+            jout(['ok' => true, 'pedidos' => [], 'en_linea' => true, 'bloqueado_por_entrega_activa' => true]);
+        }
 
         $st = db()->prepare(
             "SELECT p.*,
@@ -127,13 +134,19 @@ switch ($action) {
         break;
 
     // ─── Confirmación (lado repartidor) de que recogió el pedido en la tienda ───
+    // Ahora exige el código QR que generó el vendedor (ver DESIGN.md "Flujo
+    // logístico") en vez de un tap "de honor" — quien no tiene el código
+    // delante no puede confirmar.
     case 'confirmar_recogida':
-        require_fields($data, ['pedido_id']);
+        require_fields($data, ['pedido_id', 'qr_token']);
         $pid = (int)$data['pedido_id'];
         $sel = db()->prepare("SELECT * FROM pedidos WHERE id = ? AND repartidor_id = ?");
         $sel->execute([$pid, $user['id']]);
         $ped = $sel->fetch();
         if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
+        if (!$ped['qr_recogida_token'] || !hash_equals($ped['qr_recogida_token'], (string)$data['qr_token'])) {
+            jout(['ok' => false, 'error' => 'Código QR inválido, o el vendedor todavía no generó el código de recogida'], 400);
+        }
 
         db()->prepare("UPDATE pedidos SET confirmado_repartidor_recogida = 1, progreso_repartidor = 'recolectado' WHERE id = ?")->execute([$pid]);
 
@@ -143,6 +156,24 @@ switch ($action) {
             crear_notificacion((int)$ped['comprador_id'], 'pedido', '¡Tu pedido va en camino!', "El repartidor recogió tu pedido #SV-{$pid} y va hacia ti.", $pid);
         }
         jout(['ok' => true, 'en_camino' => $yaConfirmadoVendedor]);
+        break;
+
+    // ─── Genera el código QR de entrega al llegar al destino — el comprador
+    // lo escanea desde pedidos_tracking.php (action=confirmar_entrega) para
+    // cerrar el pedido. Reutilizable: si ya existe un token para este pedido
+    // (p. ej. la pantalla se recargó) devuelve el mismo, no genera uno nuevo. ───
+    case 'generar_qr_entrega':
+        require_fields($data, ['pedido_id']);
+        $pid = (int)$data['pedido_id'];
+        $sel = db()->prepare("SELECT * FROM pedidos WHERE id = ? AND repartidor_id = ? AND estado = 'en_camino'");
+        $sel->execute([$pid, $user['id']]);
+        $ped = $sel->fetch();
+        if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado o no está en camino'], 404);
+
+        $token = $ped['qr_entrega_token'] ?: bin2hex(random_bytes(16));
+        db()->prepare("UPDATE pedidos SET qr_entrega_token = ?, qr_entrega_generado_at = COALESCE(qr_entrega_generado_at, NOW()) WHERE id = ?")
+            ->execute([$token, $pid]);
+        jout(['ok' => true, 'qr_token' => $token]);
         break;
 
     // ─── Descartar un pedido disponible: NO lo bloquea para el resto de la flota ───
@@ -212,70 +243,20 @@ switch ($action) {
         jout(['ok' => true, 'progreso_repartidor' => $siguiente]);
         break;
 
-    // ─── COMPLETAR PEDIDO — MOTOR DE COMISIONES TRANSACCIONAL ───
+    // ─── COMPLETAR PEDIDO — respaldo manual del repartidor. El camino principal
+    // ahora es que el COMPRADOR escanee el QR de entrega (pedidos_tracking.php,
+    // action=confirmar_entrega) — este endpoint queda para cuando el comprador
+    // de verdad no puede escanear (sin smartphone, app caída, etc.). Usa la
+    // misma función de liquidación que ese camino, ver conexion.php. ───
     case 'completar':
         require_fields($data, ['pedido_id']);
         $pid = (int)$data['pedido_id'];
-
         try {
-            db()->beginTransaction();
-
-            $sel = db()->prepare("SELECT * FROM pedidos WHERE id = ? AND repartidor_id = ? FOR UPDATE");
-            $sel->execute([$pid, $user['id']]);
-            $ped = $sel->fetch();
-            if (!$ped) { db()->rollBack(); jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404); }
-            if ($ped['estado'] === 'entregado') { db()->rollBack(); jout(['ok' => false, 'error' => 'Pedido ya entregado'], 400); }
-
-            $total = (float)$ped['total'];
-            $comision    = round($total * COMISION_PLATAFORMA_PCT, 2);
-            $ganancia_rp = round($total * COMISION_REPARTIDOR_PCT, 2);
-            $ganancia_vd = round($total - $comision - $ganancia_rp, 2);
-
-            db()->prepare(
-                "UPDATE pedidos
-                 SET estado = 'entregado',
-                     progreso_repartidor = 'entregado',
-                     comision_plataforma = ?,
-                     total_repartidor = ?,
-                     total_vendedor = ?
-                 WHERE id = ?"
-            )->execute([$comision, $ganancia_rp, $ganancia_vd, $pid]);
-
-            db()->prepare(
-                "INSERT INTO wallets (usuario_id, saldo) VALUES (?, ?)
-                 ON DUPLICATE KEY UPDATE saldo = saldo + VALUES(saldo)"
-            )->execute([(int)$ped['vendedor_id'], $ganancia_vd]);
-            db()->prepare(
-                "INSERT INTO wallet_movimientos (usuario_id, tipo, monto, referencia, pedido_id)
-                 VALUES (?, 'venta', ?, 'Venta neta', ?)"
-            )->execute([(int)$ped['vendedor_id'], $ganancia_vd, $pid]);
-
-            db()->prepare(
-                "INSERT INTO wallets (usuario_id, saldo) VALUES (?, ?)
-                 ON DUPLICATE KEY UPDATE saldo = saldo + VALUES(saldo)"
-            )->execute([$user['id'], $ganancia_rp]);
-            db()->prepare(
-                "INSERT INTO wallet_movimientos (usuario_id, tipo, monto, referencia, pedido_id)
-                 VALUES (?, 'entrega', ?, 'Entrega completada', ?)"
-            )->execute([$user['id'], $ganancia_rp, $pid]);
-
-            db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
-                ->execute([$user['id'], (int)$ped['comprador_id'], '✅ Pedido entregado. ¡Gracias por preferirnos!']);
-            crear_notificacion((int)$ped['comprador_id'], 'pedido', 'Pedido entregado', '¡Gracias por preferirnos! Califica tu experiencia.', $pid);
-            crear_notificacion((int)$ped['vendedor_id'], 'pedido', 'Venta completada', "Ganaste \$" . number_format($ganancia_vd, 2) . " por el pedido #{$pid}.", $pid);
-            crear_notificacion($user['id'], 'pedido', 'Entrega completada', "Ganaste \$" . number_format($ganancia_rp, 2) . ".", $pid);
-
-            db()->commit();
-            jout([
-                'ok' => true,
-                'comision' => $comision,
-                'ganancia_repartidor' => $ganancia_rp,
-                'ganancia_vendedor' => $ganancia_vd,
-            ]);
+            $resultado = finalizar_entrega_pedido($pid, $user['id']);
         } catch (Throwable $e) {
-            db()->rollBack();
             jout(['ok' => false, 'error' => $e->getMessage()], 500);
         }
+        jout(['ok' => true] + $resultado);
         break;
 
     // ─── Switch En línea / Fuera de línea ───

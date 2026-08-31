@@ -17,6 +17,7 @@ switch ($action) {
 
     case 'listar':
         $municipio = $_GET['municipio'] ?? null;
+        $departamento = $_GET['departamento'] ?? null;
         $cat       = $_GET['categoria']  ?? null;
         $tiendaId  = isset($_GET['tienda_id']) ? (int)$_GET['tienda_id'] : null;
         $con_coords = !empty($_GET['con_coordenadas']);
@@ -29,12 +30,14 @@ switch ($action) {
         // los muestre sombreados/deshabilitados ("AGOTADO"), solo se ordenan al final.
         // Excepción: si se pide stock_min (ej. sección "Otros productos" del inicio),
         // se ocultan por completo los productos por debajo del umbral (Regla de Norberto).
+        $joinDepto = $departamento ? " JOIN municipios_sv ms ON ms.nombre = t.municipio" : "";
         $q = "SELECT p.*, t.nombre as tienda_nombre, t.municipio, t.lat as tienda_lat, t.lng as tienda_lng, t.vendedor_id,
-                     t.calificacion_promedio as tienda_calificacion
-              FROM productos p JOIN tiendas t ON t.id = p.tienda_id
-              WHERE p.activo = 1 AND t.activo = 1";
+                     t.calificacion_promedio as tienda_calificacion, t.logo as tienda_logo, t.total_resenas as tienda_total_resenas
+              FROM productos p JOIN tiendas t ON t.id = p.tienda_id$joinDepto
+              WHERE p.activo = 1 AND t.activo = 1 AND (p.es_reel = 0 OR p.es_reel IS NULL)";
         $params = [];
         if ($municipio) { $q .= " AND t.municipio = ?"; $params[] = $municipio; }
+        if ($departamento) { $q .= " AND ms.departamento = ?"; $params[] = $departamento; }
         if ($cat)       { $q .= " AND p.categoria = ?"; $params[] = $cat; }
         if ($tiendaId)  { $q .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
         if ($con_coords) { $q .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL"; }
@@ -45,10 +48,11 @@ switch ($action) {
         $rows = $st->fetchAll();
         aplicar_oferta($rows);
 
-        $qc = "SELECT COUNT(*) FROM productos p JOIN tiendas t ON t.id = p.tienda_id
-               WHERE p.activo = 1 AND t.activo = 1";
+        $qc = "SELECT COUNT(*) FROM productos p JOIN tiendas t ON t.id = p.tienda_id$joinDepto
+               WHERE p.activo = 1 AND t.activo = 1 AND (p.es_reel = 0 OR p.es_reel IS NULL)";
         $cparams = [];
         if ($municipio) { $qc .= " AND t.municipio = ?"; $cparams[] = $municipio; }
+        if ($departamento) { $qc .= " AND ms.departamento = ?"; $cparams[] = $departamento; }
         if ($cat)       { $qc .= " AND p.categoria = ?"; $cparams[] = $cat; }
         if ($tiendaId)  { $qc .= " AND p.tienda_id = ?"; $cparams[] = $tiendaId; }
         if ($con_coords) { $qc .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL"; }
@@ -70,14 +74,17 @@ switch ($action) {
     // ─── Nuevas tiendas (últimas registradas) ────────────────────────────
     case 'nuevas_tiendas':
         $municipio = $_GET['municipio'] ?? null;
+        $departamento = $_GET['departamento'] ?? null;
         $limit = min(30, max(1, (int)($_GET['limit'] ?? 12)));
-        $q = "SELECT t.id, t.nombre, t.categoria, t.logo, t.portada, t.foto_negocio,
-                     t.municipio, t.calificacion_promedio, t.total_resenas,
+        $joinDepto = $departamento ? " JOIN municipios_sv ms ON ms.nombre = t.municipio" : "";
+        $q = "SELECT t.id, t.nombre, t.categoria, t.logo, t.portada,
+                     t.municipio, t.lat, t.lng, t.calificacion_promedio, t.total_resenas,
                      u.nombre as vendedor_nombre
-              FROM tiendas t JOIN usuarios u ON u.id = t.vendedor_id
+              FROM tiendas t JOIN usuarios u ON u.id = t.vendedor_id$joinDepto
               WHERE t.activo = 1";
         $params = [];
         if ($municipio) { $q .= " AND t.municipio = ?"; $params[] = $municipio; }
+        if ($departamento) { $q .= " AND ms.departamento = ?"; $params[] = $departamento; }
         $q .= " ORDER BY t.id DESC LIMIT $limit";
         $st = db()->prepare($q);
         $st->execute($params);
@@ -87,15 +94,21 @@ switch ($action) {
     // ─── Tiendas destacadas (ordenadas por estrellas DESC) ───────────────
     case 'tiendas_destacadas':
         $municipio = $_GET['municipio'] ?? null;
+        $departamento = $_GET['departamento'] ?? null;
         $limit = min(30, max(1, (int)($_GET['limit'] ?? 12)));
-        $q = "SELECT t.id, t.nombre, t.categoria, t.logo, t.portada, t.foto_negocio,
-                     t.municipio, t.calificacion_promedio, t.total_resenas, t.ventas_completadas,
+        $joinDepto = $departamento ? " JOIN municipios_sv ms ON ms.nombre = t.municipio" : "";
+        $q = "SELECT t.id, t.nombre, t.categoria, t.logo, t.portada,
+                     t.municipio, t.lat, t.lng, t.calificacion_promedio, t.total_resenas, t.ventas_completadas,
                      u.nombre as vendedor_nombre
-              FROM tiendas t JOIN usuarios u ON u.id = t.vendedor_id
-              WHERE t.activo = 1 AND t.calificacion_promedio > 0";
+              FROM tiendas t JOIN usuarios u ON u.id = t.vendedor_id$joinDepto
+              WHERE t.activo = 1 AND (t.calificacion_promedio > 0 OR t.rating > 0)";
         $params = [];
         if ($municipio) { $q .= " AND t.municipio = ?"; $params[] = $municipio; }
-        $q .= " ORDER BY t.calificacion_promedio DESC, t.total_resenas DESC, t.ventas_completadas DESC LIMIT $limit";
+        if ($departamento) { $q .= " AND ms.departamento = ?"; $params[] = $departamento; }
+        // Real customer ratings outrank the editorial seed rating, which in turn
+        // outranks stores with neither -- so "featured" isn't empty before a
+        // marketplace has accumulated its first reviews.
+        $q .= " ORDER BY (t.calificacion_promedio > 0) DESC, t.calificacion_promedio DESC, t.rating DESC, t.total_resenas DESC, t.ventas_completadas DESC LIMIT $limit";
         $st = db()->prepare($q);
         $st->execute($params);
         jout(['ok' => true, 'tiendas' => $st->fetchAll()]);
@@ -129,25 +142,29 @@ switch ($action) {
     case 'buscar':
         $q_str  = trim($_GET['q']        ?? '');
         $municipio = $_GET['municipio']  ?? null;
+        $departamento = $_GET['departamento'] ?? null;
         $cat    = $_GET['categoria']     ?? null;
         $tiendaId = isset($_GET['tienda_id']) ? (int)$_GET['tienda_id'] : null;
         $page   = max(1, (int)($_GET['page']  ?? 1));
         $limit  = min(60, max(1, (int)($_GET['limit'] ?? 20)));
         $offset = ($page - 1) * $limit;
         $con_coords = !empty($_GET['con_coordenadas']);
+        $joinDepto = $departamento ? " JOIN municipios_sv ms ON ms.nombre = t.municipio" : "";
 
         $params = [];
         if ($q_str !== '') {
             try {
                 $base = "SELECT p.*, t.nombre as tienda_nombre, t.municipio,
                                  t.lat as tienda_lat, t.lng as tienda_lng,
-                                 t.vendedor_id,
+                                 t.vendedor_id, t.calificacion_promedio as tienda_calificacion,
+                                 t.logo as tienda_logo, t.total_resenas as tienda_total_resenas,
                                  MATCH(p.nombre,p.descripcion) AGAINST(? IN BOOLEAN MODE) AS relevancia
-                          FROM productos p JOIN tiendas t ON t.id = p.tienda_id
+                          FROM productos p JOIN tiendas t ON t.id = p.tienda_id$joinDepto
                           WHERE p.activo = 1 AND t.activo = 1
                             AND (MATCH(p.nombre,p.descripcion) AGAINST(? IN BOOLEAN MODE) OR t.nombre LIKE ?)";
                 $params = [$q_str . '*', $q_str . '*', '%' . $q_str . '%'];
                 if ($municipio) { $base .= " AND t.municipio = ?"; $params[] = $municipio; }
+                if ($departamento) { $base .= " AND ms.departamento = ?"; $params[] = $departamento; }
                 if ($cat)       { $base .= " AND p.categoria = ?"; $params[] = $cat; }
                 if ($tiendaId)  { $base .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
                 if ($con_coords) $base .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL";
@@ -158,12 +175,15 @@ switch ($action) {
             } catch (PDOException $e) {
                 $like = '%' . $q_str . '%';
                 $base = "SELECT p.*, t.nombre as tienda_nombre, t.municipio,
-                                 t.lat as tienda_lat, t.lng as tienda_lng, t.vendedor_id
-                          FROM productos p JOIN tiendas t ON t.id = p.tienda_id
+                                 t.lat as tienda_lat, t.lng as tienda_lng, t.vendedor_id,
+                                 t.calificacion_promedio as tienda_calificacion,
+                                 t.logo as tienda_logo, t.total_resenas as tienda_total_resenas
+                          FROM productos p JOIN tiendas t ON t.id = p.tienda_id$joinDepto
                           WHERE p.activo = 1 AND t.activo = 1
                             AND (p.nombre LIKE ? OR p.descripcion LIKE ? OR t.nombre LIKE ?)";
                 $params = [$like, $like, $like];
                 if ($municipio) { $base .= " AND t.municipio = ?"; $params[] = $municipio; }
+                if ($departamento) { $base .= " AND ms.departamento = ?"; $params[] = $departamento; }
                 if ($cat)       { $base .= " AND p.categoria = ?"; $params[] = $cat; }
                 if ($tiendaId)  { $base .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
                 if ($con_coords) $base .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL";
@@ -174,11 +194,14 @@ switch ($action) {
             }
         } else {
             $base = "SELECT p.*, t.nombre as tienda_nombre, t.municipio,
-                             t.lat as tienda_lat, t.lng as tienda_lng, t.vendedor_id
-                      FROM productos p JOIN tiendas t ON t.id = p.tienda_id
+                             t.lat as tienda_lat, t.lng as tienda_lng, t.vendedor_id,
+                             t.calificacion_promedio as tienda_calificacion,
+                             t.logo as tienda_logo, t.total_resenas as tienda_total_resenas
+                      FROM productos p JOIN tiendas t ON t.id = p.tienda_id$joinDepto
                       WHERE p.activo = 1 AND t.activo = 1";
             $params = [];
             if ($municipio) { $base .= " AND t.municipio = ?"; $params[] = $municipio; }
+            if ($departamento) { $base .= " AND ms.departamento = ?"; $params[] = $departamento; }
             if ($cat)       { $base .= " AND p.categoria = ?"; $params[] = $cat; }
             if ($tiendaId)  { $base .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
             if ($con_coords) $base .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL";
@@ -193,6 +216,7 @@ switch ($action) {
 
     case 'reels':
         $municipio = $_GET['municipio'] ?? null;
+        $tiendaIdFiltro = isset($_GET['tienda_id']) ? (int)$_GET['tienda_id'] : null;
         $me = current_user(); // Los reels son públicos; si hay sesión, agregamos el estado personal
         $meId = $me ? (int)$me['id'] : 0;
         $q = "SELECT p.*, t.nombre as tienda_nombre, t.municipio, t.vendedor_id,
@@ -207,6 +231,7 @@ switch ($action) {
               WHERE p.es_reel = 1 AND p.activo = 1";
         $params = [$meId, $meId, $meId];
         if ($municipio) { $q .= " AND t.municipio = ?"; $params[] = $municipio; }
+        if ($tiendaIdFiltro) { $q .= " AND p.tienda_id = ?"; $params[] = $tiendaIdFiltro; }
         $q .= " ORDER BY p.created_at DESC LIMIT 100";
         $st = db()->prepare($q);
         $st->execute($params);
@@ -267,8 +292,22 @@ switch ($action) {
         break;
 
     case 'municipios_catalogo':
-        $st = db()->query("SELECT id, nombre, departamento, lat, lng FROM municipios_sv ORDER BY departamento, nombre");
+        $st = db()->query("SELECT id, nombre, departamento, lat, lng, cobertura_activa FROM municipios_sv ORDER BY departamento, nombre");
         jout(['ok' => true, 'municipios' => $st->fetchAll()]);
+        break;
+
+    // ─── Conteo de tiendas activas por departamento, para el mapa del inicio ───
+    case 'tiendas_por_departamento':
+        $st = db()->query(
+            "SELECT ms.departamento, COUNT(*) as tiendas
+             FROM tiendas t JOIN municipios_sv ms ON ms.nombre = t.municipio
+             WHERE t.activo = 1
+             GROUP BY ms.departamento"
+        );
+        $rows = $st->fetchAll();
+        $conteo = [];
+        foreach ($rows as $r) { $conteo[$r['departamento']] = (int)$r['tiendas']; }
+        jout(['ok' => true, 'conteo' => $conteo]);
         break;
 
     default:

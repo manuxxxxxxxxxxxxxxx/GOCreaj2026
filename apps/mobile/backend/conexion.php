@@ -18,6 +18,11 @@ define('UPLOAD_BASE', __DIR__ . '/uploads/');
 // no vivir en el código fuente.
 define('AUTH_SECRET', 'svgo_2026_9f3a7c1e4b8d5601a2f9c4e7b3d8016fa5c2e9b7d4f1a806');
 define('AUTH_TTL_SECONDS', 60 * 60 * 24 * 30); // 30 días
+// Client ID(s) de OAuth de Google Cloud Console que esta API acepta como "aud" válido
+// en el ID token (ver GOOGLE_AUTH_SETUP.md). Puede llevar varios separados por coma
+// (ej. el mismo Web Client ID que usan mobile y web, más los de builds iOS/Android
+// de producción si se generan). Vacío = login con Google desactivado en el backend.
+define('GOOGLE_CLIENT_IDS', '1075913007504-q6r0l435ah4h4l007i7k83m35chsnso4.apps.googleusercontent.com');
 
 function db(): PDO {
     static $pdo = null;
@@ -398,6 +403,18 @@ function db_migrate(): void {
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_usuario (usuario_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+        // ─── Confirmación de recogida/entrega por código QR (ver DESIGN.md "Flujo logístico") ───
+        // Recogida: reutiliza confirmado_vendedor_recogida/confirmado_repartidor_recogida ya
+        // existentes — el token es lo que el repartidor debe escanear para poder confirmar.
+        "ALTER TABLE pedidos ADD COLUMN qr_recogida_token VARCHAR(40) NULL AFTER confirmado_repartidor_recogida",
+        // Entrega: nuevo par token/timestamp — el repartidor lo genera al llegar, el comprador
+        // lo escanea para disparar la liquidación (finalizar_entrega_pedido).
+        "ALTER TABLE pedidos ADD COLUMN qr_entrega_token VARCHAR(40) NULL AFTER qr_recogida_token",
+        "ALTER TABLE pedidos ADD COLUMN qr_entrega_generado_at DATETIME NULL AFTER qr_entrega_token",
+
+        // productos — hashtags del Reel, separados por espacio, sin el "#" (se agrega al mostrarlos)
+        "ALTER TABLE productos ADD COLUMN hashtags VARCHAR(255) NULL",
     ];
     foreach ($stmts as $sql) {
         try { db()->exec($sql); } catch (PDOException $e) {}
@@ -463,9 +480,63 @@ function jread(): array {
     return is_array($j) ? $j : $_POST;
 }
 
+/**
+ * PDO (con EMULATE_PREPARES=false) devuelve las columnas DECIMAL como string
+ * en vez de number -- ej. calificacion_promedio, lat/lng, precios. Eso rompe
+ * cualquier .toFixed()/aritmética en el frontend. Aquí convertimos solo los
+ * strings con forma decimal explícita ("4.50", "-89.2182000") a float antes
+ * de armar el JSON; los strings sin punto decimal (OTP, teléfonos, tokens,
+ * IDs) nunca calzan el patrón y quedan intactos.
+ */
+function numerizar_decimales($data) {
+    if (is_array($data)) {
+        foreach ($data as $k => $v) {
+            $data[$k] = numerizar_decimales($v);
+        }
+        return $data;
+    }
+    if (is_string($data) && preg_match('/^-?\d+\.\d+$/', $data)) {
+        return (float)$data;
+    }
+    return $data;
+}
+
+/**
+ * Origen (scheme+host) de la petición ACTUAL. Reutilizado tanto para armar
+ * URLs nuevas como para reescribir URLs viejas guardadas en la BD (ver
+ * rewrite_upload_urls) -- así una URL de upload sigue funcionando aunque se
+ * haya guardado desde otra IP/host en el pasado.
+ */
+function current_origin(): string {
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    return "{$scheme}://{$host}";
+}
+
+/**
+ * Reescribe cualquier URL de /uploads/ (sin importar qué host tenía guardado)
+ * para que apunte al host de la petición actual. Necesario porque el host se
+ * fija al momento de subir el archivo (ver upload_url()) y puede volverse
+ * obsoleto si el celular/PC cambia de red -- esto lo corrige en cada
+ * respuesta sin tener que migrar la base de datos ni tocar cada endpoint que
+ * lee imagen/video/logo/portada/foto_perfil.
+ */
+function rewrite_upload_urls($data) {
+    if (is_array($data)) {
+        foreach ($data as $k => $v) {
+            $data[$k] = rewrite_upload_urls($v);
+        }
+        return $data;
+    }
+    if (is_string($data) && preg_match('#^https?://[^/]+(/GOCreaj2026/apps/mobile/backend/uploads/.*)$#', $data, $m)) {
+        return current_origin() . $m[1];
+    }
+    return $data;
+}
+
 function jout($data, int $code = 200): void {
     http_response_code($code);
-    echo json_encode($data, JSON_UNESCAPED_UNICODE);
+    echo json_encode(rewrite_upload_urls(numerizar_decimales($data)), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -483,9 +554,7 @@ function require_fields(array $data, array $fields): void {
  * (teléfono en Expo Go) o un dominio real en producción.
  */
 function upload_url(): string {
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    return "{$scheme}://{$host}/GOCreaj2026/apps/mobile/backend/uploads/";
+    return current_origin() . "/GOCreaj2026/apps/mobile/backend/uploads/";
 }
 
 function save_base64_image(string $b64, string $subdir, string $prefix): ?string {
@@ -597,6 +666,34 @@ function uid_from_token(?string $token): ?int {
     return isset($parts[0]) ? (int)$parts[0] : null;
 }
 
+/**
+ * Verifica un ID token de Google contra el endpoint tokeninfo oficial y confirma que
+ * el "aud" corresponda a uno de los Client ID en GOOGLE_CLIENT_IDS. Nunca hay que
+ * confiar en un provider_uid/email que mande el cliente sin este paso: cualquiera
+ * podría llamar a auth.php?action=social con datos inventados y suplantar a otro
+ * usuario. Devuelve ['sub','email','name'] verificados por Google, o null si el
+ * token es inválido, expiró, o fue emitido para otra app.
+ */
+function verificar_google_id_token(string $idToken): ?array {
+    $allowed = array_filter(array_map('trim', explode(',', GOOGLE_CLIENT_IDS)));
+    if (!$allowed) return null;
+    $ch = curl_init('https://oauth2.googleapis.com/tokeninfo?id_token=' . urlencode($idToken));
+    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 5]);
+    $res = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code !== 200 || !$res) return null;
+    $payload = json_decode($res, true);
+    if (!is_array($payload) || empty($payload['sub'])) return null;
+    if (!in_array($payload['aud'] ?? '', $allowed, true)) return null;
+    if (!in_array($payload['iss'] ?? '', ['accounts.google.com', 'https://accounts.google.com'], true)) return null;
+    return [
+        'sub' => $payload['sub'],
+        'email' => $payload['email'] ?? null,
+        'name' => $payload['name'] ?? null,
+    ];
+}
+
 /** Header Authorization crudo de la petición actual (sin "Bearer "), o cadena vacía. */
 function current_bearer_token(): string {
     $hdr = $_SERVER['HTTP_AUTHORIZATION']
@@ -670,6 +767,75 @@ function enviar_push_expo(int $usuarioId, string $titulo, ?string $cuerpo): void
         curl_exec($ch);
         curl_close($ch);
     } catch (Throwable $e) { /* no crítico */ }
+}
+
+const COMISION_PLATAFORMA_PCT = 0.10;   // 10% para la plataforma
+const COMISION_REPARTIDOR_PCT = 0.20;   // 20% del subtotal para el repartidor (envío base)
+
+/**
+ * Liquida un pedido: marca estado='entregado', calcula comisiones y acredita
+ * las wallets de vendedor y repartidor. Antes vivía solo dentro del action
+ * 'completar' de repartidor_dashboard.php (el repartidor se auto-confirmaba);
+ * ahora también la dispara pedidos_tracking.php cuando el COMPRADOR escanea
+ * el QR de entrega — ver DESIGN.md "Flujo logístico". Misma lógica, un solo
+ * lugar, para que ambos caminos liquiden exactamente igual.
+ *
+ * @throws RuntimeException si el pedido no existe o ya fue entregado.
+ */
+function finalizar_entrega_pedido(int $pid, int $repartidorId): array {
+    db()->beginTransaction();
+    try {
+        $sel = db()->prepare("SELECT * FROM pedidos WHERE id = ? AND repartidor_id = ? FOR UPDATE");
+        $sel->execute([$pid, $repartidorId]);
+        $ped = $sel->fetch();
+        if (!$ped) { db()->rollBack(); throw new RuntimeException('Pedido no encontrado'); }
+        if ($ped['estado'] === 'entregado') { db()->rollBack(); throw new RuntimeException('Pedido ya entregado'); }
+
+        $total = (float)$ped['total'];
+        $comision    = round($total * COMISION_PLATAFORMA_PCT, 2);
+        $ganancia_rp = round($total * COMISION_REPARTIDOR_PCT, 2);
+        $ganancia_vd = round($total - $comision - $ganancia_rp, 2);
+
+        db()->prepare(
+            "UPDATE pedidos
+             SET estado = 'entregado',
+                 progreso_repartidor = 'entregado',
+                 comision_plataforma = ?,
+                 total_repartidor = ?,
+                 total_vendedor = ?
+             WHERE id = ?"
+        )->execute([$comision, $ganancia_rp, $ganancia_vd, $pid]);
+
+        db()->prepare(
+            "INSERT INTO wallets (usuario_id, saldo) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE saldo = saldo + VALUES(saldo)"
+        )->execute([(int)$ped['vendedor_id'], $ganancia_vd]);
+        db()->prepare(
+            "INSERT INTO wallet_movimientos (usuario_id, tipo, monto, referencia, pedido_id)
+             VALUES (?, 'venta', ?, 'Venta neta', ?)"
+        )->execute([(int)$ped['vendedor_id'], $ganancia_vd, $pid]);
+
+        db()->prepare(
+            "INSERT INTO wallets (usuario_id, saldo) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE saldo = saldo + VALUES(saldo)"
+        )->execute([$repartidorId, $ganancia_rp]);
+        db()->prepare(
+            "INSERT INTO wallet_movimientos (usuario_id, tipo, monto, referencia, pedido_id)
+             VALUES (?, 'entrega', ?, 'Entrega completada', ?)"
+        )->execute([$repartidorId, $ganancia_rp, $pid]);
+
+        db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
+            ->execute([$repartidorId, (int)$ped['comprador_id'], '✅ Pedido entregado. ¡Gracias por preferirnos!']);
+        crear_notificacion((int)$ped['comprador_id'], 'pedido', 'Pedido entregado', '¡Gracias por preferirnos! Califica tu experiencia.', $pid);
+        crear_notificacion((int)$ped['vendedor_id'], 'pedido', 'Venta completada', "Ganaste \$" . number_format($ganancia_vd, 2) . " por el pedido #{$pid}.", $pid);
+        crear_notificacion($repartidorId, 'pedido', 'Entrega completada', "Ganaste \$" . number_format($ganancia_rp, 2) . ".", $pid);
+
+        db()->commit();
+        return ['comision' => $comision, 'ganancia_repartidor' => $ganancia_rp, 'ganancia_vendedor' => $ganancia_vd];
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) db()->rollBack();
+        throw $e;
+    }
 }
 
 function distancia_km(float $lat1, float $lng1, float $lat2, float $lng2): float {

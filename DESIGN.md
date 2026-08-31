@@ -82,6 +82,14 @@ components:
     padding: "4px 12px"
 ---
 
+> **⚠️ OBSOLETO (2026-08-23):** este documento describe el sistema visual "Bandera
+> Institucional" (navy+dorado) de un frontend que fue **borrado por completo** y
+> reconstruido desde cero con un sistema de diseño distinto (dark cian). Ver
+> **`FRONTEND_HANDOFF.md`** en la raíz del repo para el diseño y la arquitectura vigentes.
+> La única sección de este archivo que sigue siendo válida es **"Flujo logístico —
+> confirmación por código QR"** más abajo: es lógica de negocio del backend (aún vigente),
+> no diseño visual.
+
 ## Overview
 
 [SV]Go es un marketplace hyperlocal de delivery para El Salvador (4 roles: Comprador, Vendedor, Repartidor, Admin) en dos codebases que comparten un backend PHP/MySQL: web React+Vite (`apps/web/web`) y app React Native/Expo (`apps/mobile/frontend`).
@@ -98,24 +106,37 @@ Color strategy: **Committed** — el azul primario cubre 30–60% de cada pantal
 
 - **Primary** (`#2C4BC4` ultramar claro / `#2F9BF5` azul-cian oscuro) — dominante. Headers, CTAs primarios, nav activa, degradado ambiental. En claro es deliberadamente más profundo que un azul SaaS genérico; en oscuro es más brillante porque así lo pidió el usuario a partir de referencias reales.
 - **Primary Deep** (`#1B2F82` / `#1C7AD1` oscuro) — pressed states, extremo del gradiente en botones/heros.
-- **Accent** (`#E8B923` dorado claro / `#F0C24B` oscuro) — dorado, no naranja (se corrigió desde `#F0A202`, que se percibía anaranjado). Lleva una **animación de brillo constante** (glow pulsante + destello diagonal que cruza el botón cada 2.4s) en el CTA "Entrega Express" — es el único elemento con esa animación de brillo, no generalizarla a otros botones. Reservado para urgencia, CTA de compra, momentos de éxito.
+- **Accent** (`#E8B923` dorado claro / `#F0C24B` oscuro) — dorado, no naranja (se corrigió desde `#F0A202`, que se percibía anaranjado). Lleva una **animación de brillo constante** (glow pulsante + destello diagonal que cruza el botón cada 2.4s) reservada a **un único CTA por flujo** — hoy el botón "Confirmar pedido" del checkout — no generalizarla a otros botones (ni siquiera a los de escanear/generar QR, por más que también sean momentos importantes). Reservado para urgencia, CTA de compra, momentos de éxito.
 - **Success** (`#16A34A` / `#34D399`) — solo confirmado/entregado.
 - **Destructive** (`#DC2626` / `#F87171`) — solo errores/cancelaciones.
 - Neutrales con sesgo azul en ambos modos — nunca gris puro.
 
 ### Fondo ambiental (el cambio más importante frente al sistema "evolved-blue")
 
-Toda la página —no solo el hero— vive sobre un degradado diagonal (155deg) con **un resplandor radial integrado**, no dos manchas (`.blob`) sueltas flotando por separado (versión anterior: se veían como "dos pelotas" — corregido fusionando el resplandor directamente dentro de la variable `--ambient` como una segunda capa `radial-gradient`, siempre la misma posición, sin blobs independientes):
+Toda la página —no solo el hero— vive sobre un degradado diagonal (160deg) con **un resplandor radial integrado**, no dos manchas (`.blob`) sueltas flotando por separado (versión anterior: se veían como "dos pelotas" — corregido fusionando el resplandor directamente dentro de la variable `--ambient` como una segunda capa `radial-gradient`, siempre la misma posición, sin blobs independientes).
 
-- **Claro**: `radial-gradient(66% 56% at 84% 4%, rgba(44,75,196,.34), transparent 74%), linear-gradient(155deg, #FBFDFF 0%, #F1F8FF 20%, #E4F0FE 40%, #D3E6FC 60%, #C2DAFA 80%, #B2CEF7 100%)`
-- **Oscuro**: `radial-gradient(66% 56% at 84% 4%, rgba(47,155,245,.48), transparent 74%), linear-gradient(155deg, #04060C 0%, #070B16 25%, #0B1220 50%, #0F1729 75%, #14213B 100%)`
+**v5 (actual) — versión suavizada:** el usuario señaló que la v4 se sentía "seca"/con cortes de color notorios. Se bajó la opacidad del resplandor (~.34→.14 claro, .48→.20 oscuro), se agrandó el radio (66%→85%) y se sumaron más paradas de color intermedias en el degradado lineal para que la transición sea gradual, sin bandas visibles:
+
+- **Claro**: `radial-gradient(85% 75% at 82% 0%, rgba(44,75,196,.14), transparent 82%), linear-gradient(160deg, #FBFDFF 0%, #F8FBFF 22%, #F3F8FE 40%, #EEF4FD 56%, #E8F1FC 70%, #E1ECFA 85%, #DAE6F8 100%)`
+- **Oscuro**: `radial-gradient(85% 75% at 82% 0%, rgba(47,155,245,.20), transparent 82%), linear-gradient(160deg, #06090F 0%, #080C17 22%, #0A0F1D 40%, #0D1423 56%, #0F1828 70%, #121D30 85%, #152238 100%)`
 
 Reglas duras:
 - **El resplandor vive dentro de `--ambient`, nunca como elementos `.blob` separados** — esa fue la corrección explícita del usuario ("no me gusta que se vean como dos pelotas"). Si se necesita más de un punto de luz, se resuelve con más capas `radial-gradient` en la misma variable, nunca con divs posicionados independientemente.
-- Puede animarse (deriva de posición muy lenta, ~60s, `prefers-reduced-motion` respetado) pero el movimiento debe ser casi imperceptible — nunca "opacar la vista".
+- **Deriva ambiental (web): ya implementada, no solo aspiracional.** `background-size: 160% 160%` + `animation: ambientDrift 64s ease-in-out infinite alternate` moviendo `background-position` en un rango chico (8–40%). Respeta `prefers-reduced-motion`. Es intencionalmente casi imperceptible — es una de las señales de "vida" del sistema, no debe notarse como movimiento, solo evitar que el fondo se sienta estático/muerto.
 - Toda superficie de contenido (tarjetas, navbars, paneles) flota encima en **glass**: `rgba(surface, .93)` + `backdrop-filter: blur(14px) saturate(100%)` — la opacidad alta (93%) es deliberada: el fondo nunca debe teñir el texto ni reducir su contraste. No subir el `saturate()` del blur por encima de 100% — eso intensifica el color que se filtra detrás del texto.
 - Excepción: superficies operativas muy densas (tablas de Admin/Vendedor con muchas filas) pueden usar `--surface` sólido en vez de `.glass` si la legibilidad a alta densidad lo exige — la claridad de Operate gana sobre el efecto visual.
-- **Mobile (React Native):** se implementa con `expo-linear-gradient` (componente `AmbientBackground`) y `expo-blur` (`<BlurView>`) para el efecto vidrio — RN no tiene `backdrop-filter` nativo. A diferencia de la web, el degradado en mobile es **estático, sin la deriva animada de 60s** — la audiencia real (Android gama media/baja en El Salvador) no debe pagar el costo de repintar un degradado grande cada frame.
+- **Mobile (React Native):** se implementa con `expo-linear-gradient` (componente `AmbientBackground`) y `expo-blur` (`<BlurView>`) para el efecto vidrio — RN no tiene `backdrop-filter` nativo. A diferencia de la web, el degradado en mobile **sigue sin la deriva animada** — la audiencia real (Android gama media/baja en El Salvador) no debe pagar el costo de repintar un degradado grande cada frame. Sí debe llevar la misma paleta v5 suavizada.
+
+### Señales de "vida" (nuevo, v5)
+
+El usuario señaló que el sistema se sentía "seco" a pesar de estar visualmente correcto. No se resuelve subiendo saturación/contraste (contradiría la sección anterior) sino con **micro-interacciones reales**, todas ya validadas en la propuesta interactiva:
+
+- Deriva ambiental (ver arriba).
+- Punto de notificación (campana) con pulso continuo sutil (`~1.8s`).
+- Cantidades de carrito/producto con steppers +/- que **de verdad** recalculan el número y el subtotal en pantalla, no decorativos.
+- Indicador de "escribiendo…" (3 puntos con bounce) en chat antes de que llegue una respuesta — nunca una respuesta instantánea a una acción del usuario.
+- Elevación sutil en hover para más superficies (KPI tiles, vendor cards), no solo product cards.
+- El brillo animado del acento dorado (ver sección Colores) se mantiene **reservado a un único CTA por flujo** — en checkout, el botón "Confirmar pedido". No generalizar a los botones de escaneo de QR ni a otros CTAs, por más "vivos" que se quiera sentir el resto: la regla de exclusividad es lo que le da peso a ese momento.
 
 ## Tipografía
 
@@ -135,6 +156,20 @@ Archivos: `Archivo-Bold.ttf`, `Archivo-ExtraBold.ttf`, `HankenGrotesk-Regular.tt
 - **Comprador (Market/Home):** foto de producto/comercio grande y protagonista — confirmado explícitamente por el usuario (no ilustración de reemplazo).
 - **Operativas (Vendedor/Admin):** dato (precio, estado, comprador) lidera; imagen pequeña/funcional.
 - Regla de negocio invariable: nunca diseñar un flujo que implique entrega fuera de un municipio con `cobertura_activa`.
+- **Explorar:** buscador real y funcional arriba de la pantalla (no decorativo) — filtra tiendas/productos en vivo, combinable con chips de categoría y "cobertura activa".
+- **Reels:** feed a pantalla completa (full-bleed, sin recuadro ni gap entre reels), navegación **exclusivamente por scroll vertical con snap** — nunca flechas, tabs ni swipe horizontal. Mismo patrón en web y mobile.
+
+## Fotografía — la app se ve, no se lee (nuevo, v5)
+
+Dirección explícita del usuario: las pantallas de comprador deben sentirse tan visuales/animadas como Deliveroo, PedidosYa o la app de McDonald's — **imágenes reales de fotografía** (comida, productos, tiendas, banners promocionales) llevando el peso visual de la pantalla, no texto ni iconos haciendo ese trabajo. Esto es fotografía de contenido, un requisito nuevo y distinto de la regla de iconografía de línea (esa sigue aplicando solo a controles de UI — ver Componentes).
+
+- **Más imagen que texto en toda pantalla de comprador** (Home, Market/Explorar, detalle de producto/tienda, Reels): la foto es el elemento dominante del layout, el texto es apoyo (nombre, precio, badge), no al revés. Si una tarjeta o sección se siente "vacía", la respuesta es una imagen más grande, no más copy.
+- **Categorías con foto, no icono.** Los chips/tiles de categoría (Comida, Farmacia, Abarrotes, etc.) llevan una imagen fotográfica representativa de fondo (con overlay de degradado para legibilidad del label encima), igual que los tiles de categoría de Deliveroo/PedidosYa — nunca un ícono de línea solo ni un emoji.
+- **Banner/carrusel hero en Home y Market:** franja de imágenes grandes (promos, destacados, tiendas nuevas) tipo carrusel horizontal con snap, foto a sangre completa (full-bleed dentro de su tarjeta), texto superpuesto mínimo — mismo patrón que el hero de banners de McDonald's app.
+- **Tarjeta de producto/tienda:** la imagen ocupa la mayoría del área de la tarjeta (no un thumbnail chico al costado); el bloque de texto (nombre, precio, rating) es una franja compacta debajo o superpuesta con degradado, nunca la mitad del espacio de la tarjeta.
+- **Nunca usar un placeholder gris/ícono como sustituto permanente de una foto de producto/tienda en pantallas de comprador** — si falta la foto real, se resuelve con shimmer de carga (animación #4) mientras llega, no con un ícono de reemplazo estático.
+- Esta regla es **exclusiva de pantallas de comprador** (Home, Market, Explorar, Reels, detalle de producto/tienda). Las pantallas operativas (Vendedor/Admin/Repartidor) mantienen "dato lidera, imagen pequeña" — invertir esa jerarquía ahí reduciría la claridad que el usuario pidió para Operate (ver Layout arriba).
+- No confundir con los iconos de línea de UI (nav, botones, controles) — esos se mantienen como están (ver Componentes); la regla de "más imagen que texto" es sobre contenido (producto/tienda/promo), no sobre controles de interfaz.
 
 ## Navbars
 
@@ -183,14 +218,26 @@ El sistema anterior tenía ~5 momentos de movimiento orquestados. Este sistema d
 
 Todas respetan `prefers-reduced-motion: reduce` (desactivar o saltar al estado final, nunca dejar un elemento "colgado" a mitad de animación).
 
+## Flujo logístico — confirmación por código QR (nuevo, v5)
+
+Reemplaza la confirmación manual ("marcar como recogido/entregado" con un botón suelto) por evidencia física de que la recogida y la entrega ocurrieron:
+
+1. **Recogida:** cuando el Vendedor marca un pedido como "listo", la tienda genera un **código QR único por pedido**. El Repartidor lo escanea al retirar el paquete — recién ahí se activa el seguimiento en tiempo real para el Comprador (antes de escanear, el Comprador ve "en preparación", no un mapa con movimiento falso).
+2. **Entrega:** al llegar al destino, el Repartidor genera un **segundo código QR de confirmación** (distinto al de recogida). El Comprador lo escanea desde su propio dispositivo para cerrar el pedido — ese escaneo es el que dispara el "sello de aprobación" (animación firma #9), no un botón de "marcar entregado" del lado del repartidor.
+3. Cada código es de un solo uso y expira al ser escaneado o al cerrarse el pedido — no reutilizar el mismo token para recogida y entrega, son eventos distintos con responsables distintos (vendedor↔repartidor, repartidor↔comprador).
+4. La UI de "escanear" es el visor de cámara con marcas de esquina + línea de escaneo animada (`scannerView`); la UI de "generar" es el propio código QR en una tarjeta clara, con una frase de una línea explicando a quién mostrárselo. Nunca combinar generación y escaneo en la misma pantalla para el mismo rol en el mismo instante.
+5. Este flujo es la única razón de negocio por la que el seguimiento en tiempo real "se activa" en un momento preciso — antes de la recogida no hay tracking real que mostrar, así que la pantalla de seguimiento del Comprador debe reflejar honestamente el estado "preparando" sin simular movimiento.
+
 ## Do's y Don'ts
 
 - **Do** tratar el fondo ambiental como presente en toda la app, no solo en el hero — es la seña de identidad más fuerte de este sistema.
 - **Do** mantener las superficies de contenido casi opacas (93%) sobre el fondo — el vidrio es para dar profundidad, no para que el texto pierda contraste.
 - **Do** usar Archivo únicamente en display/heading/numerales — nunca en párrafos largos (se vuelve pesado a tamaños de cuerpo).
 - **Do** mantener animaciones orquestadas y con propósito — cada una de las 9 categorías tiene un porqué, no son decoración.
+- **Do** hacer que las pantallas de comprador se sientan tan visuales como Deliveroo/PedidosYa/McDonald's app — foto real dominando la tarjeta, texto como apoyo (ver "Fotografía" arriba).
 - **Don't** subir la saturación o el contraste local del degradado ambiental — es la corrección más importante de esta iteración, ya validada por el usuario.
 - **Don't** usar emoji como icono funcional en ningún lugar — regla heredada, ya corregida una vez en esta misma sesión de diseño.
+- **Don't** resolver una categoría, banner o tarjeta de producto/tienda con un ícono de línea o un bloque de color liso en pantallas de comprador — ahí va fotografía real, el ícono de línea es solo para controles de UI.
 - **Don't** reintroducir Unbounded, Sora o Manrope en pantallas nuevas — el sistema tipográfico actual es Archivo + Hanken Grotesk.
 - **Don't** usar azul brillante/glow como acento de modo oscuro — es exactamente el patrón que se corrigió ("Añil Nocturno"); en oscuro el dorado lleva la luz, el azul lleva la marca.
 - **Don't** usar count-up plano ni el card-flip 3D genérico — fueron reemplazados por split-flap y sello de aprobación precisamente por leerse como "lo que haría cualquier IA".

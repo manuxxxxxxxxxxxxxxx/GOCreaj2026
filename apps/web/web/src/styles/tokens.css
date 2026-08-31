@@ -1,0 +1,178 @@
+:root {
+  --bg-page: #e9ecf3;
+  --surface-0: #e9ecf3;
+  --surface-1: #f3f4f9;
+  --surface-2: #e3e7ef;
+  --surface-3: #d5dae6;
+
+  --text-primary: #10162a;
+  --text-secondary: #4b5670;
+  --text-muted: #828ba1;
+
+  --border: #d2d8e4;
+  --border-strong: #b9c1d6;
+
+  --cyan: #0891b2;
+  --cyan-ink: #ffffff;
+  --cyan-bg: #dff3f8;
+  --cyan-glow: rgba(8, 145, 178, 0.16);
+
+  /* Secondary vibrant accent -- cyan stays the brand identity color, this is
+     for badges/promos/highlights that need to pop without turning every
+     screen cyan-on-cyan. */
+  --violet: #7c3aed;
+  --violet-ink: #ffffff;
+  --violet-bg: #ede4fd;
+  --violet-glow: rgba(124, 58, 237, 0.12);
+  --coral: #f5642e;
+  --coral-ink: #ffffff;
+  --coral-bg: #fde5da;
+
+  --ok: #0f8f5f;
+  --ok-bg: #deF4E9;
+  --ok-ink: #063d29;
+  --warn: #b4700a;
+  --warn-bg: #fbebd3;
+  --warn-ink: #4a2c04;
+  --danger: #c23b3b;
+  --danger-bg: #fbe2e2;
+  --danger-ink: #4a1414;
+
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(11, 18, 32, 0.06);
+  --shadow-md: 0 8px 24px rgba(11, 18, 32, 0.08);
+  --shadow-lg: 0 20px 48px rgba(11, 18, 32, 0.14);
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 420ms;
+
+  /* Glow accents -- reserved for primary CTAs, active nav state, and
+     "in progress" indicators. Never stack more than 1-2 per screen. */
+  --glow-cyan-sm: 0 0 0 1px var(--cyan-glow), 0 2px 10px -2px var(--cyan-glow);
+  --glow-cyan-md: 0 0 0 1px var(--cyan-glow), 0 6px 22px -4px var(--cyan-glow);
+  --glow-cyan-lg: 0 0 0 1px var(--cyan-glow), 0 10px 40px -6px var(--cyan-glow);
+  --glow-violet-sm: 0 0 0 1px var(--violet-glow), 0 2px 10px -2px var(--violet-glow);
+
+  --z-topbar: 40;
+  --z-sidebar: 30;
+  --z-sheet: 100;
+  --z-toast: 1000;
+
+  --bg-page-image: none;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg-page: #0a0e19;
+    --surface-0: #0a0e19;
+    --surface-1: #121a2c;
+    --surface-2: #1a2338;
+    --surface-3: #242f48;
+
+    --bg-page-image: radial-gradient(ellipse 1100px 640px at 18% -12%, #16203a 0%, rgba(22, 32, 58, 0) 60%),
+      radial-gradient(ellipse 900px 620px at 100% 8%, #12233a 0%, rgba(18, 35, 58, 0) 55%),
+      radial-gradient(ellipse 1000px 700px at 85% 100%, #101a2e 0%, rgba(16, 26, 46, 0) 55%);
+
+    --text-primary: #f1f4fc;
+    --text-secondary: #a6b0c8;
+    --text-muted: #68708a;
+
+    --border: #212a3e;
+    --border-strong: #2d3750;
+
+    --cyan: #38d6ff;
+    --cyan-ink: #04141c;
+    --cyan-bg: #0e2934;
+    --cyan-glow: rgba(56, 214, 255, 0.22);
+
+    --violet: #a78bfa;
+    --violet-ink: #1b0f38;
+    --violet-bg: #241a42;
+    --violet-glow: rgba(167, 139, 250, 0.16);
+    --coral: #ff8a5c;
+    --coral-ink: #2c1206;
+    --coral-bg: #3a2013;
+
+    --ok: #3cde93;
+    --ok-bg: #0e2a1e;
+    --ok-ink: #bdf6d9;
+    --warn: #ffb648;
+    --warn-bg: #2e2107;
+    --warn-ink: #ffe1ae;
+    --danger: #ff6b6b;
+    --danger-bg: #2e1414;
+    --danger-ink: #ffc9c9;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.5);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg-page: #080b14;
+  --surface-0: #080b14;
+  --surface-1: #0f1420;
+  --surface-2: #161c2c;
+  --surface-3: #1e2537;
+
+  --text-primary: #f1f4fc;
+  --text-secondary: #a6b0c8;
+  --text-muted: #68708a;
+
+  --border: #212a3e;
+  --border-strong: #2d3750;
+
+  --cyan: #38d6ff;
+  --cyan-ink: #04141c;
+  --cyan-bg: #0e2934;
+  --cyan-glow: rgba(56, 214, 255, 0.22);
+
+  --violet: #a78bfa;
+  --violet-ink: #1b0f38;
+  --violet-bg: #241a42;
+  --violet-glow: rgba(167, 139, 250, 0.16);
+  --coral: #ff8a5c;
+  --coral-ink: #2c1206;
+  --coral-bg: #3a2013;
+
+  --ok: #3cde93;
+  --ok-bg: #0e2a1e;
+  --ok-ink: #bdf6d9;
+  --warn: #ffb648;
+  --warn-bg: #2e2107;
+  --warn-ink: #ffe1ae;
+  --danger: #ff6b6b;
+  --danger-bg: #2e1414;
+  --danger-ink: #ffc9c9;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 24px 56px rgba(0, 0, 0, 0.5);
+
+  color-scheme: dark;
+}

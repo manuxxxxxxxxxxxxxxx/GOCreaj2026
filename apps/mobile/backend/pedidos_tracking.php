@@ -57,12 +57,14 @@ switch ($action) {
                     v.nombre as vendedor_nombre,
                     r.nombre as repartidor_nombre, r.foto_perfil as repartidor_foto, r.telefono as repartidor_telefono,
                     r.repartidor_calificacion_promedio, r.repartidor_total_resenas,
+                    rs.tipo_vehiculo as repartidor_vehiculo,
                     (SELECT COUNT(*) FROM pedidos WHERE repartidor_id = r.id AND estado = 'entregado') AS repartidor_entregas_completadas,
                     c.nombre as comprador_nombre, c.telefono as comprador_telefono,
                     t.nombre as tienda_nombre, t.lat as tienda_lat, t.lng as tienda_lng, t.direccion as tienda_direccion
              FROM pedidos p
              JOIN usuarios v ON v.id = p.vendedor_id
              LEFT JOIN usuarios r ON r.id = p.repartidor_id
+             LEFT JOIN solicitudes_rol rs ON rs.usuario_id = r.id AND rs.estado = 'aprobado' AND rs.rol_solicitado = 'repartidor'
              JOIN usuarios c ON c.id = p.comprador_id
              LEFT JOIN tiendas t ON t.vendedor_id = v.id
              WHERE p.id = ?"
@@ -77,6 +79,32 @@ switch ($action) {
         $items->execute([$pid]);
         $pedido['items'] = $items->fetchAll();
         jout(['ok' => true, 'pedido' => $pedido]);
+        break;
+
+    // ─── Confirmación (lado comprador) de entrega, vía QR del repartidor ───
+    // Cierra el pedido y dispara la liquidación — ver DESIGN.md "Flujo
+    // logístico" y finalizar_entrega_pedido() en conexion.php.
+    case 'confirmar_entrega':
+        if ($user['rol'] !== 'comprador') jout(['ok' => false, 'error' => 'Solo el comprador puede confirmar la entrega'], 403);
+        require_fields($data, ['pedido_id', 'qr_token']);
+        $pid = (int)$data['pedido_id'];
+
+        $sel = db()->prepare("SELECT * FROM pedidos WHERE id = ? AND comprador_id = ?");
+        $sel->execute([$pid, $user['id']]);
+        $ped = $sel->fetch();
+        if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
+        if ($ped['estado'] !== 'en_camino') jout(['ok' => false, 'error' => 'Este pedido no está en camino'], 400);
+        if (!$ped['repartidor_id']) jout(['ok' => false, 'error' => 'Este pedido no tiene repartidor asignado'], 400);
+        if (!$ped['qr_entrega_token'] || !hash_equals($ped['qr_entrega_token'], (string)$data['qr_token'])) {
+            jout(['ok' => false, 'error' => 'Código QR inválido, o el repartidor todavía no generó el código de entrega'], 400);
+        }
+
+        try {
+            $resultado = finalizar_entrega_pedido($pid, (int)$ped['repartidor_id']);
+        } catch (Throwable $e) {
+            jout(['ok' => false, 'error' => $e->getMessage()], 500);
+        }
+        jout(['ok' => true] + $resultado);
         break;
 
     default:

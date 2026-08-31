@@ -114,9 +114,18 @@ switch ($action) {
             jout(['ok' => false, 'error' => 'El precio de oferta debe ser menor al precio normal'], 400);
         }
 
+        // Hashtags: se guardan sin "#" y separados por un solo espacio; el "#" se agrega
+        // solo al mostrarlos, así el mismo valor sirve para buscar/comparar sin símbolos.
+        $hashtags = null;
+        if (!empty($data['hashtags'])) {
+            $tags = preg_split('/[\s,#]+/', trim($data['hashtags']), -1, PREG_SPLIT_NO_EMPTY);
+            $tags = array_values(array_unique(array_map('mb_strtolower', $tags)));
+            if ($tags) $hashtags = implode(' ', $tags);
+        }
+
         $st = db()->prepare(
-            "INSERT INTO productos (tienda_id, nombre, descripcion, precio, precio_oferta, stock, imagen, video, categoria, es_reel, estado_stock, tiempo_preparacion)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO productos (tienda_id, nombre, descripcion, precio, precio_oferta, stock, imagen, video_url, categoria, es_reel, estado_stock, tiempo_preparacion, hashtags)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $st->execute([
             $data['tienda_id'],
@@ -131,6 +140,7 @@ switch ($action) {
             !empty($data['es_reel']) ? 1 : 0,
             $estado_stock,
             $data['tiempo_preparacion'] ?? null,
+            $hashtags,
         ]);
         jout(['ok' => true, 'id' => (int)db()->lastInsertId()]);
         break;
@@ -249,8 +259,10 @@ switch ($action) {
 
     // ─── Rechazar pedido: cambia estado y dispara reversión del pago ───
     case 'rechazar_pedido':
-        require_fields($data, ['pedido_id']);
+        require_fields($data, ['pedido_id', 'razon']);
         $pid = (int)$data['pedido_id'];
+        $razon = trim((string)$data['razon']);
+        if ($razon === '') jout(['ok' => false, 'error' => 'Selecciona o escribe una razón de rechazo'], 400);
         try {
             db()->beginTransaction();
             $sel = db()->prepare("SELECT * FROM pedidos WHERE id = ? AND vendedor_id = ?");
@@ -271,8 +283,8 @@ switch ($action) {
                 ->execute([(int)$ped['comprador_id'], $monto, $pid]);
 
             db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
-                ->execute([$user['id'], (int)$ped['comprador_id'], '❌ El vendedor rechazó tu pedido. Se reembolsó el total a tu billetera.']);
-            crear_notificacion((int)$ped['comprador_id'], 'pedido', 'Pedido rechazado', 'El vendedor rechazó tu pedido. Se reembolsó el total a tu billetera.', $pid);
+                ->execute([$user['id'], (int)$ped['comprador_id'], "❌ El vendedor rechazó tu pedido. Motivo: {$razon}. Se reembolsó el total a tu billetera."]);
+            crear_notificacion((int)$ped['comprador_id'], 'pedido', 'Pedido rechazado', "Motivo: {$razon}. Se reembolsó el total a tu billetera.", $pid);
 
             db()->commit();
             jout(['ok' => true, 'reembolso' => $monto]);
@@ -361,7 +373,10 @@ switch ($action) {
         jout(['ok' => true]);
         break;
 
-    // ─── Confirmación (lado vendedor) de que el repartidor recogió el pedido en tienda ───
+    // ─── Confirmación (lado vendedor) de que el pedido está listo para retirar.
+    // Genera el código QR de recogida — el repartidor debe escanearlo para
+    // poder confirmar del otro lado (ver DESIGN.md "Flujo logístico" y
+    // repartidor_dashboard.php action=confirmar_recogida). ───
     case 'confirmar_recogida':
         require_fields($data, ['pedido_id']);
         $pid = (int)$data['pedido_id'];
@@ -371,14 +386,16 @@ switch ($action) {
         if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
         if (!$ped['repartidor_id']) jout(['ok' => false, 'error' => 'Este pedido aún no tiene repartidor asignado'], 400);
 
-        db()->prepare("UPDATE pedidos SET confirmado_vendedor_recogida = 1 WHERE id = ?")->execute([$pid]);
+        $token = $ped['qr_recogida_token'] ?: bin2hex(random_bytes(16));
+        db()->prepare("UPDATE pedidos SET confirmado_vendedor_recogida = 1, qr_recogida_token = ? WHERE id = ?")
+            ->execute([$token, $pid]);
 
         $yaConfirmadoRepartidor = (int)$ped['confirmado_repartidor_recogida'] === 1;
         if ($yaConfirmadoRepartidor) {
             db()->prepare("UPDATE pedidos SET estado = 'en_camino' WHERE id = ?")->execute([$pid]);
             crear_notificacion((int)$ped['comprador_id'], 'pedido', '¡Tu pedido va en camino!', "El repartidor recogió tu pedido #SV-{$pid} y va hacia ti.", $pid);
         }
-        jout(['ok' => true, 'en_camino' => $yaConfirmadoRepartidor]);
+        jout(['ok' => true, 'en_camino' => $yaConfirmadoRepartidor, 'qr_token' => $token]);
         break;
 
     // ─── Reseñas recibidas por el vendedor + respuesta pública ───

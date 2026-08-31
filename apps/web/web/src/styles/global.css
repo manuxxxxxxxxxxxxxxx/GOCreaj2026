@@ -1,0 +1,514 @@
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-page);
+  background-image: var(--bg-page-image);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  margin: 0;
+  text-wrap: balance;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+img,
+video {
+  max-width: 100%;
+  display: block;
+}
+
+.product-card {
+  transition: transform var(--dur-base) var(--ease-out), border-color var(--dur-base), box-shadow var(--dur-base);
+}
+.product-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.category-badge span:first-child {
+  transition: transform var(--dur-fast) var(--ease-spring), box-shadow var(--dur-base) var(--ease-out);
+}
+.category-badge:hover span:first-child {
+  transform: translateY(-3px) scale(1.05);
+}
+.category-badge:active span:first-child {
+  transform: translateY(-1px) scale(0.97);
+}
+
+.carousel-track,
+.reels-scroll {
+  scrollbar-width: none;
+}
+.carousel-track::-webkit-scrollbar,
+.reels-scroll::-webkit-scrollbar {
+  display: none;
+}
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-base), border-color var(--dur-base), color var(--dur-base);
+  z-index: 2;
+}
+.carousel-arrow:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  transform: translateY(-50%) scale(1.08);
+}
+.carousel-arrow:active {
+  transform: translateY(-50%) scale(0.94);
+}
+.carousel-arrow-left {
+  left: -14px;
+}
+.carousel-arrow-right {
+  right: -14px;
+}
+@media (max-width: 640px) {
+  .carousel-arrow-left {
+    left: -6px;
+  }
+  .carousel-arrow-right {
+    right: -6px;
+  }
+}
+
+.chat-msg-toolbar {
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.chat-msg-row:hover .chat-msg-toolbar,
+.chat-msg-toolbar:focus-within {
+  opacity: 1;
+}
+.chat-msg-toolbar button {
+  transition: transform var(--dur-fast) var(--ease-spring), border-color var(--dur-base), color var(--dur-base);
+}
+.chat-msg-toolbar button:hover {
+  transform: scale(1.12);
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.emoji-picker-btn {
+  transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-spring);
+}
+.emoji-picker-btn:hover {
+  background: var(--surface-2);
+  transform: scale(1.15);
+}
+.chat-menu-item {
+  transition: background var(--dur-fast) var(--ease-out);
+  color: var(--text-primary);
+}
+.chat-menu-item:hover {
+  background: var(--surface-2);
+}
+
+.es-dept-row {
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+.es-dept-row:hover {
+  transform: translateX(2px);
+}
+
+.es-search-input:focus {
+  outline: none;
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px var(--cyan-glow);
+}
+.es-cat-chip {
+  transition: transform var(--dur-fast) var(--ease-spring), border-color var(--dur-base) var(--ease-out), background var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+}
+.es-cat-chip:hover {
+  transform: translateY(-1px);
+}
+.es-cat-chip:active {
+  transform: translateY(0) scale(0.96);
+}
+
+.topnav-link {
+  transition: background var(--dur-base) var(--ease-out), color var(--dur-base) var(--ease-out);
+}
+.topnav-link:not(.active):hover {
+  color: var(--text-primary);
+  background: var(--surface-3);
+}
+
+.footer-link {
+  transition: color var(--dur-base) var(--ease-out);
+}
+.footer-link:hover {
+  color: var(--cyan);
+}
+.footer-social-btn {
+  transition: transform var(--dur-fast) var(--ease-spring), border-color var(--dur-base), color var(--dur-base);
+}
+.footer-social-btn:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  transform: translateY(-2px);
+}
+
+.tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--surface-1);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+.leaflet-popup-tip {
+  background: var(--surface-1);
+}
+.leaflet-container {
+  background: var(--surface-2);
+  font-family: var(--font-body);
+}
+
+.auth-back-btn {
+  transition: color var(--dur-base) var(--ease-out);
+}
+.auth-back-btn:hover {
+  color: var(--cyan);
+}
+.auth-back-btn:active {
+  transform: scale(0.95);
+}
+.auth-back-caret {
+  transition: transform var(--dur-base) var(--ease-spring);
+}
+.auth-back-btn:hover .auth-back-caret {
+  transform: translateX(-4px);
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  height: 46px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-spring), border-color var(--dur-base), box-shadow var(--dur-base), background var(--dur-base);
+}
+.google-btn:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+.google-btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+::selection {
+  background: var(--cyan);
+  color: var(--cyan-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--bg-page);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.glow-mesh {
+  position: relative;
+  isolation: isolate;
+}
+.glow-mesh::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(600px circle at 85% -10%, var(--cyan-glow), transparent 60%),
+    radial-gradient(500px circle at -5% 40%, var(--cyan-glow), transparent 55%),
+    radial-gradient(520px circle at 50% 105%, var(--violet-glow), transparent 55%);
+  background-size: 165% 165%;
+  background-position: 50% 50%;
+  filter: blur(4px);
+  animation: glow-float 11s ease-in-out infinite alternate;
+}
+
+@keyframes glow-float {
+  from {
+    background-position: 38% 40%;
+  }
+  to {
+    background-position: 62% 58%;
+  }
+}
+.glow-mesh::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.35;
+  background-image: radial-gradient(var(--border-strong) 0.6px, transparent 0.6px);
+  background-size: 16px 16px;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes status-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--pulse-color) 55%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 7px color-mix(in srgb, var(--pulse-color) 0%, transparent);
+  }
+}
+
+@keyframes icon-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--cyan-glow);
+    opacity: 0.9;
+  }
+  50% {
+    box-shadow: 0 0 0 5px var(--cyan-glow);
+    opacity: 0.5;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Diagonal shine sweep for hero CTAs -- use sparingly (one per screen). */
+@keyframes shine-sweep {
+  0% {
+    transform: translateX(-120%) skewX(-12deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-12deg);
+  }
+}
+
+/* Bounce when a counter/badge value changes. */
+@keyframes badge-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.35);
+  }
+  60% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Favorite/like burst. */
+@keyframes heart-burst {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.4);
+  }
+  55% {
+    transform: scale(0.9);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Slow ambient glow pulse for the one or two "alive" elements per screen
+   (active in-progress order, primary hero CTA). Kept subtle on purpose. */
+@keyframes glow-pulse-slow {
+  0%,
+  100% {
+    box-shadow: var(--glow-cyan-sm);
+  }
+  50% {
+    box-shadow: var(--glow-cyan-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

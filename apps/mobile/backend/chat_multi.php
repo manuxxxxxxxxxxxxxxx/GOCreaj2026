@@ -143,7 +143,7 @@ switch ($action) {
         $receptor = (int)($data['receptor_id'] ?? 0);
         if (!$receptor) jout(['ok' => false, 'error' => 'receptor_id requerido'], 400);
 
-        $tipo = in_array($data['tipo'] ?? 'texto', ['texto','imagen','ubicacion','pdf','audio'])
+        $tipo = in_array($data['tipo'] ?? 'texto', ['texto','imagen','video','ubicacion','pdf','audio'])
             ? ($data['tipo'] ?? 'texto') : 'texto';
         $mensaje  = trim($data['mensaje'] ?? '');
         $adjunto  = null;
@@ -160,23 +160,29 @@ switch ($action) {
             if (empty($data['adjunto'])) jout(['ok' => false, 'error' => 'adjunto requerido'], 400);
             $adjunto = $esDataUri ? save_base64_image($data['adjunto'], 'chat', 'msg_' . $uid) : $data['adjunto'];
             if (!$adjunto) jout(['ok' => false, 'error' => 'Error al guardar imagen'], 500);
-            if (!$mensaje) $mensaje = '📷 Imagen';
+            if (!$mensaje) $mensaje = 'Imagen';
+        } elseif ($tipo === 'video') {
+            if (empty($data['adjunto'])) jout(['ok' => false, 'error' => 'adjunto requerido'], 400);
+            $adjunto = $esDataUri ? save_base64_video($data['adjunto'], 'chat', 'vid_' . $uid) : $data['adjunto'];
+            if (!$adjunto) jout(['ok' => false, 'error' => 'Error al guardar el video'], 500);
+            $adjTamano = isset($data['tamano']) ? (int)$data['tamano'] : null;
+            if (!$mensaje) $mensaje = 'Video';
         } elseif ($tipo === 'ubicacion') {
             if (!$lat || !$lng) jout(['ok' => false, 'error' => 'lat/lng requeridos'], 400);
-            if (!$mensaje) $mensaje = '📍 Ubicación compartida';
+            if (!$mensaje) $mensaje = 'Ubicación compartida';
         } elseif ($tipo === 'pdf') {
             if (empty($data['adjunto'])) jout(['ok' => false, 'error' => 'adjunto requerido'], 400);
             $adjunto = $esDataUri ? save_base64_pdf($data['adjunto'], 'chat', 'doc_' . $uid) : $data['adjunto'];
             if (!$adjunto) jout(['ok' => false, 'error' => 'Error al guardar el PDF'], 500);
             $adjNombre = $data['nombre'] ?? 'Documento.pdf';
             $adjTamano = isset($data['tamano']) ? (int)$data['tamano'] : null;
-            if (!$mensaje) $mensaje = '📄 Documento';
+            if (!$mensaje) $mensaje = 'Documento';
         } elseif ($tipo === 'audio') {
             if (empty($data['adjunto'])) jout(['ok' => false, 'error' => 'adjunto requerido'], 400);
             $adjunto = $esDataUri ? save_base64_audio($data['adjunto'], 'chat', 'audio_' . $uid) : $data['adjunto'];
             if (!$adjunto) jout(['ok' => false, 'error' => 'Error al guardar el audio'], 500);
             $adjDuracion = isset($data['duracion']) ? (int)$data['duracion'] : 0;
-            if (!$mensaje) $mensaje = '🎤 Nota de voz';
+            if (!$mensaje) $mensaje = 'Nota de voz';
         } else {
             if (!$mensaje) jout(['ok' => false, 'error' => 'Mensaje vacío'], 400);
         }
@@ -305,6 +311,48 @@ switch ($action) {
         break;
     }
 
+    // ─── Señalización WebRTC (SDP offer/answer + candidatos ICE) por long-poll ───
+    // No hay servidor de sockets en este stack: los dos extremos publican sus
+    // mensajes de señal y se los reparten haciendo poll cada ~1s mientras dura
+    // la llamada. STUN público resuelve NAT simple; sin TURN, redes con NAT
+    // simétrico en ambos lados pueden no conectar el audio/video.
+    case 'enviar_senal': {
+        $llamadaId = (int)($data['llamada_id'] ?? 0);
+        $tipo = (string)($data['tipo'] ?? '');
+        if (!$llamadaId || !in_array($tipo, ['offer', 'answer', 'candidate', 'hangup'], true)) {
+            jout(['ok' => false, 'error' => 'Datos de señal inválidos'], 400);
+        }
+        $st = db()->prepare("SELECT id FROM llamadas WHERE id = ? AND (emisor_id = ? OR receptor_id = ?)");
+        $st->execute([$llamadaId, $uid, $uid]);
+        if (!$st->fetch()) jout(['ok' => false, 'error' => 'Llamada no encontrada'], 404);
+
+        db()->prepare("INSERT INTO llamadas_senales (llamada_id, emisor_id, tipo, payload) VALUES (?, ?, ?, ?)")
+            ->execute([$llamadaId, $uid, $tipo, json_encode($data['payload'] ?? null, JSON_UNESCAPED_UNICODE)]);
+        jout(['ok' => true]);
+        break;
+    }
+
+    case 'obtener_senales': {
+        $llamadaId = (int)($data['llamada_id'] ?? $_GET['llamada_id'] ?? 0);
+        $afterId = (int)($data['after_id'] ?? $_GET['after_id'] ?? 0);
+        if (!$llamadaId) jout(['ok' => false, 'error' => 'llamada_id requerido'], 400);
+
+        $st = db()->prepare(
+            "SELECT id, tipo, payload FROM llamadas_senales
+             WHERE llamada_id = ? AND emisor_id <> ? AND id > ?
+             ORDER BY id ASC LIMIT 50"
+        );
+        $st->execute([$llamadaId, $uid, $afterId]);
+        $rows = $st->fetchAll();
+        foreach ($rows as &$r) {
+            $decoded = json_decode($r['payload'], true);
+            $r['payload'] = $decoded;
+        }
+        unset($r);
+        jout(['ok' => true, 'senales' => $rows]);
+        break;
+    }
+
     // ─── Contactos permitidos para iniciar un chat nuevo ───
     // Comprador: vendedores/repartidores de sus pedidos. Vendedor: sus compradores/repartidores.
     // Repartidor: compradores/vendedores de sus entregas. Admin: cualquiera (soporte/moderación).
@@ -362,7 +410,8 @@ switch ($action) {
         $pid = (int)$data['producto_id'];
 
         $st = db()->prepare(
-            "SELECT p.id, p.nombre, p.imagen, p.precio, t.vendedor_id, t.nombre AS tienda_nombre, u.nombre AS vendedor_nombre
+            "SELECT p.id, p.nombre, p.imagen, p.precio, p.es_reel, p.video_url, p.tienda_id,
+                    t.vendedor_id, t.nombre AS tienda_nombre, u.nombre AS vendedor_nombre
              FROM productos p
              JOIN tiendas t ON t.id = p.tienda_id
              JOIN usuarios u ON u.id = t.vendedor_id
@@ -373,13 +422,19 @@ switch ($action) {
         if (!$p) jout(['ok' => false, 'error' => 'Producto no encontrado'], 404);
 
         $vendedor_id = (int)$p['vendedor_id'];
-        $template = $data['mensaje'] ?? "Hola, vi tu producto *{$p['nombre']}* en Reels y me interesa.";
+        $esReel = !empty($p['es_reel']);
+        $template = $data['mensaje'] ?? ($esReel
+            ? "Hola, vi tu reel de *{$p['nombre']}* y me interesa."
+            : "Hola, vi tu producto *{$p['nombre']}* y me interesa.");
         $snapshot = json_encode([
             'producto_id' => (int)$p['id'],
             'nombre'      => $p['nombre'],
             'imagen'      => $p['imagen'],
             'precio'      => (float)$p['precio'],
             'tienda'      => $p['tienda_nombre'],
+            'tienda_id'   => (int)$p['tienda_id'],
+            'es_reel'     => $esReel,
+            'video_url'   => $p['video_url'],
         ], JSON_UNESCAPED_UNICODE);
 
         try {
