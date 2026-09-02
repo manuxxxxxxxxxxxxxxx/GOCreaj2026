@@ -5,14 +5,27 @@ export interface LoginResponse {
   ok: true;
   usuario: Usuario;
   token: string;
+  /** Solo en registro/social: true si la cuenta se acaba de crear (dispara el onboarding de username + foto). */
+  es_nuevo?: boolean;
+  /** Sugerencia de @username generada del nombre (ej. "rodrigoescobar54"), cuando la cuenta no tiene uno todavía. */
+  username_sugerido?: string | null;
 }
+
+/** El registro entra directo (auto-login) -- la verificación de correo quedó opcional por el momento. */
+export type RegisterResponse = LoginResponse;
 
 export const authApi = {
   login: (identificador: string, password: string) =>
     post<LoginResponse>("auth", "login", { identificador, password }),
 
   register: (data: { nombre: string; email?: string; telefono?: string; username?: string; password: string; municipio?: string }) =>
-    post<LoginResponse>("auth", "register", data),
+    post<RegisterResponse>("auth", "register", data),
+
+  registroVerificarEmail: (email: string, codigo: string) =>
+    post<LoginResponse>("auth", "registro_verificar_email", { email, codigo }),
+
+  registroReenviarEmail: (email: string) =>
+    post<{ ok: true; email_enviado: boolean; codigo_dev: string | null }>("auth", "registro_reenviar_email", { email }),
 
   social: (data: { provider: "google" | "apple"; id_token?: string; provider_uid?: string; nombre?: string; email?: string }) =>
     post<LoginResponse>("auth", "social", data),
@@ -23,7 +36,13 @@ export const authApi = {
     post<{ ok: true; disponible: boolean }>("auth", "check_username", { username, exclude_id: excludeId }),
 
   actualizarPerfil: (data: Partial<Usuario> & { password_actual?: string; password_nueva?: string; foto_perfil?: string }) =>
-    post<{ ok: true; usuario: Usuario }>("auth", "actualizar_perfil", data),
+    post<{ ok: true; usuario: Usuario; email_verificacion_enviado?: boolean; codigo_dev?: string | null }>("auth", "actualizar_perfil", data),
+
+  emailVerificar: (codigo: string) => post<{ ok: true; usuario: Usuario }>("auth", "email_verificar", { codigo }),
+
+  emailReenviarCodigo: () => post<{ ok: true; codigo_dev: string; email: string }>("auth", "email_reenviar_codigo"),
+
+  emailCancelar: () => post<{ ok: true }>("auth", "email_cancelar"),
 
   actualizarUbicacion: (data: { municipio: string; lat?: number; lng?: number }) =>
     post<{ ok: true; usuario: Usuario }>("auth", "actualizar_ubicacion", data),
@@ -47,7 +66,8 @@ export const authApi = {
 
   sesionesCerrarOtras: () => post<{ ok: true }>("auth", "sesiones_cerrar_otras"),
 
-  enviarSms: () => post<{ ok: true; codigo: string; telefono: string }>("auth", "enviar_sms"),
+  enviarSms: (telefono?: string) =>
+    post<{ ok: true; enviado: boolean; codigo: string | null; telefono: string }>("auth", "enviar_sms", { telefono }),
 
   verificarSms: (codigo: string) => post<{ ok: true; usuario: Usuario }>("auth", "verificar_sms", { codigo }),
 

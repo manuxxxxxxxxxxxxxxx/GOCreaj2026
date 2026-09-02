@@ -21,7 +21,7 @@ interface Comentario {
   yo_like: number;
 }
 
-export function CommentsSheet({ producto, onClose }: { producto: Producto; onClose: () => void }) {
+export function CommentsSheet({ producto, onClose, onComentarioNuevo }: { producto: Producto; onClose: () => void; onComentarioNuevo?: () => void }) {
   const { usuario } = useAuth();
   const navigate = useNavigate();
   const [comentarios, setComentarios] = useState<Comentario[] | null>(null);
@@ -57,6 +57,7 @@ export function CommentsSheet({ producto, onClose }: { producto: Producto; onClo
       setTexto("");
       setRespondiendoA(null);
       cargar();
+      onComentarioNuevo?.();
     } finally {
       setEnviando(false);
     }

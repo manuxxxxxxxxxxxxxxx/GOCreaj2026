@@ -446,7 +446,7 @@ export function Explorar() {
 
       <div style={{ flex: 1, minWidth: 0 }}>
         {vista === "mapa" ? (
-          <MapView markers={markers} height="100%" radius="0" fitToMarkers zoom={13} layersControl />
+          <MapView markers={markers} height="100%" radius="0" fitToMarkers zoom={13} layersControl persistKey="explorar" />
         ) : (
           <div style={{ height: "100%", overflowY: "auto", padding: 24 }}>
             {cargando || tiendas === null ? (
@@ -494,8 +494,9 @@ function RatingPill({ calificacion, totalResenas }: { calificacion?: number; tot
 }
 
 function CategoriaBadge({ categoria }: { categoria?: string | null }) {
-  const color = categoriaColor(categoria ?? undefined);
-  const Icon = categoriaIcon(categoria ?? undefined);
+  const primera = categoria?.split(",")[0];
+  const color = categoriaColor(primera ?? undefined);
+  const Icon = categoriaIcon(primera ?? undefined);
   return (
     <div style={{ width: 24, height: 24, borderRadius: "50%", background: color, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 4px rgba(0,0,0,0.35)" }}>
       <Icon size={12} weight="fill" color="#fff" />

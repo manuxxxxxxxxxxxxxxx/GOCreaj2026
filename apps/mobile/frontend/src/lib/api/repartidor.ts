@@ -9,10 +9,36 @@ export const repartidorApi = {
 
   aceptar: (pedido_id: number) => post<{ ok: true }>("repartidor_dashboard", "aceptar", { pedido_id }),
 
-  confirmarRecogida: (pedido_id: number, qr_token: string) =>
-    post<{ ok: true; en_camino: boolean }>("repartidor_dashboard", "confirmar_recogida", { pedido_id, qr_token }),
+  // Oferta individual y exclusiva del despacho automático (ver DESIGN.md "Flujo logístico"):
+  // el vendedor ya no elige repartidor a mano, el sistema ofrece a uno a la vez con un timer
+  // corto. Pollear cada ~2s mientras se está en línea para que la oferta "aparezca" al toque.
+  miOferta: () =>
+    get<{
+      ok: true;
+      oferta:
+        | (Pick<Pedido, "id" | "numero_pedido" | "total"> & {
+            ganancia_repartidor: number;
+            segundos_restantes: number;
+            municipio_entrega: string | null;
+            lat_entrega: number | null;
+            lng_entrega: number | null;
+            tienda_nombre: string | null;
+            tienda_lat: number | null;
+            tienda_lng: number | null;
+            tienda_direccion: string | null;
+            comprador_nombre: string;
+          })
+        | null;
+      segundos_totales: number;
+    }>("repartidor_dashboard", "mi_oferta"),
 
-  generarQrEntrega: (pedido_id: number) => post<{ ok: true; qr_token: string }>("repartidor_dashboard", "generar_qr_entrega", { pedido_id }),
+  responderOferta: (pedido_id: number, decision: "aceptar" | "rechazar") =>
+    post<{ ok: true }>("repartidor_dashboard", "responder_oferta", { pedido_id, decision }),
+
+  confirmarRecogida: (pedido_id: number, codigo: { qr_token: string } | { pin: string }) =>
+    post<{ ok: true; en_camino: boolean }>("repartidor_dashboard", "confirmar_recogida", { pedido_id, ...codigo }),
+
+  generarQrEntrega: (pedido_id: number) => post<{ ok: true; qr_token: string; pin: string }>("repartidor_dashboard", "generar_qr_entrega", { pedido_id }),
 
   rechazar: (pedido_id: number) => post<{ ok: true }>("repartidor_dashboard", "rechazar", { pedido_id }),
 

@@ -3,7 +3,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as Location from "expo-location";
-import { CaretLeftIcon, CrosshairIcon, MapPinIcon, PlusIcon, StarIcon, TrashIcon } from "phosphor-react-native";
+import { CaretLeftIcon, CrosshairIcon, MapPinIcon, PencilSimpleIcon, PlusIcon, StarIcon, TrashIcon } from "phosphor-react-native";
 import { WebMapView } from "../../components/ui/WebMapView";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
@@ -20,12 +20,29 @@ import { AnimatedListItem } from "../../components/ui/Motion";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Direcciones">;
 
+/** Geocodificación inversa vía Nominatim (OpenStreetMap) — misma fuente que usa la web, sin API key. */
+async function geocodificarInverso(lat: number, lng: number) {
+  const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&addressdetails=1`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!res.ok) throw new Error("No se pudo geocodificar.");
+  const data = await res.json();
+  const a = data.address ?? {};
+  const calle = [a.road, a.house_number].filter(Boolean).join(" ");
+  const barrio = a.neighbourhood || a.suburb || a.quarter;
+  const direccion = [calle, barrio].filter(Boolean).join(", ") || data.display_name || "";
+  const municipio = a.city || a.town || a.village || a.municipality || "";
+  const departamento = a.state || a.county || "";
+  return { direccion, municipio, departamento };
+}
+
 export function DireccionesScreen({ navigation }: Props) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const [direcciones, setDirecciones] = useState<DireccionUsuario[] | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [editando, setEditando] = useState<DireccionUsuario | null>(null);
   const [eliminando, setEliminando] = useState<number | null>(null);
 
   const cargar = () => {
@@ -34,6 +51,15 @@ export function DireccionesScreen({ navigation }: Props) {
 
   useEffect(cargar, []);
 
+  const abrirNueva = () => {
+    setEditando(null);
+    setFormOpen(true);
+  };
+  const abrirEditar = (d: DireccionUsuario) => {
+    setEditando(d);
+    setFormOpen(true);
+  };
+
   return (
     <View style={{ flex: 1, paddingTop: insets.top }}>
       <View style={styles.header}>
@@ -41,7 +67,7 @@ export function DireccionesScreen({ navigation }: Props) {
           <CaretLeftIcon size={16} color={tokens.textPrimary} />
         </Pressable>
         <Text style={{ flex: 1, fontSize: 18, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>Direcciones</Text>
-        <Button size="sm" icon={<PlusIcon size={14} color={tokens.cyanInk} />} onPress={() => setFormOpen(true)}>
+        <Button size="sm" icon={<PlusIcon size={14} color={tokens.cyanInk} />} onPress={abrirNueva}>
           Nueva
         </Button>
       </View>
@@ -51,7 +77,7 @@ export function DireccionesScreen({ navigation }: Props) {
           <Skeleton height={80} />
         </View>
       ) : direcciones.length === 0 ? (
-        <EmptyState icon={<MapPinIcon size={22} color={tokens.textMuted} />} title="Sin direcciones guardadas" actionLabel="Agregar dirección" onAction={() => setFormOpen(true)} />
+        <EmptyState icon={<MapPinIcon size={22} color={tokens.textMuted} />} title="Sin direcciones guardadas" actionLabel="Agregar dirección" onAction={abrirNueva} />
       ) : (
         <FlatList
           data={direcciones}
@@ -73,12 +99,16 @@ export function DireccionesScreen({ navigation }: Props) {
                 <Text style={{ fontSize: 12, color: tokens.textSecondary, marginTop: 2 }}>
                   {item.direccion}, {item.municipio}
                 </Text>
+                {!!item.referencia && <Text style={{ fontSize: 11.5, color: tokens.textMuted, marginTop: 2 }}>{item.referencia}</Text>}
                 {!item.es_principal && (
                   <Pressable onPress={() => direccionesApi.marcarPrincipal(item.id).then(cargar)}>
                     <Text style={{ fontSize: 11.5, fontFamily: "Inter_700Bold", color: tokens.cyan, marginTop: 6 }}>Marcar como principal</Text>
                   </Pressable>
                 )}
               </View>
+              <Pressable onPress={() => abrirEditar(item)} hitSlop={8}>
+                <PencilSimpleIcon size={16} color={tokens.textMuted} />
+              </Pressable>
               <Pressable onPress={() => setEliminando(item.id)} hitSlop={8}>
                 <TrashIcon size={16} color={tokens.danger} />
               </Pressable>
@@ -87,7 +117,16 @@ export function DireccionesScreen({ navigation }: Props) {
         />
       )}
 
-      <DireccionForm visible={formOpen} onClose={() => setFormOpen(false)} onSaved={() => { setFormOpen(false); cargar(); }} />
+      <DireccionForm
+        visible={formOpen}
+        editando={editando}
+        totalActual={direcciones?.length ?? 0}
+        onClose={() => setFormOpen(false)}
+        onSaved={() => {
+          setFormOpen(false);
+          cargar();
+        }}
+      />
 
       <ConfirmDialog
         visible={eliminando !== null}
@@ -113,16 +152,66 @@ export function DireccionesScreen({ navigation }: Props) {
 
 const SAN_SALVADOR: [number, number] = [-89.2182, 13.6929];
 
-function DireccionForm({ visible, onClose, onSaved }: { visible: boolean; onClose: () => void; onSaved: () => void }) {
+function DireccionForm({
+  visible,
+  editando,
+  totalActual,
+  onClose,
+  onSaved,
+}: {
+  visible: boolean;
+  editando: DireccionUsuario | null;
+  totalActual: number;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const { tokens } = useTheme();
   const toast = useToast();
-  const [alias, setAlias] = useState("Casa");
+  const [alias, setAlias] = useState("");
   const [municipio, setMunicipio] = useState("");
+  const [departamento, setDepartamento] = useState("San Salvador");
   const [direccion, setDireccion] = useState("");
   const [referencia, setReferencia] = useState("");
   const [coords, setCoords] = useState<[number, number] | null>(null);
   const [localizando, setLocalizando] = useState(false);
+  const [ubicando, setUbicando] = useState(false);
   const [guardando, setGuardando] = useState(false);
+
+  // Repuebla el formulario cada vez que se abre: datos de la dirección a editar, o vacío para una nueva.
+  useEffect(() => {
+    if (!visible) return;
+    if (editando) {
+      setAlias(editando.alias);
+      setMunicipio(editando.municipio);
+      setDepartamento(editando.departamento || "San Salvador");
+      setDireccion(editando.direccion);
+      setReferencia(editando.referencia ?? "");
+      setCoords(editando.lat != null && editando.lng != null ? [editando.lng, editando.lat] : null);
+    } else {
+      setAlias("");
+      setMunicipio("");
+      setDepartamento("San Salvador");
+      setDireccion("");
+      setReferencia("");
+      setCoords(null);
+    }
+  }, [visible, editando]);
+
+  const elegirEnMapa = async (c: [number, number]) => {
+    setCoords(c);
+    setUbicando(true);
+    try {
+      const r = await geocodificarInverso(c[1], c[0]);
+      if (r.direccion) setDireccion(r.direccion);
+      if (r.municipio) setMunicipio(r.municipio);
+      if (r.departamento) setDepartamento(r.departamento);
+      toast.show("Ubicación detectada", "success");
+    } catch {
+      toast.show("No se pudo detectar la calle — puedes escribirla manualmente.", "warning");
+    } finally {
+      setUbicando(false);
+    }
+  };
 
   const usarMiUbicacion = async () => {
     setLocalizando(true);
@@ -130,7 +219,7 @@ function DireccionForm({ visible, onClose, onSaved }: { visible: boolean; onClos
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") return toast.show("Necesitamos permiso de ubicación.", "warning");
       const pos = await Location.getCurrentPositionAsync({});
-      setCoords([pos.coords.longitude, pos.coords.latitude]);
+      await elegirEnMapa([pos.coords.longitude, pos.coords.latitude]);
     } catch {
       toast.show("No se pudo obtener tu ubicación.", "error");
     } finally {
@@ -140,23 +229,34 @@ function DireccionForm({ visible, onClose, onSaved }: { visible: boolean; onClos
 
   const guardar = async () => {
     if (!municipio.trim() || !direccion.trim()) return toast.show("Completa municipio y dirección.", "warning");
+    const aliasFinal = alias.trim() || (editando ? editando.alias : `Ubicación ${totalActual + 1}`);
     setGuardando(true);
     try {
-      await direccionesApi.crear({
-        alias,
-        municipio,
-        direccion,
-        referencia: referencia || null,
-        departamento: "San Salvador",
-        lat: coords?.[1] ?? null,
-        lng: coords?.[0] ?? null,
-        es_principal: 0,
-      });
-      setAlias("Casa");
-      setMunicipio("");
-      setDireccion("");
-      setReferencia("");
-      setCoords(null);
+      if (editando) {
+        await direccionesApi.actualizar({
+          id: editando.id,
+          alias: aliasFinal,
+          municipio,
+          direccion,
+          referencia: referencia || null,
+          departamento,
+          lat: coords?.[1] ?? null,
+          lng: coords?.[0] ?? null,
+        });
+        toast.show("Dirección actualizada", "success");
+      } else {
+        await direccionesApi.crear({
+          alias: aliasFinal,
+          municipio,
+          direccion,
+          referencia: referencia || null,
+          departamento,
+          lat: coords?.[1] ?? null,
+          lng: coords?.[0] ?? null,
+          es_principal: 0,
+        });
+        toast.show("Dirección guardada", "success");
+      }
       onSaved();
     } catch (err) {
       toast.show(err instanceof ApiError ? err.message : "No se pudo guardar.", "error");
@@ -166,22 +266,17 @@ function DireccionForm({ visible, onClose, onSaved }: { visible: boolean; onClos
   };
 
   return (
-    <Sheet visible={visible} onClose={onClose} title="Nueva dirección">
+    <Sheet visible={visible} onClose={onClose} title={editando ? "Editar dirección" : "Nueva dirección"}>
       <View style={{ gap: 14, paddingBottom: 8 }}>
-        <Input label="Alias" value={alias} onChangeText={setAlias} placeholder="Casa, Trabajo…" />
-        <Input label="Municipio" value={municipio} onChangeText={setMunicipio} placeholder="San Salvador" />
-        <Input label="Dirección" value={direccion} onChangeText={setDireccion} placeholder="Calle, avenida, número" />
-        <Input label="Referencia (opcional)" value={referencia} onChangeText={setReferencia} placeholder="Casa color celeste" />
-
         <View>
-          <Text style={{ fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary, marginBottom: 6 }}>
-            Ubica el punto en el mapa (opcional, ayuda al repartidor)
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <Text style={{ fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary }}>Toca el mapa para ubicar tu dirección</Text>
+          </View>
           <View style={{ height: 180, borderRadius: 14, borderWidth: 1, borderColor: tokens.border, overflow: "hidden" }}>
             <WebMapView
               center={coords ?? SAN_SALVADOR}
-              zoom={coords ? 15 : 12}
-              onPress={(c) => setCoords(c)}
+              zoom={coords ? 16 : 12}
+              onPress={elegirEnMapa}
               markers={coords ? [{ id: "pin", coordinate: coords, color: tokens.cyan }] : []}
             />
             <Pressable
@@ -191,11 +286,18 @@ function DireccionForm({ visible, onClose, onSaved }: { visible: boolean; onClos
               <CrosshairIcon size={16} color={localizando ? tokens.textMuted : tokens.cyan} />
             </Pressable>
           </View>
-          <Text style={{ fontSize: 11, color: tokens.textMuted, marginTop: 6 }}>Toca el mapa para mover el pin.</Text>
+          <Text style={{ fontSize: 11, color: tokens.textMuted, marginTop: 6 }}>
+            {ubicando ? "Detectando la calle…" : "Toca el mapa para mover el pin, o usa tu ubicación actual."}
+          </Text>
         </View>
 
+        <Input label="Alias" value={alias} onChangeText={setAlias} placeholder={editando ? "Casa, Trabajo…" : `Casa, Trabajo… (vacío = Ubicación ${totalActual + 1})`} />
+        <Input label="Municipio" value={municipio} onChangeText={setMunicipio} placeholder="San Salvador" />
+        <Input label="Dirección" value={direccion} onChangeText={setDireccion} placeholder="Calle, avenida, número" />
+        <Input label="Referencia (opcional)" value={referencia} onChangeText={setReferencia} placeholder="Casa color celeste" />
+
         <Button onPress={guardar} loading={guardando}>
-          Guardar dirección
+          {editando ? "Guardar cambios" : "Guardar dirección"}
         </Button>
       </View>
     </Sheet>

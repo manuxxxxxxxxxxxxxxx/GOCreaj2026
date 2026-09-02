@@ -1,17 +1,49 @@
-import { useEffect, useState } from "react";
+import { cloneElement, isValidElement, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import Animated, { FadeInRight, FadeOutLeft, useAnimatedStyle, useSharedValue, withTiming, withRepeat, withSequence } from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
 import { BicycleIcon, CaretLeftIcon, CheckCircleIcon, ClockIcon, StorefrontIcon, UploadSimpleIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
+import type { ThemeTokens } from "../../theme/tokens";
 import { useToast } from "../../context/ToastContext";
 import { solicitudesApi, ApiError } from "../../lib/api";
 import type { SolicitudRol } from "../../lib/types";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Skeleton } from "../../components/ui/Skeleton";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+const ROLE_META: Record<"vendedor" | "repartidor", { accent: (t: ThemeTokens) => string; bg: (t: ThemeTokens) => string }> = {
+  vendedor: { accent: (t) => t.violet, bg: (t) => t.violetBg },
+  repartidor: { accent: (t) => t.coral, bg: (t) => t.coralBg },
+};
+
+function StepIndicator({ step }: { step: 1 | 2 | 3 }) {
+  const { tokens } = useTheme();
+  const steps = ["Elegir rol", "Tus datos", "Enviado"];
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingBottom: 16 }}>
+      {steps.map((label, i) => {
+        const n = i + 1;
+        const active = step === n;
+        const done = step > n;
+        return (
+          <View key={label} style={{ flexDirection: "row", alignItems: "center", flex: i < steps.length - 1 ? 0 : undefined, gap: 8 }}>
+            <View style={[styles.stepDot, { backgroundColor: done || active ? tokens.cyan : tokens.surface2 }]}>
+              {done ? <CheckCircleIcon size={13} weight="fill" color={tokens.cyanInk} /> : <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: done || active ? tokens.cyanInk : tokens.textMuted }}>{n}</Text>}
+            </View>
+            <Text style={{ fontSize: 11.5, fontFamily: "Inter_600SemiBold", color: active ? tokens.textPrimary : tokens.textMuted }}>{label}</Text>
+            {i < steps.length - 1 && <View style={{ width: 18, height: 1, backgroundColor: tokens.border, marginLeft: 4 }} />}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, "Convertirse">;
 
@@ -45,24 +77,28 @@ export function ConvertirseScreen({ navigation }: Props) {
     return (
       <View style={{ flex: 1, paddingTop: insets.top }}>
         {Header}
-        <Skeleton height={120} />
+        <View style={{ paddingHorizontal: 20 }}>
+          <Skeleton height={120} />
+        </View>
       </View>
     );
   }
 
   const pendiente = solicitudes.find((s) => s.estado === "pendiente");
+  const step: 1 | 2 | 3 = pendiente ? 3 : rol ? 2 : 1;
 
   if (pendiente) {
     return (
       <View style={{ flex: 1, paddingTop: insets.top }}>
         {Header}
-        <View style={styles.centerMsg}>
-          <ClockIcon size={32} color={tokens.warn} />
+        <StepIndicator step={3} />
+        <Animated.View key="pendiente" entering={FadeInRight.duration(280)} exiting={FadeOutLeft.duration(200)} style={styles.centerMsg}>
+          <ClockPulse />
           <Text style={{ fontSize: 16, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary, marginTop: 10 }}>Solicitud en revisión</Text>
           <Text style={{ fontSize: 13, color: tokens.textSecondary, textAlign: "center", marginTop: 6 }}>
             Tu solicitud para ser {pendiente.rol_solicitado} está siendo revisada. Te avisaremos por chat y notificación.
           </Text>
-        </View>
+        </Animated.View>
       </View>
     );
   }
@@ -71,29 +107,53 @@ export function ConvertirseScreen({ navigation }: Props) {
     return (
       <View style={{ flex: 1, paddingTop: insets.top }}>
         {Header}
-        <View style={{ padding: 20, gap: 14, flexDirection: "row" }}>
-          <RoleCard icon={<StorefrontIcon size={24} color={tokens.cyan} />} title="Vendedor" description="Abre tu tienda y vende productos." onPress={() => setRol("vendedor")} />
-          <RoleCard icon={<BicycleIcon size={24} color={tokens.cyan} />} title="Repartidor" description="Entrega pedidos y gana por viaje." onPress={() => setRol("repartidor")} />
-        </View>
+        <StepIndicator step={step} />
+        <Animated.View key="elegir" entering={FadeInRight.duration(280)} exiting={FadeOutLeft.duration(200)} style={{ padding: 20, gap: 14, flexDirection: "row" }}>
+          <RoleCard rolKey="vendedor" icon={<StorefrontIcon size={26} weight="duotone" />} title="Vendedor" description="Abre tu tienda y vende productos." onPress={() => setRol("vendedor")} />
+          <RoleCard rolKey="repartidor" icon={<BicycleIcon size={26} weight="duotone" />} title="Repartidor" description="Entrega pedidos y gana por viaje." onPress={() => setRol("repartidor")} />
+        </Animated.View>
       </View>
     );
   }
 
-  return <SolicitudForm rol={rol} onBack={() => setRol(null)} header={Header} />;
+  return <SolicitudForm rol={rol} step={step} onBack={() => setRol(null)} header={Header} />;
 }
 
-function RoleCard({ icon, title, description, onPress }: { icon: React.ReactNode; title: string; description: string; onPress: () => void }) {
+function ClockPulse() {
   const { tokens } = useTheme();
+  const scale = useSharedValue(1);
+  scale.value = withRepeat(withSequence(withTiming(1.08, { duration: 900 }), withTiming(1, { duration: 900 })), -1, true);
+  const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
-    <Pressable onPress={onPress} style={[styles.roleCard, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
-      {icon}
-      <Text style={{ fontSize: 14, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary, marginTop: 8 }}>{title}</Text>
-      <Text style={{ fontSize: 11.5, color: tokens.textSecondary, textAlign: "center", marginTop: 4 }}>{description}</Text>
-    </Pressable>
+    <Animated.View style={[{ width: 68, height: 68, borderRadius: 34, backgroundColor: tokens.warnBg, alignItems: "center", justifyContent: "center" }, style]}>
+      <ClockIcon size={30} weight="duotone" color={tokens.warn} />
+    </Animated.View>
   );
 }
 
-function SolicitudForm({ rol, onBack, header }: { rol: "vendedor" | "repartidor"; onBack: () => void; header: React.ReactNode }) {
+function RoleCard({ rolKey, icon, title, description, onPress }: { rolKey: "vendedor" | "repartidor"; icon: React.ReactNode; title: string; description: string; onPress: () => void }) {
+  const { tokens } = useTheme();
+  const meta = ROLE_META[rolKey];
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      onPressIn={() => (scale.value = withTiming(0.96, { duration: 100 }))}
+      onPressOut={() => (scale.value = withTiming(1, { duration: 150 }))}
+      style={[animStyle, styles.roleCard, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}
+    >
+      <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: meta.bg(tokens), alignItems: "center", justifyContent: "center" }}>
+        {isValidElement(icon) ? cloneElement(icon as React.ReactElement<{ color?: string }>, { color: meta.accent(tokens) }) : icon}
+      </View>
+      <Text style={{ fontSize: 14, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary, marginTop: 8 }}>{title}</Text>
+      <Text style={{ fontSize: 11.5, color: tokens.textSecondary, textAlign: "center", marginTop: 4 }}>{description}</Text>
+    </AnimatedPressable>
+  );
+}
+
+function SolicitudForm({ rol, step, onBack, header }: { rol: "vendedor" | "repartidor"; step: 1 | 2 | 3; onBack: () => void; header: React.ReactNode }) {
   const { tokens } = useTheme();
   const toast = useToast();
   const [nombreCompleto, setNombreCompleto] = useState("");
@@ -122,11 +182,14 @@ function SolicitudForm({ rol, onBack, header }: { rol: "vendedor" | "repartidor"
     return (
       <View style={{ flex: 1 }}>
         {header}
-        <View style={styles.centerMsg}>
-          <ClockIcon size={32} color={tokens.warn} />
+        <StepIndicator step={3} />
+        <Animated.View key="enviado" entering={FadeInRight.duration(280)} style={styles.centerMsg}>
+          <View style={{ width: 68, height: 68, borderRadius: 34, backgroundColor: tokens.okBg, alignItems: "center", justifyContent: "center" }}>
+            <CheckCircleIcon size={32} weight="fill" color={tokens.ok} />
+          </View>
           <Text style={{ fontSize: 16, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary, marginTop: 10 }}>Solicitud enviada</Text>
           <Text style={{ fontSize: 13, color: tokens.textSecondary, textAlign: "center", marginTop: 6 }}>Te avisaremos apenas nuestro equipo la revise.</Text>
-        </View>
+        </Animated.View>
       </View>
     );
   }
@@ -134,6 +197,7 @@ function SolicitudForm({ rol, onBack, header }: { rol: "vendedor" | "repartidor"
   return (
     <View style={{ flex: 1 }}>
       {header}
+      <StepIndicator step={step} />
       <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 60 }}>
         <Pressable onPress={onBack}>
           <Text style={{ fontSize: 12, color: tokens.textSecondary }}>← Cambiar rol</Text>
@@ -191,4 +255,5 @@ const styles = StyleSheet.create({
   roleCard: { flex: 1, alignItems: "center", padding: 20, borderRadius: 18, borderWidth: 1 },
   vehChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
   fileField: { flexDirection: "row", alignItems: "center", gap: 6, height: 44, borderRadius: 10, borderWidth: 1, borderStyle: "dashed", paddingHorizontal: 12, justifyContent: "center" },
+  stepDot: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
 });

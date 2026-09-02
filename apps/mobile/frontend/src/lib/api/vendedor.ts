@@ -32,13 +32,17 @@ export const vendedorApi = {
     precio: number;
     precio_oferta?: number;
     stock?: number;
+    stock_ilimitado?: boolean;
     imagen?: string;
+    imagenes?: string[];
     video?: string;
     categoria?: string;
     es_reel?: boolean;
     tiempo_preparacion?: string;
     hashtags?: string;
   }) => post<{ ok: true; id: number }>("vendedor_dashboard", "crear_producto", data),
+
+  eliminarProducto: (producto_id: number) => post<{ ok: true }>("vendedor_dashboard", "eliminar_producto", { producto_id }),
 
   /** Como `crearProducto`, pero el video se manda como archivo (multipart) en vez de base64 —
    * más rápido y permite reportar progreso real de subida vía `onProgress`. */
@@ -96,7 +100,7 @@ export const vendedorApi = {
     post<{ ok: true }>("vendedor_dashboard", "asignar_repartidor", { pedido_id, repartidor_id }),
 
   confirmarRecogida: (pedido_id: number) =>
-    post<{ ok: true; en_camino: boolean; qr_token: string }>("vendedor_dashboard", "confirmar_recogida", { pedido_id }),
+    post<{ ok: true; en_camino: boolean; qr_token: string; pin: string }>("vendedor_dashboard", "confirmar_recogida", { pedido_id }),
 
   misResenas: () =>
     get<{ ok: true; resenas: { id: number; estrellas: number; comentario: string; respuesta_vendedor: string | null; respuesta_at: string | null; created_at: string; comprador_nombre: string }[] }>(

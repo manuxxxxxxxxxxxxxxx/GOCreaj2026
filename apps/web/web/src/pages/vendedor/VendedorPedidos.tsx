@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Bicycle, CheckCircle, ChatCircleDots, Package, QrCode, X } from "@phosphor-icons/react";
+import { Bicycle, CheckCircle, ChatCircleDots, MagnifyingGlass, Package, QrCode, X } from "@phosphor-icons/react";
 import { useNavigate } from "react-router-dom";
 import { vendedorApi, ApiError } from "../../lib/api";
-import type { Pedido, Usuario } from "../../lib/types";
+import type { Pedido } from "../../lib/types";
 import { money, formatDateTime, numeroPedido } from "../../lib/format";
 import { useToast } from "../../context/ToastContext";
 import { StatusPill } from "../../components/ui/StatusPill";
@@ -13,6 +13,7 @@ import { Avatar } from "../../components/ui/Avatar";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { Sheet } from "../../components/ui/Sheet";
+import { CodigoQrCard } from "../../components/domain/CodigoQrCard";
 
 type Columna = "nuevos" | "cocina" | "listos" | "camino";
 
@@ -27,6 +28,7 @@ const RAZONES_RECHAZO = ["Producto agotado", "Tienda cerrada / fuera de horario"
 
 function columnaDe(p: Pedido): Columna | null {
   if (p.estado === "pendiente_confirmacion") return "nuevos";
+  if (p.estado === "preparacion" && p.tipo_entrega === "recogida") return p.qr_recogida_token ? "listos" : "cocina";
   if (p.estado === "preparacion" && !p.repartidor_id) return "cocina";
   if (p.estado === "preparacion" && p.repartidor_id) return "listos";
   if (p.estado === "en_camino") return "camino";
@@ -36,8 +38,7 @@ function columnaDe(p: Pedido): Columna | null {
 export function VendedorPedidos() {
   const navigate = useNavigate();
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null);
-  const [asignandoA, setAsignandoA] = useState<Pedido | null>(null);
-  const [qrDe, setQrDe] = useState<{ pedido: Pedido; token: string } | null>(null);
+  const [qrDe, setQrDe] = useState<{ pedido: Pedido; token: string; pin: string; recogida?: boolean } | null>(null);
   const [rechazando, setRechazando] = useState<Pedido | null>(null);
   const [colActiva, setColActiva] = useState<Columna>("nuevos");
   const toast = useToast();
@@ -63,10 +64,11 @@ export function VendedorPedidos() {
   };
 
   const confirmarRecogida = async (p: Pedido) => {
+    const esRecogida = p.tipo_entrega === "recogida";
     try {
       const r = await vendedorApi.confirmarRecogida(p.id);
       if (r.en_camino) toast.show("Pedido en camino con el repartidor", "success");
-      else setQrDe({ pedido: p, token: r.qr_token });
+      else setQrDe({ pedido: p, token: r.qr_token, pin: r.pin, recogida: esRecogida });
       cargar();
     } catch (err) {
       toast.show(err instanceof ApiError ? err.message : "No se pudo confirmar la recogida.", "error");
@@ -163,8 +165,11 @@ export function VendedorPedidos() {
                         <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginBottom: 6 }}>
                           {p.items.length} producto{p.items.length !== 1 ? "s" : ""} · <span className="tabular">{money(p.total)}</span>
                         </div>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 10, display: "flex", alignItems: "center", gap: 4 }}>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 10, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                           {p.metodo_pago === "efectivo" ? "💵" : "💳"} {p.metodo_pago === "efectivo" ? "Efectivo" : p.metodo_pago === "paypal" ? "PayPal" : "Tarjeta"}
+                          {p.tipo_entrega === "recogida" && (
+                            <span style={{ fontWeight: 700, color: "var(--violet)", background: "var(--violet-bg)", borderRadius: "var(--radius-pill)", padding: "1px 8px" }}>Recoge en tienda</span>
+                          )}
                         </div>
 
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -178,41 +183,31 @@ export function VendedorPedidos() {
                               </Button>
                             </>
                           )}
-                          {p.estado === "preparacion" && !p.repartidor_id && (
-                            <Button size="sm" onClick={() => setAsignandoA(p)}>
-                              <Bicycle size={14} /> Asignar repartidor
+                          {p.estado === "preparacion" && p.tipo_entrega === "recogida" && !p.qr_recogida_token && (
+                            <Button size="sm" onClick={() => confirmarRecogida(p)}>
+                              <QrCode size={14} /> Marcar listo para recoger
                             </Button>
                           )}
-                          {p.estado === "preparacion" && p.repartidor_id && !p.confirmado_vendedor_recogida && (
+                          {p.estado === "preparacion" && p.tipo_entrega === "recogida" && p.qr_recogida_token && p.pin_recogida && (
+                            <Button size="sm" variant="secondary" onClick={() => setQrDe({ pedido: p, token: p.qr_recogida_token!, pin: p.pin_recogida!, recogida: true })}>
+                              <QrCode size={14} /> Ver código de recogida
+                            </Button>
+                          )}
+                          {p.estado === "preparacion" && p.tipo_entrega !== "recogida" && !p.repartidor_id && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--text-secondary)", background: "var(--surface-2)", borderRadius: "var(--radius-sm)", padding: "6px 10px", width: "100%" }}>
+                              {p.oferta_repartidor_id ? <MagnifyingGlass size={13} /> : <Bicycle size={13} />}
+                              {p.oferta_repartidor_id ? "Ofreciendo a un repartidor cercano…" : "Buscando repartidor — el sistema lo asigna solo."}
+                            </div>
+                          )}
+                          {p.estado === "preparacion" && p.tipo_entrega !== "recogida" && p.repartidor_id && !p.confirmado_vendedor_recogida && (
                             <Button size="sm" onClick={() => confirmarRecogida(p)}>
                               <QrCode size={14} /> Confirmar recogida
                             </Button>
                           )}
-                          {p.estado === "preparacion" && p.repartidor_id && !!p.confirmado_vendedor_recogida && (
-                            <div style={{ width: "100%" }}>
-                              <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 6 }}>
-                                Dale este código a {p.repartidor_nombre ?? "el repartidor"} al recoger:
-                              </div>
-                              {p.qr_recogida_token && (
-                                <div
-                                  className="tabular"
-                                  style={{
-                                    fontFamily: "var(--font-mono)",
-                                    fontSize: 15,
-                                    fontWeight: 700,
-                                    letterSpacing: "0.06em",
-                                    color: "var(--cyan)",
-                                    background: "var(--cyan-bg)",
-                                    padding: "8px 12px",
-                                    borderRadius: "var(--radius-sm)",
-                                    textAlign: "center",
-                                    wordBreak: "break-all",
-                                  }}
-                                >
-                                  {p.qr_recogida_token}
-                                </div>
-                              )}
-                            </div>
+                          {p.estado === "preparacion" && p.tipo_entrega !== "recogida" && p.repartidor_id && !!p.confirmado_vendedor_recogida && p.qr_recogida_token && p.pin_recogida && (
+                            <Button size="sm" variant="secondary" onClick={() => setQrDe({ pedido: p, token: p.qr_recogida_token!, pin: p.pin_recogida! })}>
+                              <QrCode size={14} /> Ver código de recogida
+                            </Button>
                           )}
                           <Button size="sm" variant="secondary" onClick={() => navigate(`/chat/${p.comprador_id}`)}>
                             <ChatCircleDots size={14} />
@@ -228,14 +223,13 @@ export function VendedorPedidos() {
         </>
       )}
 
-      {asignandoA && <AsignarRepartidorSheet pedido={asignandoA} onClose={() => setAsignandoA(null)} onDone={cargar} />}
-
       {qrDe && (
         <Sheet open onClose={() => setQrDe(null)} title="Código de recogida">
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
-            <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>Muéstrale este código al repartidor para que lo escanee.</p>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, background: "var(--surface-2)", padding: "12px 16px", borderRadius: "var(--radius-sm)", wordBreak: "break-all" }}>{qrDe.token}</div>
-          </div>
+          <CodigoQrCard
+            token={qrDe.token}
+            pin={qrDe.pin}
+            mensaje={qrDe.recogida ? "El cliente debe mostrarte este código (o decirte el PIN) al recoger su pedido." : "Que el repartidor escanee este código (o teclee el PIN) al retirar el pedido."}
+          />
         </Sheet>
       )}
 
@@ -303,55 +297,6 @@ function RechazarSheet({ pedido, onClose, onDone }: { pedido: Pedido; onClose: (
       <Button fullWidth variant="danger" onClick={confirmar} loading={enviando} disabled={!razonFinal}>
         Rechazar y reembolsar
       </Button>
-    </Sheet>
-  );
-}
-
-function AsignarRepartidorSheet({ pedido, onClose, onDone }: { pedido: Pedido; onClose: () => void; onDone: () => void }) {
-  const [repartidores, setRepartidores] = useState<(Usuario & { distancia_km?: number })[] | null>(null);
-  const toast = useToast();
-
-  useEffect(() => {
-    vendedorApi.repartidoresCercanos(pedido.id).then((r) => setRepartidores(r.repartidores)).catch(() => setRepartidores([]));
-  }, [pedido.id]);
-
-  const asignar = async (r: Usuario) => {
-    try {
-      await vendedorApi.asignarRepartidor(pedido.id, r.id);
-      toast.show(`${r.nombre} fue notificado`, "success");
-      onClose();
-      onDone();
-    } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : "No se pudo asignar.", "error");
-    }
-  };
-
-  return (
-    <Sheet open onClose={onClose} title="Repartidores cercanos">
-      {repartidores === null ? (
-        <Skeleton height={100} />
-      ) : repartidores.length === 0 ? (
-        <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>No hay repartidores en línea cerca. También puedes esperar a que alguien lo tome del panel general.</p>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {repartidores.map((r) => (
-            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, border: "1px solid var(--border)", borderRadius: "var(--radius-sm)" }}>
-              <Avatar nombre={r.nombre} foto={r.foto_perfil} size={36} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>{r.nombre}</div>
-                {r.distancia_km !== undefined && (
-                  <div className="tabular" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-                    {r.distancia_km} km
-                  </div>
-                )}
-              </div>
-              <Button size="sm" onClick={() => asignar(r)}>
-                Asignar
-              </Button>
-            </div>
-          ))}
-        </div>
-      )}
     </Sheet>
   );
 }

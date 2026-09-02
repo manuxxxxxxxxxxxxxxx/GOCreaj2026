@@ -1,4 +1,4 @@
-import { ChatCircleDotsIcon, HouseIcon, PackageIcon, StorefrontIcon, UserIcon, VideoCameraIcon, type IconProps } from "phosphor-react-native";
+import { ChatCircleDotsIcon, GaugeIcon, HouseIcon, PackageIcon, StorefrontIcon, UserIcon, VideoCameraIcon, type IconProps } from "phosphor-react-native";
 import type { ComponentType } from "react";
 import type { Rol } from "../lib/types";
 import { HomeScreen } from "../screens/comprador/HomeScreen";
@@ -10,6 +10,7 @@ import { VendedorResumenScreen } from "../screens/vendedor/VendedorResumenScreen
 import { VendedorPedidosScreen } from "../screens/vendedor/VendedorPedidosScreen";
 import { RepartidorDisponiblesScreen } from "../screens/repartidor/RepartidorDisponiblesScreen";
 import { RepartidorEntregasScreen } from "../screens/repartidor/RepartidorEntregasScreen";
+import { AdminHomeScreen } from "../screens/admin/AdminHomeScreen";
 
 export interface TabDef {
   name: string;
@@ -42,8 +43,20 @@ const REPARTIDOR_TABS: TabDef[] = [
   { name: "Perfil", label: "Perfil", icon: UserIcon, component: ProfileScreen },
 ];
 
+// El admin en la web (AdminLayout.tsx) no tiene ni rastro del sitio de cara al
+// comprador (Explorar/Reels/Perfil de comprador) -- es un panel completamente aparte
+// con su propio sidebar. Acá el equivalente son solo 2 tabs: el hub de administración
+// (dashboard + toda la navegación del sidebar, ver AdminHomeScreen) y Chat, que el
+// backend sí soporta para el admin (chat_multi.php deja al admin escribirle a
+// cualquier usuario, p. ej. para soporte/moderación).
+const ADMIN_TABS: TabDef[] = [
+  { name: "Inicio", label: "Inicio", icon: GaugeIcon, component: AdminHomeScreen },
+  { name: "Chat", label: "Chat", icon: ChatCircleDotsIcon, component: ChatListScreen },
+];
+
 export function getTabsForRole(rol: Rol): TabDef[] {
   if (rol === "vendedor") return VENDEDOR_TABS;
   if (rol === "repartidor") return REPARTIDOR_TABS;
+  if (rol === "admin") return ADMIN_TABS;
   return COMPRADOR_TABS;
 }

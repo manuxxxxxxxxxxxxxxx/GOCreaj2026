@@ -31,7 +31,18 @@ export type RootStackParamList = {
   VendedorResenas: undefined;
   RepartidorPerfil: undefined;
   Configuracion: undefined;
+  Seguridad: undefined;
   MiColeccion: { tipo: "likes" | "guardados" };
+  AdminUsuarios: undefined;
+  AdminPedidos: undefined;
+  AdminProductos: undefined;
+  AdminArbol: undefined;
+  AdminRepartidores: undefined;
+  AdminCobertura: undefined;
+  AdminCupones: undefined;
+  AdminFinanzas: undefined;
+  AdminSoporte: undefined;
+  AdminSolicitudes: undefined;
 };
 
 export type AuthStackParamList = {

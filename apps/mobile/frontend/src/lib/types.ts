@@ -4,7 +4,10 @@ export interface Usuario {
   id: number;
   nombre: string;
   username: string | null;
+  username_changed_at?: string | null;
+  datos_changed_at?: string | null;
   email: string | null;
+  email_pendiente?: string | null;
   telefono: string | null;
   telefono_verificado?: number;
   rol: Rol;
@@ -47,6 +50,8 @@ export interface Tienda {
   vendedor_nombre?: string;
   seguidores_count?: number;
   yo_sigo?: number;
+  /** Not yet backed by the API -- render only when present. */
+  verificado?: number;
 }
 
 export type EstadoStock = "disponible" | "agotado";
@@ -60,8 +65,10 @@ export interface Producto {
   precio_oferta?: number | null;
   oferta_hasta?: string | null;
   stock: number;
+  stock_ilimitado?: number;
   estado_stock: EstadoStock;
   imagen: string | null;
+  imagenes?: string[];
   video_url?: string | null;
   categoria: string;
   es_reel?: number;
@@ -134,11 +141,13 @@ export interface Pedido {
   repartidor_id: number | null;
   total: number;
   metodo_pago: "efectivo" | "tarjeta" | "paypal";
+  tipo_entrega?: "domicilio" | "recogida";
   direccion_entrega: string;
   lat_entrega?: number | null;
   lng_entrega?: number | null;
   municipio_entrega?: string | null;
   departamento_entrega?: string | null;
+  notas?: string | null;
   estado: EstadoPedido;
   progreso_repartidor?: ProgresoRepartidor;
   pago_estado: "pendiente" | "pagado" | "contraentrega" | "reembolsado";
@@ -155,8 +164,14 @@ export interface Pedido {
   trafico?: "fluido" | "moderado" | "pesado" | null;
   qr_recogida_token?: string | null;
   qr_entrega_token?: string | null;
+  pin_recogida?: string | null;
+  pin_entrega?: string | null;
   confirmado_vendedor_recogida?: number;
   confirmado_repartidor_recogida?: number;
+  /** Despacho automático en curso: hay una oferta exclusiva activa a este repartidor (ver
+   * DESIGN.md "Flujo logístico") -- null/vencida cuando no hay nadie respondiendo ahora mismo. */
+  oferta_repartidor_id?: number | null;
+  oferta_expira_at?: string | null;
   created_at: string;
   updated_at?: string;
   items: PedidoItem[];
@@ -312,6 +327,7 @@ export interface ReporteSoporte {
   usuario_id: number;
   asunto: string;
   descripcion: string;
+  adjunto?: string | null;
   estado: "abierto" | "resuelto" | "cerrado";
   respuesta_admin?: string | null;
   created_at: string;

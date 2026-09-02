@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   Archive,
   ArrowBendUpLeft,
+  Camera,
   Check,
   Checks,
   ChatCircleDots,
@@ -33,6 +34,7 @@ import { Avatar } from "../components/ui/Avatar";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
 import { MapView } from "../components/ui/MapView";
+import { ImageCropModal } from "../components/ui/ImageCropModal";
 import { AttachmentPreviewSheet } from "../components/domain/chat/AttachmentPreviewSheet";
 import { LocationPreviewSheet } from "../components/domain/chat/LocationPreviewSheet";
 import { VoiceRecorder } from "../components/domain/chat/VoiceRecorder";
@@ -187,6 +189,7 @@ function ChatThread({ otroId, usuarioId, onMeta }: { otroId: number; usuarioId: 
   const [enviando, setEnviando] = useState(false);
   const [meta, setMeta] = useState<{ archivado: number; favorito: number } | null>(null);
   const [pendiente, setPendiente] = useState<PendienteAdjunto>(null);
+  const [recortando, setRecortando] = useState(false);
   const [pidiendoUbicacion, setPidiendoUbicacion] = useState(false);
   const [menuAdjuntar, setMenuAdjuntar] = useState(false);
   const [emojiComposerAbierto, setEmojiComposerAbierto] = useState(false);
@@ -194,7 +197,9 @@ function ChatThread({ otroId, usuarioId, onMeta }: { otroId: number; usuarioId: 
   const [respondiendoA, setRespondiendoA] = useState<ChatMensaje | null>(null);
   const [verMapaDe, setVerMapaDe] = useState<{ lat: number; lng: number } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const fileImgRef = useRef<HTMLInputElement>(null);
+  const fileFotoRef = useRef<HTMLInputElement>(null);
+  const fileCamaraRef = useRef<HTMLInputElement>(null);
+  const fileVideoRef = useRef<HTMLInputElement>(null);
   const filePdfRef = useRef<HTMLInputElement>(null);
   const emojiBtnRef = useRef<HTMLButtonElement>(null);
   const reaccionBtnRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
@@ -494,9 +499,19 @@ function ChatThread({ otroId, usuarioId, onMeta }: { otroId: number; usuarioId: 
       )}
 
       <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 8, padding: 12, borderTop: "1px solid var(--border)" }}>
-        <input ref={fileImgRef} type="file" accept="image/*,video/*" hidden onChange={(e) => {
+        <input ref={fileCamaraRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) setPendiente({ file: f, kind: f.type.startsWith("video") ? "video" : "imagen" });
+          if (f) setPendiente({ file: f, kind: "imagen" });
+          e.target.value = "";
+        }} />
+        <input ref={fileFotoRef} type="file" accept="image/*" hidden onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) setPendiente({ file: f, kind: "imagen" });
+          e.target.value = "";
+        }} />
+        <input ref={fileVideoRef} type="file" accept="video/*" hidden onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) setPendiente({ file: f, kind: "video" });
           e.target.value = "";
         }} />
         <input ref={filePdfRef} type="file" accept="application/pdf" hidden onChange={(e) => {
@@ -513,7 +528,9 @@ function ChatThread({ otroId, usuarioId, onMeta }: { otroId: number; usuarioId: 
             <>
               <div onClick={() => setMenuAdjuntar(false)} style={{ position: "fixed", inset: 0, zIndex: 3 }} />
               <div style={{ position: "absolute", bottom: "calc(100% + 10px)", left: 0, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-lg)", padding: 6, minWidth: 190, zIndex: 4, animation: "rise var(--dur-fast) var(--ease-out) both" }}>
-                <MenuItem icon={<ImageIcon size={16} color="var(--cyan)" />} label="Foto o video" onClick={() => { setMenuAdjuntar(false); fileImgRef.current?.click(); }} />
+                <MenuItem icon={<Camera size={16} color="var(--cyan)" />} label="Cámara" onClick={() => { setMenuAdjuntar(false); fileCamaraRef.current?.click(); }} />
+                <MenuItem icon={<ImageIcon size={16} color="var(--cyan)" />} label="Foto" onClick={() => { setMenuAdjuntar(false); fileFotoRef.current?.click(); }} />
+                <MenuItem icon={<VideoCamera size={16} color="var(--cyan)" />} label="Video" onClick={() => { setMenuAdjuntar(false); fileVideoRef.current?.click(); }} />
                 <MenuItem icon={<FileArrowUp size={16} color="var(--violet)" />} label="Documento" onClick={() => { setMenuAdjuntar(false); filePdfRef.current?.click(); }} />
                 <MenuItem icon={<MapPin size={16} color="var(--coral)" />} label="Ubicación" onClick={() => { setMenuAdjuntar(false); setPidiendoUbicacion(true); }} />
               </div>
@@ -553,8 +570,25 @@ function ChatThread({ otroId, usuarioId, onMeta }: { otroId: number; usuarioId: 
         )}
       </div>
 
-      {pendiente && (
-        <AttachmentPreviewSheet file={pendiente.file} kind={pendiente.kind} enviando={enviando} onCancel={() => setPendiente(null)} onConfirm={confirmarAdjunto} />
+      {pendiente && !recortando && (
+        <AttachmentPreviewSheet
+          file={pendiente.file}
+          kind={pendiente.kind}
+          enviando={enviando}
+          onCancel={() => setPendiente(null)}
+          onConfirm={confirmarAdjunto}
+          onCrop={pendiente.kind === "imagen" ? () => setRecortando(true) : undefined}
+        />
+      )}
+      {pendiente && recortando && pendiente.kind === "imagen" && (
+        <ImageCropModal
+          file={pendiente.file}
+          onCancel={() => setRecortando(false)}
+          onConfirm={(cropped) => {
+            setPendiente({ file: cropped, kind: "imagen" });
+            setRecortando(false);
+          }}
+        />
       )}
       {pidiendoUbicacion && <LocationPreviewSheet enviando={enviando} onCancel={() => setPidiendoUbicacion(false)} onConfirm={confirmarUbicacion} />}
       {verMapaDe && <MapViewerSheet lat={verMapaDe.lat} lng={verMapaDe.lng} onClose={() => setVerMapaDe(null)} />}
@@ -669,10 +703,14 @@ function MensajeContenido({
   return <div style={{ fontSize: 13.5, padding: m.tipo === "texto" ? 0 : 4 }}>{m.mensaje}</div>;
 }
 
+const VELOCIDADES = [1, 1.5, 2];
+
 function AudioMensaje({ src, duracion, mio }: { src: string; duracion: number; mio: boolean }) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
   const [reproduciendo, setReproduciendo] = useState(false);
   const [progreso, setProgreso] = useState(0);
+  const [velocidadIdx, setVelocidadIdx] = useState(0);
 
   const toggle = () => {
     const audio = audioRef.current;
@@ -686,8 +724,28 @@ function AudioMensaje({ src, duracion, mio }: { src: string; duracion: number; m
     }
   };
 
+  const seekAlRatio = (ratio: number) => {
+    const audio = audioRef.current;
+    if (!audio || !audio.duration) return;
+    audio.currentTime = Math.min(audio.duration, Math.max(0, ratio * audio.duration));
+    setProgreso(ratio);
+  };
+
+  const onTrackClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    seekAlRatio((e.clientX - rect.left) / rect.width);
+  };
+
+  const ciclarVelocidad = () => {
+    const next = (velocidadIdx + 1) % VELOCIDADES.length;
+    setVelocidadIdx(next);
+    if (audioRef.current) audioRef.current.playbackRate = VELOCIDADES[next];
+  };
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px", minWidth: 200 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", minWidth: 224 }}>
       <audio
         ref={audioRef}
         src={src}
@@ -707,12 +765,40 @@ function AudioMensaje({ src, duracion, mio }: { src: string; duracion: number; m
       >
         {reproduciendo ? <Pause size={13} weight="fill" /> : <Play size={13} weight="fill" />}
       </button>
-      <div style={{ flex: 1, height: 3, borderRadius: 2, background: mio ? "rgba(255,255,255,0.35)" : "var(--border)", overflow: "hidden" }}>
-        <div style={{ width: `${progreso * 100}%`, height: "100%", background: mio ? "#fff" : "var(--cyan)" }} />
+      <div
+        ref={trackRef}
+        onClick={onTrackClick}
+        role="slider"
+        aria-label="Progreso del audio"
+        aria-valuenow={Math.round(progreso * 100)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        style={{ flex: 1, height: 12, display: "flex", alignItems: "center", cursor: "pointer" }}
+      >
+        <div style={{ width: "100%", height: 3, borderRadius: 2, background: mio ? "rgba(255,255,255,0.35)" : "var(--border)", overflow: "hidden" }}>
+          <div style={{ width: `${progreso * 100}%`, height: "100%", background: mio ? "#fff" : "var(--cyan)" }} />
+        </div>
       </div>
       <span className="tabular" style={{ fontSize: 10.5, opacity: 0.8, flexShrink: 0 }}>
         {Math.floor(duracion / 60)}:{String(duracion % 60).padStart(2, "0")}
       </span>
+      <button
+        onClick={ciclarVelocidad}
+        aria-label="Cambiar velocidad de reproducción"
+        style={{
+          fontSize: 10.5,
+          fontWeight: 700,
+          padding: "3px 6px",
+          borderRadius: 999,
+          border: "none",
+          background: mio ? "rgba(255,255,255,0.25)" : "var(--cyan-bg)",
+          color: mio ? "inherit" : "var(--cyan)",
+          cursor: "pointer",
+          flexShrink: 0,
+        }}
+      >
+        {VELOCIDADES[velocidadIdx]}x
+      </button>
     </div>
   );
 }

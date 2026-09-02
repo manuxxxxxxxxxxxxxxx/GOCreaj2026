@@ -55,6 +55,11 @@ export function AdminSoporte() {
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: "capitalize", color: t.estado === "resuelto" ? "var(--ok)" : t.estado === "cerrado" ? "var(--text-muted)" : "var(--warn)" }}>{t.estado}</span>
           </div>
           <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>{t.descripcion}</p>
+          {t.adjunto && (
+            <a href={t.adjunto} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginTop: 8, width: 100, height: 100 }}>
+              <img src={t.adjunto} alt="Captura adjunta" style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)" }} />
+            </a>
+          )}
           <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 6 }}>{formatDateTime(t.created_at)}</div>
           {t.respuesta_admin ? (
             <div style={{ marginTop: 10, padding: "10px 12px", background: "var(--surface-2)", borderRadius: "var(--radius-sm)" }}>

@@ -21,6 +21,15 @@ function chat_meta_upsert(int $uid, int $otro, string $field, int $val): void {
     )->execute([$uid, $otro, $val, $val]);
 }
 
+// El presente "en línea" que se muestra en el chat NO puede salir de la columna
+// `usuarios.en_linea` -- esa es solo el switch de "disponible para entregas" del
+// repartidor (repartidor_dashboard.php) y para cualquier comprador/vendedor se queda
+// siempre en 0, aunque esté navegando la app en ese momento. `ultimo_visto` sí se
+// actualiza en cada request autenticado (ver current_user() en conexion.php), así que
+// se usa para calcular la conexión real, con el mismo nombre de columna en el SELECT
+// para no tener que tocar nada del frontend.
+const CHAT_EN_LINEA_SQL = "(ultimo_visto IS NOT NULL AND ultimo_visto >= (NOW() - INTERVAL 90 SECOND)) AS en_linea";
+
 switch ($action) {
 
     case 'conversaciones': {
@@ -42,7 +51,7 @@ switch ($action) {
         foreach ($rows as $r) {
             $otro = (int)$r['otro_id'];
 
-            $us = db()->prepare("SELECT id, nombre, username, foto_perfil, rol, en_linea FROM usuarios WHERE id = ?");
+            $us = db()->prepare("SELECT id, nombre, username, foto_perfil, rol, " . CHAT_EN_LINEA_SQL . " FROM usuarios WHERE id = ?");
             $us->execute([$otro]);
             $usr = $us->fetch();
             if (!$usr) continue;
@@ -131,7 +140,7 @@ switch ($action) {
         db()->prepare("UPDATE chats SET leido = 1 WHERE receptor_id = ? AND emisor_id = ? AND leido = 0")
              ->execute([$uid, $otro]);
 
-        $ou = db()->prepare("SELECT id, nombre, username, foto_perfil, rol, en_linea, ultimo_visto FROM usuarios WHERE id = ?");
+        $ou = db()->prepare("SELECT id, nombre, username, foto_perfil, rol, " . CHAT_EN_LINEA_SQL . ", ultimo_visto FROM usuarios WHERE id = ?");
         $ou->execute([$otro]);
         $otroInfo = $ou->fetch() ?: null;
 
@@ -361,7 +370,7 @@ switch ($action) {
 
         if ($rol === 'admin') {
             $st = db()->prepare("
-                SELECT id, nombre, username, foto_perfil, rol, en_linea
+                SELECT id, nombre, username, foto_perfil, rol, " . CHAT_EN_LINEA_SQL . "
                 FROM usuarios WHERE activo = 1 AND id <> ?
                 ORDER BY en_linea DESC, nombre ASC
             ");
@@ -395,7 +404,7 @@ switch ($action) {
 
         $in = implode(',', array_fill(0, count($otroIds), '?'));
         $st = db()->prepare("
-            SELECT id, nombre, username, foto_perfil, rol, en_linea
+            SELECT id, nombre, username, foto_perfil, rol, " . CHAT_EN_LINEA_SQL . "
             FROM usuarios WHERE activo = 1 AND id IN ($in)
             ORDER BY en_linea DESC, nombre ASC
         ");
@@ -461,7 +470,7 @@ switch ($action) {
     case 'buscar_usuarios': {
         $q = trim($_GET['q'] ?? '');
         $rol = $_GET['rol'] ?? '';
-        $sql = "SELECT id, nombre, username, foto_perfil, rol, en_linea
+        $sql = "SELECT id, nombre, username, foto_perfil, rol, " . CHAT_EN_LINEA_SQL . "
                 FROM usuarios
                 WHERE activo = 1 AND id <> ?";
         $params = [$uid];

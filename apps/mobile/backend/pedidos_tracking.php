@@ -81,22 +81,78 @@ switch ($action) {
         jout(['ok' => true, 'pedido' => $pedido]);
         break;
 
-    // ─── Confirmación (lado comprador) de entrega, vía QR del repartidor ───
+    // ─── Confirmación (lado comprador) de entrega, vía QR o PIN del repartidor ───
     // Cierra el pedido y dispara la liquidación — ver DESIGN.md "Flujo
-    // logístico" y finalizar_entrega_pedido() en conexion.php.
+    // logístico" y finalizar_entrega_pedido() en conexion.php. El PIN es el
+    // respaldo de 6 dígitos: 3 intentos fallidos lo bloquean 15 min y alertan a
+    // soporte, pero el QR (no adivinable) sigue disponible como salida.
     case 'confirmar_entrega':
         if ($user['rol'] !== 'comprador') jout(['ok' => false, 'error' => 'Solo el comprador puede confirmar la entrega'], 403);
-        require_fields($data, ['pedido_id', 'qr_token']);
+        require_fields($data, ['pedido_id']);
         $pid = (int)$data['pedido_id'];
 
-        $sel = db()->prepare("SELECT * FROM pedidos WHERE id = ? AND comprador_id = ?");
+        // Bloqueo calculado en SQL (ver el mismo comentario en repartidor_dashboard.php
+        // action=confirmar_recogida) -- evita comparar fechas entre el reloj de PHP y el de
+        // MySQL, que en este servidor están en zonas horarias distintas.
+        $sel = db()->prepare(
+            "SELECT *, (pin_entrega_bloqueado_hasta > NOW()) AS pin_entrega_bloqueado,
+                    (pin_recogida_bloqueado_hasta > NOW()) AS pin_recogida_bloqueado
+             FROM pedidos WHERE id = ? AND comprador_id = ?"
+        );
         $sel->execute([$pid, $user['id']]);
         $ped = $sel->fetch();
         if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
+
+        // "Recoger en tienda": el comprador confirma con el código que generó el vendedor
+        // (qr_recogida_token/pin_recogida) directamente sobre el pedido en 'preparacion' --
+        // no hay tramo de reparto que esperar. Ver confirmar_recogida en vendedor_dashboard.php.
+        if ($ped['tipo_entrega'] === 'recogida') {
+            if ($ped['estado'] !== 'preparacion') jout(['ok' => false, 'error' => 'Este pedido todavía no está listo para recoger'], 400);
+            if (!$ped['qr_recogida_token']) jout(['ok' => false, 'error' => 'La tienda todavía no marcó el pedido como listo'], 400);
+
+            $usaPin = empty($data['qr_token']) && !empty($data['pin']);
+            if (!$usaPin) {
+                if (empty($data['qr_token'])) jout(['ok' => false, 'error' => 'Falta el código QR o el PIN'], 400);
+                if (!hash_equals($ped['qr_recogida_token'], (string)$data['qr_token'])) {
+                    jout(['ok' => false, 'error' => 'Código QR inválido'], 400);
+                }
+            } else {
+                if ((int)$ped['pin_recogida_bloqueado'] === 1) {
+                    jout(['ok' => false, 'error' => 'Demasiados intentos fallidos. Este PIN quedó bloqueado temporalmente -- usa el QR o contacta soporte.'], 423);
+                }
+                if (!$ped['pin_recogida'] || !hash_equals($ped['pin_recogida'], (string)$data['pin'])) {
+                    $r = registrar_intento_pin_fallido($pid, 'recogida', $user['id'], 'recogida');
+                    if ($r['bloqueado']) jout(['ok' => false, 'error' => 'PIN incorrecto 3 veces: se bloqueó 15 minutos y soporte fue notificado. Usa el QR mientras tanto.'], 423);
+                    jout(['ok' => false, 'error' => "PIN incorrecto ({$r['intentos']}/3 intentos)."], 400);
+                }
+            }
+
+            try {
+                $resultado = finalizar_recogida_pedido($pid);
+            } catch (Throwable $e) {
+                jout(['ok' => false, 'error' => $e->getMessage()], 500);
+            }
+            jout(['ok' => true] + $resultado);
+        }
+
         if ($ped['estado'] !== 'en_camino') jout(['ok' => false, 'error' => 'Este pedido no está en camino'], 400);
         if (!$ped['repartidor_id']) jout(['ok' => false, 'error' => 'Este pedido no tiene repartidor asignado'], 400);
-        if (!$ped['qr_entrega_token'] || !hash_equals($ped['qr_entrega_token'], (string)$data['qr_token'])) {
-            jout(['ok' => false, 'error' => 'Código QR inválido, o el repartidor todavía no generó el código de entrega'], 400);
+
+        $usaPin = empty($data['qr_token']) && !empty($data['pin']);
+        if (!$usaPin) {
+            if (empty($data['qr_token'])) jout(['ok' => false, 'error' => 'Falta el código QR o el PIN'], 400);
+            if (!$ped['qr_entrega_token'] || !hash_equals($ped['qr_entrega_token'], (string)$data['qr_token'])) {
+                jout(['ok' => false, 'error' => 'Código QR inválido, o el repartidor todavía no generó el código de entrega'], 400);
+            }
+        } else {
+            if ((int)$ped['pin_entrega_bloqueado'] === 1) {
+                jout(['ok' => false, 'error' => 'Demasiados intentos fallidos. Este PIN quedó bloqueado temporalmente -- usa el QR o contacta soporte.'], 423);
+            }
+            if (!$ped['pin_entrega'] || !hash_equals($ped['pin_entrega'], (string)$data['pin'])) {
+                $r = registrar_intento_pin_fallido($pid, 'entrega', $user['id'], 'entrega');
+                if ($r['bloqueado']) jout(['ok' => false, 'error' => 'PIN incorrecto 3 veces: se bloqueó 15 minutos y soporte fue notificado. Usa el QR mientras tanto.'], 423);
+                jout(['ok' => false, 'error' => "PIN incorrecto ({$r['intentos']}/3 intentos)."], 400);
+            }
         }
 
         try {

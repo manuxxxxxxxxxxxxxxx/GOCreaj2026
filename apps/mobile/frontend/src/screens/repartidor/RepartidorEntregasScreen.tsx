@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Linking, ScrollView, Text, View } from "react-native";
-import { CheckCircleIcon, NavigationArrowIcon, PackageIcon, PhoneIcon, QrCodeIcon } from "phosphor-react-native";
+import { CheckCircleIcon, GaugeIcon, MoneyIcon, NavigationArrowIcon, PackageIcon, PhoneIcon, QrCodeIcon, TimerIcon } from "phosphor-react-native";
 import { WebMapView } from "../../components/ui/WebMapView";
 import { useLocationTracking } from "@/hooks/use-location-tracking";
 import { useTheme } from "../../theme/ThemeContext";
@@ -14,8 +14,26 @@ import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { Sheet } from "../../components/ui/Sheet";
-import { QrScanBox } from "../../components/domain/QrScanBox";
+import { codigoDesdeValor, QrScanBox } from "../../components/domain/QrScanBox";
+import { CodigoQrCard } from "../../components/domain/CodigoQrCard";
 import { AnimatedListItem } from "../../components/ui/Motion";
+
+const TRAFICO_COLOR: Record<string, (t: ReturnType<typeof useTheme>["tokens"]) => string> = {
+  fluido: (t) => t.okInk,
+  moderado: (t) => t.warnInk,
+  pesado: (t) => t.danger,
+};
+
+/** Distancia en línea recta (km) -- solo para el HUD "distancia restante" del repartidor,
+ * no reemplaza tiempo_estimado/trafico (esos sí vienen del backend en cada actualización
+ * de ubicación, ver pedidos_tracking.php action=actualizar_ubicacion). */
+function distanciaKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const r = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 
 const PROGRESO_LABEL: Record<string, string> = { camino_tienda: "Yendo a la tienda", recolectado: "Pedido recolectado", camino_cliente: "En camino al cliente" };
 const PROGRESO_SIGUIENTE: Record<string, string> = { camino_tienda: "Marcar recolectado", recolectado: "Marcar en camino" };
@@ -25,7 +43,7 @@ export function RepartidorEntregasScreen() {
   const toast = useToast();
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null);
   const [recogiendoDe, setRecogiendoDe] = useState<Pedido | null>(null);
-  const [entregaQr, setEntregaQr] = useState<{ pedido: Pedido; token: string } | null>(null);
+  const [entregaQr, setEntregaQr] = useState<{ pedido: Pedido; token: string; pin: string } | null>(null);
 
   const cargar = () => {
     repartidorApi.misEntregas().then((r) => setPedidos(r.pedidos)).catch(() => setPedidos([]));
@@ -67,7 +85,7 @@ export function RepartidorEntregasScreen() {
     const centro = yo ?? objetivo ?? tienda ?? destino;
     if (!centro) return null;
     const ruta = yo && objetivo ? [yo, objetivo] : null;
-    return { destino, tienda, yo, ruta, centro };
+    return { destino, tienda, yo, ruta, centro, objetivo };
   }, [activo, ubicacion.coordinate]);
 
   const avanzar = async (p: Pedido) => {
@@ -82,7 +100,7 @@ export function RepartidorEntregasScreen() {
   const generarQrEntrega = async (p: Pedido) => {
     try {
       const r = await repartidorApi.generarQrEntrega(p.id);
-      setEntregaQr({ pedido: p, token: r.qr_token });
+      setEntregaQr({ pedido: p, token: r.qr_token, pin: r.pin });
     } catch (err) {
       toast.show(err instanceof ApiError ? err.message : "No se pudo generar.", "error");
     }
@@ -115,18 +133,44 @@ export function RepartidorEntregasScreen() {
       <Text style={{ fontSize: 20, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>Mis entregas</Text>
 
       {mapa && (
-        <View style={{ height: 200, borderRadius: 18, borderWidth: 1, borderColor: tokens.border, overflow: "hidden" }}>
-          <WebMapView
-            center={mapa.centro}
-            zoom={14}
-            interactive={false}
-            route={mapa.ruta ? { coordinates: mapa.ruta, color: tokens.cyan, width: 4 } : null}
-            markers={[
-              ...(mapa.tienda ? [{ id: "tienda", coordinate: mapa.tienda, color: tokens.warn }] : []),
-              ...(mapa.destino ? [{ id: "destino", coordinate: mapa.destino, color: tokens.ok }] : []),
-              ...(mapa.yo ? [{ id: "yo", coordinate: mapa.yo, color: tokens.cyan }] : []),
-            ]}
-          />
+        <View>
+          <View style={{ height: 200, borderRadius: 18, borderWidth: 1, borderColor: tokens.border, overflow: "hidden" }}>
+            <WebMapView
+              center={mapa.centro}
+              zoom={14}
+              interactive={false}
+              route={mapa.ruta ? { coordinates: mapa.ruta, color: tokens.cyan, width: 4 } : null}
+              markers={[
+                ...(mapa.tienda ? [{ id: "tienda", coordinate: mapa.tienda, color: tokens.warn }] : []),
+                ...(mapa.destino ? [{ id: "destino", coordinate: mapa.destino, color: tokens.ok }] : []),
+                ...(mapa.yo ? [{ id: "yo", coordinate: mapa.yo, color: tokens.cyan }] : []),
+              ]}
+            />
+          </View>
+          {activo && mapa.yo && mapa.objetivo && (
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+              <View style={[hudChipStyle, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
+                <NavigationArrowIcon size={13} color={tokens.textSecondary} />
+                <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: tokens.textPrimary }}>
+                  {distanciaKm(mapa.yo[1], mapa.yo[0], mapa.objetivo[1], mapa.objetivo[0]).toFixed(1)} km
+                </Text>
+              </View>
+              {activo.tiempo_estimado != null && (
+                <View style={[hudChipStyle, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
+                  <TimerIcon size={13} color={tokens.textSecondary} />
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: tokens.textPrimary }}>{activo.tiempo_estimado} min</Text>
+                </View>
+              )}
+              {activo.trafico && (
+                <View style={[hudChipStyle, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
+                  <GaugeIcon size={13} color={(TRAFICO_COLOR[activo.trafico] ?? (() => tokens.textSecondary))(tokens)} />
+                  <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: (TRAFICO_COLOR[activo.trafico] ?? (() => tokens.textSecondary))(tokens), textTransform: "capitalize" }}>
+                    {activo.trafico}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       )}
 
@@ -146,6 +190,15 @@ export function RepartidorEntregasScreen() {
           </View>
           {p.estado === "en_camino" && p.progreso_repartidor && (
             <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: tokens.cyan, marginBottom: 10 }}>{PROGRESO_LABEL[p.progreso_repartidor] ?? p.progreso_repartidor}</Text>
+          )}
+          {p.metodo_pago === "efectivo" && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: tokens.warnBg, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, marginBottom: 10 }}>
+              <MoneyIcon size={15} weight="bold" color={tokens.warnInk} />
+              <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: tokens.warnInk }}>
+                Cobrar en efectivo: {money(p.total)}
+                {p.efectivo_paga_con ? ` · Paga con ${money(p.efectivo_paga_con)}` : ""}
+              </Text>
+            </View>
           )}
           <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
             {p.estado === "preparacion" && !p.confirmado_repartidor_recogida && (
@@ -207,15 +260,14 @@ export function RepartidorEntregasScreen() {
 
       {entregaQr && (
         <Sheet visible onClose={() => setEntregaQr(null)} title="Código de entrega">
-          <View style={{ alignItems: "center", gap: 12, paddingBottom: 20 }}>
-            <Text style={{ fontSize: 13, color: tokens.textSecondary, textAlign: "center" }}>Muéstrale este código al comprador para confirmar la entrega.</Text>
-            <Text style={{ fontFamily: "IBMPlexMono_500Medium", fontSize: 13, backgroundColor: tokens.surface2, padding: 14, borderRadius: 10 }}>{entregaQr.token}</Text>
-          </View>
+          <CodigoQrCard token={entregaQr.token} pin={entregaQr.pin} mensaje="Muéstrale este código al comprador para que lo escanee y confirme la entrega." />
         </Sheet>
       )}
     </ScrollView>
   );
 }
+
+const hudChipStyle = { flexDirection: "row" as const, alignItems: "center" as const, gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1 };
 
 function RecogidaSheet({ pedido, onClose, onDone }: { pedido: Pedido; onClose: () => void; onDone: () => void }) {
   const toast = useToast();
@@ -226,7 +278,7 @@ function RecogidaSheet({ pedido, onClose, onDone }: { pedido: Pedido; onClose: (
     if (!valor.trim()) return;
     setEnviando(true);
     try {
-      const r = await repartidorApi.confirmarRecogida(pedido.id, valor.trim());
+      const r = await repartidorApi.confirmarRecogida(pedido.id, codigoDesdeValor(valor));
       toast.show(r.en_camino ? "¡Vas en camino!" : "Recogida confirmada", "success");
       onDone();
     } catch (err) {
@@ -238,7 +290,7 @@ function RecogidaSheet({ pedido, onClose, onDone }: { pedido: Pedido; onClose: (
 
   return (
     <Sheet visible onClose={onClose} title="Confirmar recogida">
-      <QrScanBox valor={valor} onChange={setValor} hint="Pídele a la tienda el código QR de recogida y escanéalo, o pégalo abajo." />
+      <QrScanBox valor={valor} onChange={setValor} hint="Escanea el código QR de la tienda, o teclea el PIN de 6 dígitos si no puedes escanear." />
       <View style={{ marginTop: 16, marginBottom: 8 }}>
         <Button onPress={confirmar} loading={enviando}>
           Confirmar

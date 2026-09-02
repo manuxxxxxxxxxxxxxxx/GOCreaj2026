@@ -11,13 +11,14 @@ switch ($action) {
 
     case 'crear':
         require_fields($data, ['asunto','descripcion']);
-        $st = db()->prepare("INSERT INTO reportes_soporte (usuario_id, asunto, descripcion) VALUES (?, ?, ?)");
-        $st->execute([$user['id'], $data['asunto'], $data['descripcion']]);
+        $adjunto = !empty($data['adjunto']) ? save_base64_image($data['adjunto'], 'soporte', 'ticket_' . $user['id']) : null;
+        $st = db()->prepare("INSERT INTO soporte_reportes (usuario_id, asunto, descripcion, adjunto) VALUES (?, ?, ?, ?)");
+        $st->execute([$user['id'], $data['asunto'], $data['descripcion'], $adjunto]);
         jout(['ok' => true, 'id' => (int)db()->lastInsertId()]);
         break;
 
     case 'mis_tickets':
-        $st = db()->prepare("SELECT * FROM reportes_soporte WHERE usuario_id = ? ORDER BY created_at DESC");
+        $st = db()->prepare("SELECT * FROM soporte_reportes WHERE usuario_id = ? ORDER BY created_at DESC");
         $st->execute([$user['id']]);
         jout(['ok' => true, 'reportes' => $st->fetchAll()]);
         break;

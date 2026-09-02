@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useState } from "react";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
@@ -8,6 +8,7 @@ import {
   BookmarkSimpleIcon,
   CameraIcon,
   CaretRightIcon,
+  EyeIcon,
   GearSixIcon,
   HandshakeIcon,
   HeartIcon,
@@ -16,6 +17,7 @@ import {
   MapTrifoldIcon,
   MopedIcon,
   PencilSimpleIcon,
+  ShieldCheckIcon,
   SignOutIcon,
   StarIcon,
   StorefrontIcon,
@@ -30,18 +32,16 @@ import type { ThemeTokens } from "../../theme/tokens";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { authApi, pedidosApi, vendedorApi, interaccionesApi, ApiError } from "../../lib/api";
-import type { Producto } from "../../lib/types";
+import type { Pedido, Producto, Tienda } from "../../lib/types";
 import { calcularPerfilCompleto } from "../../lib/format";
 import { Avatar } from "../../components/ui/Avatar";
 import { AvatarRing } from "../../components/ui/AvatarRing";
-import { VerifiedBadge } from "../../components/ui/VerifiedBadge";
 import { Input } from "../../components/ui/Input";
 import { PhoneInput } from "../../components/ui/PhoneInput";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { GlowBackground } from "../../components/ui/GlowBackground";
 import { ScreenReveal } from "../../components/ui/Motion";
-import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { ProductGrid } from "../../components/domain/ProductGrid";
@@ -67,22 +67,25 @@ export function ProfileScreen() {
   const [guardando, setGuardando] = useState(false);
   const [editando, setEditando] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
-  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
   const [stats, setStats] = useState<{ label: string; value: number }[] | null>(null);
+  const [pedidos, setPedidos] = useState<Pedido[] | null>(null);
   const [tab, setTab] = useState<"likes" | "guardados">("likes");
   const [likes, setLikes] = useState<Producto[] | null>(null);
   const [likesTotal, setLikesTotal] = useState(0);
   const [guardados, setGuardados] = useState<Producto[] | null>(null);
   const [guardadosTotal, setGuardadosTotal] = useState(0);
+  const [productosVendedor, setProductosVendedor] = useState<Producto[] | null>(null);
+  const [ventasCount, setVentasCount] = useState<number | null>(null);
+  const [tienda, setTienda] = useState<Tienda | null>(null);
 
   useEffect(() => {
     authApi.misRoles().then((r) => setRoles(r.roles)).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    // Se cargan ambas de una vez (no solo la pestaña activa): el hero del comprador
-    // ya necesita los conteos de Favoritos/Guardados apenas entra al perfil. Solo se
-    // trae una vista previa (COLECCION_PREVIEW) — "Ver todo" lleva a la lista completa paginada.
+  // Se cargan ambas de una vez (no solo la pestaña activa): el hero del comprador
+  // ya necesita los conteos de Favoritos/Guardados apenas entra al perfil. Solo se
+  // trae una vista previa (COLECCION_PREVIEW) — "Ver todo" lleva a la lista completa paginada.
+  const cargarColecciones = useCallback(() => {
     interaccionesApi
       .misLikes(1, COLECCION_PREVIEW)
       .then((r) => {
@@ -99,24 +102,56 @@ export function ProfileScreen() {
       .catch(() => setGuardados([]));
   }, []);
 
+  useEffect(cargarColecciones, [cargarColecciones]);
+
+  // Los tabs no desmontan las pantallas -- sin refrescar al recuperar el foco, un like o
+  // guardado hecho en Reels/Explorar no aparecía aquí hasta recargar toda la app.
+  useEffect(() => {
+    const unsub = navigation.addListener("focus", cargarColecciones);
+    return unsub;
+  }, [navigation, cargarColecciones]);
+
   useEffect(() => {
     if (!usuario) return;
     if (usuario.rol === "comprador") {
-      pedidosApi.misPedidos().then((r) => setStats([{ label: "Pedidos", value: r.pedidos.length }])).catch(() => setStats(null));
+      pedidosApi
+        .misPedidos()
+        .then((r) => {
+          setPedidos(r.pedidos);
+          setStats([{ label: "Pedidos", value: r.pedidos.length }]);
+        })
+        .catch(() => {
+          setPedidos([]);
+          setStats(null);
+        });
     } else if (usuario.rol === "vendedor") {
       Promise.all([vendedorApi.misProductos(), vendedorApi.misVentas()])
-        .then(([p, v]) =>
+        .then(([p, v]) => {
+          setProductosVendedor(p.productos);
+          setVentasCount(v.pedidos.length);
           setStats([
-            { label: "Productos", value: p.productos.length },
+            { label: "Productos", value: p.productos.filter((x) => !x.es_reel).length },
             { label: "Reels", value: p.productos.filter((x) => x.es_reel).length },
             { label: "Ventas", value: v.pedidos.length },
-          ]),
-        )
+          ]);
+        })
         .catch(() => setStats(null));
+      vendedorApi.misTiendas().then((r) => setTienda(r.tiendas[0] ?? null)).catch(() => setTienda(null));
     } else {
       setStats(null);
     }
   }, [usuario?.rol]);
+
+  // Vuelve a pedir la tienda cada vez que la pantalla recupera el foco -- así el botón
+  // "Configurar mi tienda" pasa a "Visualizar"/"Configurar" apenas se crea, sin tener que
+  // recargar toda la app (crear/editar la tienda hace goBack() a este mismo Perfil).
+  useEffect(() => {
+    if (usuario?.rol !== "vendedor") return;
+    const unsub = navigation.addListener("focus", () => {
+      vendedorApi.misTiendas().then((r) => setTienda(r.tiendas[0] ?? null)).catch(() => {});
+    });
+    return unsub;
+  }, [navigation, usuario?.rol]);
 
   if (!usuario) return null;
 
@@ -172,10 +207,26 @@ export function ProfileScreen() {
           ? stats.map((s) => ({ label: s.label, value: String(s.value) }))
           : null;
 
+  const ahora = new Date();
+  const pedidosEsteMes = pedidos?.filter((p) => {
+    const d = new Date(p.created_at);
+    return d.getMonth() === ahora.getMonth() && d.getFullYear() === ahora.getFullYear();
+  }).length ?? 0;
+  const productosNoReel = productosVendedor?.filter((p) => !p.es_reel) ?? [];
+
   const compradorBadges: ProfileBadge[] = [
-    { icon: <TrophyIcon size={13} weight="fill" color={tokens.warn} />, label: "Primera compra", achieved: (pedidosCount ?? 0) >= 1 },
-    { icon: <TrophyIcon size={13} weight="fill" color={tokens.warn} />, label: "Comprador frecuente", achieved: (pedidosCount ?? 0) >= 10 },
+    { icon: <TrophyIcon size={16} weight="fill" color={tokens.cyan} />, label: "Primera compra", current: pedidosCount ?? 0, target: 1, accent: "cyan" },
+    { icon: <TrophyIcon size={16} weight="fill" color={tokens.cyan} />, label: "Comprador frecuente", current: pedidosEsteMes, target: 10, accent: "cyan", nota: "Se reinicia cada mes" },
   ];
+
+  const vendedorBadges: ProfileBadge[] = [
+    { icon: <TrophyIcon size={16} weight="fill" color={tokens.violet} />, label: "Primera venta", current: ventasCount ?? 0, target: 1, accent: "violet" },
+    { icon: <TrophyIcon size={16} weight="fill" color={tokens.violet} />, label: "Catálogo activo", current: productosNoReel.length, target: 5, accent: "violet" },
+    { icon: <TrophyIcon size={16} weight="fill" color={tokens.violet} />, label: "Vendedor establecido", current: ventasCount ?? 0, target: 25, accent: "violet" },
+  ];
+
+  const badgesListas = usuario.rol === "vendedor" ? productosVendedor !== null : pedidos !== null;
+  const badgesActivas = usuario.rol === "vendedor" ? vendedorBadges : usuario.rol === "comprador" ? compradorBadges : [];
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 140, gap: 20 }}>
@@ -200,22 +251,21 @@ export function ProfileScreen() {
               </Pressable>
             </View>
             <View style={{ flex: 1, gap: 8 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                <Text numberOfLines={1} style={{ fontSize: 20, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>{usuario.nombre}</Text>
-                {usuario.rol === "comprador" && !!usuario.telefono_verificado && <VerifiedBadge />}
-              </View>
+              <Text numberOfLines={1} style={{ fontSize: 20, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>{usuario.nombre}</Text>
+              {!!usuario.username && <Text style={{ fontSize: 12.5, color: tokens.textMuted }}>@{usuario.username}</Text>}
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
                 <View style={[styles.pill, { backgroundColor: roleMeta.bg(tokens) }]}>
                   {roleMeta.icon(roleMeta.fg(tokens))}
                   <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: roleMeta.fg(tokens) }}>{roleMeta.label}</Text>
                 </View>
-                <View style={[styles.pill, { borderWidth: 1, borderColor: tokens.border }]}>
+                <Pressable onPress={() => navigation.navigate("Direcciones")} style={[styles.pill, { borderWidth: 1, borderColor: tokens.border }]}>
                   <MapPinLineIcon size={12} color={tokens.textSecondary} />
                   <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary }}>{usuario.municipio ?? "Sin ubicación"}</Text>
-                </View>
+                </Pressable>
               </View>
               <Text style={{ fontSize: 12, color: tokens.textMuted }}>{usuario.email}</Text>
             </View>
+            {badgesListas && badgesActivas.length > 0 && <ProfileBadges badges={badgesActivas} size={44} roleLabel={roleMeta.label} />}
           </View>
 
           {heroStats && (
@@ -231,10 +281,56 @@ export function ProfileScreen() {
               ))}
             </View>
           )}
-
-          {usuario.rol === "comprador" && stats && <ProfileBadges badges={compradorBadges} />}
         </ScreenReveal>
       </View>
+
+      {usuario.rol === "vendedor" && (
+        <View style={[styles.tiendaCard, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
+          <View style={[styles.tiendaPortada, { backgroundColor: tokens.surface2 }]}>
+            {tienda?.portada ? (
+              <Image source={{ uri: tienda.portada }} style={StyleSheet.absoluteFill} />
+            ) : (
+              <View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}>
+                <StorefrontIcon size={22} color={tokens.textMuted} />
+              </View>
+            )}
+          </View>
+          <View style={{ padding: 14, gap: 12 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+              <View style={[styles.tiendaLogo, { backgroundColor: tokens.surface2, borderColor: tokens.surface1 }]}>
+                {tienda?.logo ? <Image source={{ uri: tienda.logo }} style={StyleSheet.absoluteFill} /> : <StorefrontIcon size={18} color={tokens.textMuted} />}
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={{ fontSize: 14, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>{tienda?.nombre ?? "Aún no tienes tienda"}</Text>
+                {tienda ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <StarIcon size={11} weight="fill" color={tokens.warn} />
+                    <Text style={{ fontSize: 11.5, color: tokens.textMuted }}>
+                      {tienda.calificacion_promedio ? tienda.calificacion_promedio.toFixed(1) : "Nuevo"} · Vista previa pública
+                    </Text>
+                  </View>
+                ) : (
+                  <Text style={{ fontSize: 11.5, color: tokens.textMuted }}>Créala en un par de minutos y empieza a vender</Text>
+                )}
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              {tienda && (
+                <View style={{ flex: 1 }}>
+                  <Button size="sm" variant="secondary" fullWidth icon={<EyeIcon size={14} color={tokens.textPrimary} />} onPress={() => navigation.navigate("StoreDetail", { id: tienda.id })}>
+                    Visualizar
+                  </Button>
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Button size="sm" fullWidth icon={<PencilSimpleIcon size={14} color={tokens.cyanInk} />} onPress={() => navigation.navigate("VendedorTienda")}>
+                  {tienda ? "Configurar" : "Configurar mi tienda"}
+                </Button>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
 
       <View>
         <View style={[styles.tabsRow, { borderBottomColor: tokens.border }]}>
@@ -272,7 +368,7 @@ export function ProfileScreen() {
         </View>
       </View>
 
-      {roles.length > 1 && (
+      {usuario.rol === "comprador" && roles.length > 1 && (
         <Card>
           <Text style={{ fontSize: 13, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary, marginBottom: 10 }}>Cambiar de rol</Text>
           <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
@@ -282,7 +378,11 @@ export function ProfileScreen() {
               return (
                 <Pressable
                   key={r}
-                  onPress={() => cambiarRol(r as "comprador" | "vendedor" | "repartidor")}
+                  onPress={() =>
+                    cambiarRol(r as "comprador" | "vendedor" | "repartidor").catch((err) =>
+                      toast.show(err instanceof ApiError ? err.message : "No se pudo cambiar de rol.", "error")
+                    )
+                  }
                   style={[styles.roleChip, { borderColor: active ? meta.fg(tokens) : tokens.border, backgroundColor: active ? meta.bg(tokens) : tokens.surface1 }]}
                 >
                   {meta.icon(active ? meta.fg(tokens) : tokens.textSecondary)}
@@ -342,7 +442,6 @@ export function ProfileScreen() {
         items={[
           ...(usuario.rol === "comprador" ? [{ icon: <MapTrifoldIcon size={18} color={tokens.cyan} />, label: "Mis pedidos", onPress: () => navigation.navigate("Orders") }] : []),
           ...(usuario.rol === "comprador" ? [{ icon: <HandshakeIcon size={18} color={tokens.cyan} />, label: "Convertirse en socio", onPress: () => navigation.navigate("Convertirse") }] : []),
-          ...(usuario.rol === "vendedor" ? [{ icon: <StorefrontIcon size={18} color={tokens.cyan} />, label: "Mi tienda", onPress: () => navigation.navigate("VendedorTienda") }] : []),
           ...(usuario.rol === "repartidor" ? [{ icon: <MopedIcon size={18} color={tokens.cyan} />, label: "Mi perfil de repartidor", onPress: () => navigation.navigate("RepartidorPerfil") }] : []),
         ]}
       />
@@ -351,6 +450,7 @@ export function ProfileScreen() {
         title="Más"
         items={[
           { icon: <GearSixIcon size={18} color={tokens.cyan} />, label: "Configuración avanzada", onPress: () => navigation.navigate("Configuracion") },
+          { icon: <ShieldCheckIcon size={18} color={tokens.cyan} />, label: "Seguridad", onPress: () => navigation.navigate("Seguridad") },
           { icon: <HeadsetIcon size={18} color={tokens.cyan} />, label: "Soporte", onPress: () => navigation.navigate("Soporte") },
         ]}
       />
@@ -359,35 +459,7 @@ export function ProfileScreen() {
         <Button variant="secondary" fullWidth icon={<SignOutIcon size={16} color={tokens.textPrimary} />} onPress={logout}>
           Cerrar sesión
         </Button>
-        <Pressable
-          onPress={() =>
-            Alert.alert("¿Eliminar tu cuenta?", "Esta acción desactiva tu cuenta de inmediato.", [
-              { text: "Cancelar", style: "cancel" },
-              { text: "Eliminar", style: "destructive", onPress: () => setConfirmandoEliminar(true) },
-            ])
-          }
-          style={{ padding: 4 }}
-        >
-          <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: tokens.danger }}>Eliminar cuenta</Text>
-        </Pressable>
       </View>
-
-      <ConfirmDialog
-        visible={confirmandoEliminar}
-        title="Confirmar eliminación"
-        description="Tu cuenta quedará desactivada. Contacta a soporte si cambias de opinión."
-        confirmLabel="Eliminar cuenta"
-        danger
-        onCancel={() => setConfirmandoEliminar(false)}
-        onConfirm={async () => {
-          try {
-            await authApi.eliminarCuenta();
-            logout();
-          } catch (err) {
-            toast.show(err instanceof ApiError ? err.message : "No se pudo eliminar la cuenta.", "error");
-          }
-        }}
-      />
     </ScrollView>
   );
 }
@@ -460,4 +532,7 @@ const styles = StyleSheet.create({
   navRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
   navIconBadge: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
   infoRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 11 },
+  tiendaCard: { borderRadius: 18, borderWidth: 1, overflow: "hidden" },
+  tiendaPortada: { height: 72 },
+  tiendaLogo: { width: 40, height: 40, borderRadius: 12, borderWidth: 2, alignItems: "center", justifyContent: "center", overflow: "hidden" },
 });

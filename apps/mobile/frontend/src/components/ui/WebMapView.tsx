@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View, type DimensionValue, type StyleProp, type ViewStyle } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View, type DimensionValue, type StyleProp, type ViewStyle } from "react-native";
 import WebView, { type WebViewMessageEvent } from "react-native-webview";
-import { MapTrifoldIcon, MountainsIcon, PlanetIcon, StackIcon } from "phosphor-react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { DeviceMobileIcon, MapTrifoldIcon, MountainsIcon, PlanetIcon, StackIcon } from "phosphor-react-native";
 import type { Coordinate } from "../../lib/mapcn/types";
 import { useTheme } from "../../theme/ThemeContext";
+import type { ThemeTokens } from "../../theme/tokens";
 
 /**
  * Mapa real (MapLibre GL + tiles vectoriales CARTO Voyager) dentro de un
@@ -54,6 +56,11 @@ interface Props {
   height?: DimensionValue;
   /** Shows the Google-Maps-style layer picker (Predeterminado/Satélite/Terreno). */
   layersControl?: boolean;
+  /** Cuando se da, recuerda en disco el último centro/zoom/capa que el usuario dejó en
+   * este mapa (por moveend real, no por los `center`/`zoom` que le mande el padre) y los
+   * restaura la próxima vez que se monte -- así un cambio de filtro en la pantalla de
+   * arriba (categoría, búsqueda, zona) ya no le pisa la posición manual del usuario. */
+  persistKey?: string;
 }
 
 // Embedded inside the WebView's <script> tag as plain JS (no TS, no bundler)
@@ -464,6 +471,14 @@ function buildHtml(isDark: boolean): string {
         map.on('click', function (e) {
           post({ type: 'mapPress', coordinate: [e.lngLat.lng, e.lngLat.lat] });
         });
+        // e.originalEvent solo existe en moves iniciados por el usuario (drag, pellizco,
+        // scroll-zoom) -- los nuestros via goSetView()/easeTo() no lo traen, así que esto
+        // no se dispara en bucle contra nuestras propias llamadas.
+        map.on('moveend', function (e) {
+          if (!e.originalEvent) return;
+          var c = map.getCenter();
+          post({ type: 'moveend', center: [c.lng, c.lat], zoom: map.getZoom() });
+        });
       });
     }
 
@@ -520,6 +535,19 @@ const BASE_OPTIONS: { key: MapBaseLayer; label: string; Icon: typeof MapTrifoldI
   { key: "terrain", label: "Terreno", Icon: MountainsIcon },
 ];
 
+/** react-native-webview no tiene build para web (Expo Go/dispositivo real sí lo soportan
+ * de fábrica) -- sin este corte, en la versión web de la app se veía el texto crudo sin
+ * estilo "React Native WebView does not support this platform" en vez de un mapa. En
+ * Android/iOS esto no se activa nunca, ahí WebMapView funciona normal. */
+function WebMapUnsupportedFallback({ height, style, tokens }: { height: DimensionValue; style?: StyleProp<ViewStyle>; tokens: ThemeTokens }) {
+  return (
+    <View style={[{ height, alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: tokens.surface2, borderRadius: 12, paddingHorizontal: 20 }, style]}>
+      <DeviceMobileIcon size={22} color={tokens.textMuted} />
+      <Text style={{ fontSize: 12.5, color: tokens.textMuted, textAlign: "center" }}>El mapa en vivo no está disponible en esta vista web.{"\n"}Ábrelo desde la app en tu teléfono.</Text>
+    </View>
+  );
+}
+
 export function WebMapView({
   center,
   zoom = 14,
@@ -533,21 +561,62 @@ export function WebMapView({
   style,
   height = "100%",
   layersControl,
+  persistKey,
 }: Props) {
   const { isDark, tokens } = useTheme();
+  if (Platform.OS === "web") return <WebMapUnsupportedFallback height={height} style={style} tokens={tokens} />;
   const webRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const [baseLayer, setBaseLayer] = useState<MapBaseLayer>("default");
   const [pickerOpen, setPickerOpen] = useState(false);
   const html = useMemo(() => buildHtml(isDark), [isDark]);
+  // Una vez el usuario mueve el mapa a mano (o se restauró una vista guardada), los
+  // cambios de `center`/`zoom` que mande el padre (p. ej. un filtro nuevo cambia cuál es
+  // la primera tienda del resultado) dejan de pisarle la posición.
+  const userMovedRef = useRef(false);
+  const [restoreStatus, setRestoreStatus] = useState<"pending" | "done">(persistKey ? "pending" : "done");
+  const storageKey = persistKey ? `mapview:${persistKey}` : null;
+  const lastViewRef = useRef<{ lng: number; lat: number; zoom: number } | null>(null);
 
   const run = (js: string) => webRef.current?.injectJavaScript(`${js};true;`);
 
+  const saveView = (view: { lng: number; lat: number; zoom: number; baseLayer: MapBaseLayer }) => {
+    if (!storageKey) return;
+    AsyncStorage.setItem(storageKey, JSON.stringify(view)).catch(() => {});
+  };
+
+  // Restaura la última posición/capa guardada ANTES de dejar que el efecto de abajo
+  // aplique el center/zoom que vino por props -- así no hay un salto visible de
+  // "centro por defecto" a "centro guardado" apenas se abre el mapa.
   useEffect(() => {
-    if (!ready) return;
-    run(`window.goSetView(${center[0]}, ${center[1]}, ${zoom})`);
+    if (!ready || !storageKey || restoreStatus !== "pending") return;
+    let cancelado = false;
+    AsyncStorage.getItem(storageKey)
+      .then((raw) => {
+        if (cancelado || !raw) return;
+        const v = JSON.parse(raw) as { lng: number; lat: number; zoom: number; baseLayer: MapBaseLayer };
+        if (typeof v.lng !== "number" || typeof v.lat !== "number" || typeof v.zoom !== "number") return;
+        run(`window.goSetView(${v.lng}, ${v.lat}, ${v.zoom})`);
+        if (v.baseLayer) setBaseLayer(v.baseLayer);
+        lastViewRef.current = { lng: v.lng, lat: v.lat, zoom: v.zoom };
+        userMovedRef.current = true;
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelado) setRestoreStatus("done");
+      });
+    return () => {
+      cancelado = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, center[0], center[1], zoom]);
+  }, [ready, storageKey, restoreStatus]);
+
+  useEffect(() => {
+    if (!ready || restoreStatus !== "done" || userMovedRef.current) return;
+    run(`window.goSetView(${center[0]}, ${center[1]}, ${zoom})`);
+    lastViewRef.current = { lng: center[0], lat: center[1], zoom };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, restoreStatus, center[0], center[1], zoom]);
 
   useEffect(() => {
     if (!ready) return;
@@ -584,9 +653,12 @@ export function WebMapView({
     // Theme toggle rebuilds the whole HTML (default style is baked in via
     // IS_DARK) -- reset to the default base layer so the reload lands on a
     // sensible state instead of silently staying on satellite/terrain with
-    // stale markers.
+    // stale markers. Re-arma la restauración de la vista guardada para que la
+    // recupere de nuevo en cuanto la nueva instancia del mapa esté lista.
     setBaseLayer("default");
     setReady(false);
+    if (persistKey) setRestoreStatus("pending");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDark]);
 
   const onMessage = (e: WebViewMessageEvent) => {
@@ -598,6 +670,11 @@ export function WebMapView({
         onPress(msg.coordinate as Coordinate);
       } else if (msg.type === "markerPress" && onMarkerPress) {
         onMarkerPress(msg.id);
+      } else if (msg.type === "moveend") {
+        userMovedRef.current = true;
+        const [lng, lat] = msg.center as [number, number];
+        lastViewRef.current = { lng, lat, zoom: msg.zoom as number };
+        saveView({ lng, lat, zoom: msg.zoom as number, baseLayer });
       }
     } catch {
       // mensaje no-JSON del WebView -- se ignora
@@ -627,7 +704,15 @@ export function WebMapView({
         </View>
       )}
       {layersControl && ready && (
-        <MapLayersPicker open={pickerOpen} onOpenChange={setPickerOpen} baseLayer={baseLayer} onBaseLayerChange={setBaseLayer} />
+        <MapLayersPicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          baseLayer={baseLayer}
+          onBaseLayerChange={(v) => {
+            setBaseLayer(v);
+            if (lastViewRef.current) saveView({ ...lastViewRef.current, baseLayer: v });
+          }}
+        />
       )}
     </View>
   );

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { FlatList, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { CaretLeftIcon, CheckCircleIcon, ClockIcon, HeadsetIcon } from "phosphor-react-native";
+import * as ImagePicker from "expo-image-picker";
+import { CaretLeftIcon, CheckCircleIcon, ClockIcon, HeadsetIcon, ImageIcon, XIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
@@ -24,6 +25,7 @@ export function SoporteScreen({ navigation }: Props) {
   const [tickets, setTickets] = useState<ReporteSoporte[] | null>(null);
   const [asunto, setAsunto] = useState("");
   const [descripcion, setDescripcion] = useState("");
+  const [adjunto, setAdjunto] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
   const cargar = () => {
@@ -32,13 +34,21 @@ export function SoporteScreen({ navigation }: Props) {
 
   useEffect(cargar, []);
 
+  const elegirCaptura = async () => {
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.7, base64: true });
+    if (res.canceled || !res.assets[0].base64) return;
+    const mime = res.assets[0].mimeType ?? "image/jpeg";
+    setAdjunto(`data:${mime};base64,${res.assets[0].base64}`);
+  };
+
   const enviar = async () => {
     if (!asunto.trim() || !descripcion.trim()) return toast.show("Completa el asunto y la descripción.", "warning");
     setEnviando(true);
     try {
-      await soporteApi.crear(asunto.trim(), descripcion.trim());
+      await soporteApi.crear(asunto.trim(), descripcion.trim(), adjunto);
       setAsunto("");
       setDescripcion("");
+      setAdjunto(null);
       toast.show("Ticket enviado", "success");
       cargar();
     } catch (err) {
@@ -78,6 +88,30 @@ export function SoporteScreen({ navigation }: Props) {
                   style={{ borderWidth: 1, borderColor: tokens.border, borderRadius: 10, padding: 12, fontSize: 13.5, color: tokens.textPrimary, height: 90, textAlignVertical: "top" }}
                 />
               </View>
+
+              <View>
+                <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary, marginBottom: 6 }}>Captura de pantalla (opcional)</Text>
+                {adjunto ? (
+                  <View style={{ width: 100, height: 100 }}>
+                    <Image source={{ uri: adjunto }} style={{ width: "100%", height: "100%", borderRadius: 10, borderWidth: 1, borderColor: tokens.border }} />
+                    <Pressable
+                      onPress={() => setAdjunto(null)}
+                      style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: tokens.surface1, borderWidth: 1, borderColor: tokens.border, alignItems: "center", justifyContent: "center" }}
+                    >
+                      <XIcon size={12} color={tokens.textPrimary} />
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={elegirCaptura}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingVertical: 8, paddingHorizontal: 14, borderRadius: 10, borderWidth: 1, borderStyle: "dashed", borderColor: tokens.border }}
+                  >
+                    <ImageIcon size={15} color={tokens.textSecondary} />
+                    <Text style={{ fontSize: 12.5, color: tokens.textSecondary }}>Adjuntar captura</Text>
+                  </Pressable>
+                )}
+              </View>
+
               <Button size="sm" onPress={enviar} loading={enviando} style={{ alignSelf: "flex-start" }}>
                 Enviar ticket
               </Button>
@@ -95,6 +129,11 @@ export function SoporteScreen({ navigation }: Props) {
               </View>
             </View>
             <Text style={{ fontSize: 13, color: tokens.textSecondary }}>{item.descripcion}</Text>
+            {item.adjunto && (
+              <Pressable onPress={() => item.adjunto && Linking.openURL(item.adjunto)} style={{ marginTop: 8, width: 80, height: 80 }}>
+                <Image source={{ uri: item.adjunto }} style={{ width: "100%", height: "100%", borderRadius: 10, borderWidth: 1, borderColor: tokens.border }} />
+              </Pressable>
+            )}
             {item.respuesta_admin && (
               <View style={{ marginTop: 10, padding: 12, backgroundColor: tokens.surface2, borderRadius: 10 }}>
                 <Text style={{ fontSize: 11.5, fontFamily: "Inter_700Bold", color: tokens.cyan, marginBottom: 3 }}>Respuesta del equipo</Text>

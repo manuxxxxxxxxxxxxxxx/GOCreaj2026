@@ -28,6 +28,10 @@ export const walletApi = {
   solicitarRetiro: (data: { monto: number; metodo: string; datos_cuenta: string }) =>
     post<{ ok: true; mensaje: string }>("wallet", "solicitar_retiro", data),
   misRetiros: () => get<{ ok: true; retiros: Retiro[] }>("wallet", "mis_retiros"),
+  misTarjetas: () => get<{ ok: true; tarjetas: { id: number; alias: string | null; created_at: string }[] }>("wallet", "mis_tarjetas"),
+  vincularTarjeta: (data: { token: string; alias?: string }) => post<{ ok: true; mensaje: string }>("wallet", "vincular_tarjeta", data),
+  desvincularTarjeta: (id: number) => post<{ ok: true }>("wallet", "desvincular_tarjeta", { id }),
+  retiroNfc: (data: { token: string; monto: number }) => post<{ ok: true; mensaje: string; nuevo_saldo: number }>("wallet", "retiro_nfc", data),
 };
 
 export const notificacionesApi = {
@@ -88,7 +92,8 @@ export const solicitudesApi = {
 };
 
 export const soporteApi = {
-  crear: (asunto: string, descripcion: string) => post<{ ok: true; id: number }>("soporte", "crear", { asunto, descripcion }),
+  crear: (asunto: string, descripcion: string, adjunto?: string | null) =>
+    post<{ ok: true; id: number }>("soporte", "crear", { asunto, descripcion, adjunto }),
   misTickets: () => get<{ ok: true; reportes: ReporteSoporte[] }>("soporte", "mis_tickets"),
 };
 

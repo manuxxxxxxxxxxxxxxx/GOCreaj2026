@@ -1,4 +1,9 @@
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost/GOCreaj2026/apps/mobile/backend";
+// Sin VITE_API_URL, usa el mismo host y protocolo con el que se abrió la página (localhost,
+// la IP de red, o un túnel https) -- así funciona igual desde este equipo y desde otras PCs
+// de la red, sin hardcodear una IP que puede cambiar. Usar el protocolo de la página (en vez
+// de "http:" fijo) evita que el navegador bloquee las llamadas por "Mixed Content" cuando el
+// frontend se sirve por https (p. ej. un túnel de ngrok/cloudflare).
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? `${window.location.protocol}//${window.location.hostname}/GOCreaj2026/apps/mobile/backend`;
 
 const TOKEN_KEY = "gocreaj_token";
 

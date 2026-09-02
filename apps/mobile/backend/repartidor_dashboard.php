@@ -4,6 +4,11 @@ require_once __DIR__ . '/conexion.php';
 $user = current_user();
 if (!$user || $user['rol'] !== 'repartidor') jout(['ok' => false, 'error' => 'Acceso denegado'], 403);
 
+// Autosana el despacho automático en cada request -- ver ofrecer_siguiente_repartidor()
+// en conexion.php. La app del repartidor consulta 'mi_oferta' cada pocos segundos mientras
+// está en línea, así que esto alcanza para expirar/cascadear sin WebSockets ni cron.
+avanzar_despacho_global();
+
 $action = $_GET['action'] ?? 'disponibles';
 $data = jread();
 
@@ -67,7 +72,9 @@ switch ($action) {
              LEFT JOIN tiendas t ON t.id = pt.tienda_id
              WHERE p.repartidor_id IS NULL
                AND p.estado = 'preparacion'
+               AND p.tipo_entrega != 'recogida'
                AND p.pago_estado IN ('pagado', 'contraentrega')
+               AND (p.oferta_repartidor_id IS NULL OR p.oferta_expira_at < NOW())
                AND NOT EXISTS (
                    SELECT 1 FROM pedido_repartidor_descartes d
                    WHERE d.pedido_id = p.id AND d.repartidor_id = ?
@@ -94,6 +101,88 @@ switch ($action) {
         jout(['ok' => true, 'pedidos' => $pedidos, 'en_linea' => true]);
         break;
 
+    // ─── Oferta individual del despacho automático (ver ofrecer_siguiente_repartidor()
+    // en conexion.php) -- a diferencia de 'disponibles' (mercado abierto), esto es
+    // EXCLUSIVO para este repartidor y tiene un timer corto. La app la consulta cada
+    // pocos segundos mientras está en línea para que la oferta "aparezca" al toque. ───
+    case 'mi_oferta':
+        $st = db()->prepare(
+            "SELECT p.id, p.numero_pedido, p.total,
+                    ROUND(p.total * ?, 2) AS ganancia_repartidor,
+                    GREATEST(0, TIMESTAMPDIFF(SECOND, NOW(), p.oferta_expira_at)) AS segundos_restantes,
+                    p.municipio_entrega, p.lat_entrega, p.lng_entrega,
+                    t.nombre AS tienda_nombre, t.lat AS tienda_lat, t.lng AS tienda_lng, t.direccion AS tienda_direccion,
+                    c.nombre AS comprador_nombre
+             FROM pedidos p
+             LEFT JOIN (
+                 SELECT i.pedido_id, MIN(t2.id) AS tienda_id
+                 FROM pedido_items i JOIN productos pr ON pr.id = i.producto_id JOIN tiendas t2 ON t2.id = pr.tienda_id
+                 GROUP BY i.pedido_id
+             ) pt ON pt.pedido_id = p.id
+             LEFT JOIN tiendas t ON t.id = pt.tienda_id
+             JOIN usuarios c ON c.id = p.comprador_id
+             WHERE p.oferta_repartidor_id = ? AND p.oferta_expira_at > NOW()
+             LIMIT 1"
+        );
+        $st->execute([COMISION_REPARTIDOR_PCT, $user['id']]);
+        $oferta = $st->fetch();
+        jout(['ok' => true, 'oferta' => $oferta ?: null, 'segundos_totales' => DESPACHO_OFERTA_SEGUNDOS]);
+        break;
+
+    case 'responder_oferta':
+        require_fields($data, ['pedido_id', 'decision']);
+        if (!in_array($data['decision'], ['aceptar', 'rechazar'], true)) jout(['ok' => false, 'error' => 'Decisión inválida'], 400);
+        $pid = (int)$data['pedido_id'];
+
+        // repartidor_id IS NULL de nuevo acá: si mientras tanto alguien lo asignó a mano
+        // (ver vendedor_dashboard.php action=asignar_repartidor, todavía vigente en la web)
+        // esta oferta ya no vale aunque no haya expirado por tiempo.
+        $sel = db()->prepare("SELECT id, comprador_id, vendedor_id FROM pedidos WHERE id = ? AND oferta_repartidor_id = ? AND oferta_expira_at > NOW() AND repartidor_id IS NULL FOR UPDATE");
+
+        if ($data['decision'] === 'rechazar') {
+            $chk = db()->prepare("SELECT id FROM pedidos WHERE id = ? AND oferta_repartidor_id = ?");
+            $chk->execute([$pid, $user['id']]);
+            if (!$chk->fetch()) jout(['ok' => false, 'error' => 'Esta oferta ya expiró o ya no es tuya'], 410);
+
+            db()->prepare("INSERT IGNORE INTO pedido_repartidor_descartes (pedido_id, repartidor_id) VALUES (?, ?)")->execute([$pid, $user['id']]);
+            db()->prepare("UPDATE pedidos SET oferta_repartidor_id = NULL, oferta_expira_at = NULL WHERE id = ? AND oferta_repartidor_id = ?")->execute([$pid, $user['id']]);
+            ofrecer_siguiente_repartidor($pid);
+            jout(['ok' => true]);
+        }
+
+        $activos = (int)db()->query(
+            "SELECT COUNT(*) FROM pedidos WHERE repartidor_id = {$user['id']} AND estado IN ('preparacion','en_camino')"
+        )->fetchColumn();
+        if ($activos >= MAX_PEDIDOS_ACTIVOS) {
+            jout(['ok' => false, 'error' => "Ya tienes {$activos} entregas en curso. Completa alguna antes de aceptar otra."], 400);
+        }
+
+        try {
+            db()->beginTransaction();
+            $sel->execute([$pid, $user['id']]);
+            $row = $sel->fetch();
+            if (!$row) { db()->rollBack(); jout(['ok' => false, 'error' => 'Esta oferta ya expiró o ya no es tuya'], 410); }
+
+            db()->prepare("UPDATE pedidos SET repartidor_id = ?, repartidor_asignado_at = NOW(), oferta_repartidor_id = NULL, oferta_expira_at = NULL WHERE id = ?")
+                ->execute([$user['id'], $pid]);
+
+            $msg = "🛵 El repartidor {$user['nombre']} tomó tu pedido y va a recogerlo a la tienda.";
+            $msgV = "🛵 Repartidor {$user['nombre']} tomó el pedido #{$pid}. Confirma la recogida cuando llegue.";
+            db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
+                ->execute([$user['id'], (int)$row['comprador_id'], $msg]);
+            db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
+                ->execute([$user['id'], (int)$row['vendedor_id'], $msgV]);
+            crear_notificacion((int)$row['comprador_id'], 'pedido', 'Repartidor asignado', $msg, $pid);
+            crear_notificacion((int)$row['vendedor_id'], 'pedido', 'Repartidor en camino a tu tienda', $msgV, $pid);
+
+            db()->commit();
+            jout(['ok' => true]);
+        } catch (Throwable $e) {
+            if (db()->inTransaction()) db()->rollBack();
+            jout(['ok' => false, 'error' => $e->getMessage()], 500);
+        }
+        break;
+
     case 'aceptar':
         require_fields($data, ['pedido_id']);
         $pid = (int)$data['pedido_id'];
@@ -107,13 +196,20 @@ switch ($action) {
 
         try {
             db()->beginTransaction();
-            $check = db()->prepare("SELECT id, comprador_id, vendedor_id FROM pedidos WHERE id = ? AND repartidor_id IS NULL FOR UPDATE");
+            // oferta_repartidor_id IS NULL OR ya venció: si el despacho automático tiene una
+            // oferta exclusiva vigente para OTRO repartidor (ver ofrecer_siguiente_repartidor()
+            // en conexion.php), este pedido no debe poder tomarse por acá todavía.
+            $check = db()->prepare(
+                "SELECT id, comprador_id, vendedor_id FROM pedidos
+                 WHERE id = ? AND repartidor_id IS NULL AND tipo_entrega != 'recogida' AND (oferta_repartidor_id IS NULL OR oferta_expira_at < NOW())
+                 FOR UPDATE"
+            );
             $check->execute([$pid]);
             $row = $check->fetch();
             if (!$row) { db()->rollBack(); jout(['ok' => false, 'error' => 'Pedido ya tomado'], 409); }
 
             // Queda asignado pero AÚN NO "en_camino" — falta la confirmación doble de recogida en tienda.
-            db()->prepare("UPDATE pedidos SET repartidor_id = ?, repartidor_asignado_at = NOW() WHERE id = ?")
+            db()->prepare("UPDATE pedidos SET repartidor_id = ?, repartidor_asignado_at = NOW(), oferta_repartidor_id = NULL, oferta_expira_at = NULL WHERE id = ?")
                 ->execute([$user['id'], $pid]);
 
             $msg = "🛵 El repartidor {$user['nombre']} tomó tu pedido y va a recogerlo a la tienda.";
@@ -134,21 +230,42 @@ switch ($action) {
         break;
 
     // ─── Confirmación (lado repartidor) de que recogió el pedido en la tienda ───
-    // Ahora exige el código QR que generó el vendedor (ver DESIGN.md "Flujo
-    // logístico") en vez de un tap "de honor" — quien no tiene el código
-    // delante no puede confirmar.
+    // Exige el código QR que generó el vendedor, o su PIN de 6 dígitos como
+    // respaldo (ver DESIGN.md "Flujo logístico") en vez de un tap "de honor" —
+    // quien no tiene el código delante no puede confirmar. El PIN se bloquea
+    // 15 min tras 3 intentos fallidos y alerta a soporte; el QR nunca se
+    // bloquea (no es adivinable, sigue siendo la salida de emergencia).
     case 'confirmar_recogida':
-        require_fields($data, ['pedido_id', 'qr_token']);
+        require_fields($data, ['pedido_id']);
         $pid = (int)$data['pedido_id'];
-        $sel = db()->prepare("SELECT * FROM pedidos WHERE id = ? AND repartidor_id = ?");
+        // El "bloqueado" se calcula en el propio SQL (pin_recogida_bloqueado_hasta > NOW())
+        // en vez de comparar la fecha en PHP con strtotime()/time(): este servidor tiene el
+        // reloj de PHP y el de MySQL en zonas horarias distintas, así que cualquier
+        // comparación mixta queda mal por varias horas -- mejor dejar que MySQL compare
+        // contra su propio NOW(), que es el mismo reloj que puso la fecha de bloqueo.
+        $sel = db()->prepare("SELECT *, (pin_recogida_bloqueado_hasta > NOW()) AS pin_recogida_bloqueado FROM pedidos WHERE id = ? AND repartidor_id = ?");
         $sel->execute([$pid, $user['id']]);
         $ped = $sel->fetch();
         if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
-        if (!$ped['qr_recogida_token'] || !hash_equals($ped['qr_recogida_token'], (string)$data['qr_token'])) {
-            jout(['ok' => false, 'error' => 'Código QR inválido, o el vendedor todavía no generó el código de recogida'], 400);
+
+        $usaPin = empty($data['qr_token']) && !empty($data['pin']);
+        if (!$usaPin) {
+            if (empty($data['qr_token'])) jout(['ok' => false, 'error' => 'Falta el código QR o el PIN'], 400);
+            if (!$ped['qr_recogida_token'] || !hash_equals($ped['qr_recogida_token'], (string)$data['qr_token'])) {
+                jout(['ok' => false, 'error' => 'Código QR inválido, o el vendedor todavía no generó el código de recogida'], 400);
+            }
+        } else {
+            if ((int)$ped['pin_recogida_bloqueado'] === 1) {
+                jout(['ok' => false, 'error' => 'Demasiados intentos fallidos. Este PIN quedó bloqueado temporalmente -- usa el QR o contacta soporte.'], 423);
+            }
+            if (!$ped['pin_recogida'] || !hash_equals($ped['pin_recogida'], (string)$data['pin'])) {
+                $r = registrar_intento_pin_fallido($pid, 'recogida', $user['id'], 'recogida');
+                if ($r['bloqueado']) jout(['ok' => false, 'error' => 'PIN incorrecto 3 veces: se bloqueó 15 minutos y soporte fue notificado. Usa el QR mientras tanto.'], 423);
+                jout(['ok' => false, 'error' => "PIN incorrecto ({$r['intentos']}/3 intentos)."], 400);
+            }
         }
 
-        db()->prepare("UPDATE pedidos SET confirmado_repartidor_recogida = 1, progreso_repartidor = 'recolectado' WHERE id = ?")->execute([$pid]);
+        db()->prepare("UPDATE pedidos SET confirmado_repartidor_recogida = 1, progreso_repartidor = 'recolectado', pin_recogida_intentos = 0 WHERE id = ?")->execute([$pid]);
 
         $yaConfirmadoVendedor = (int)$ped['confirmado_vendedor_recogida'] === 1;
         if ($yaConfirmadoVendedor) {
@@ -171,9 +288,10 @@ switch ($action) {
         if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado o no está en camino'], 404);
 
         $token = $ped['qr_entrega_token'] ?: bin2hex(random_bytes(16));
-        db()->prepare("UPDATE pedidos SET qr_entrega_token = ?, qr_entrega_generado_at = COALESCE(qr_entrega_generado_at, NOW()) WHERE id = ?")
-            ->execute([$token, $pid]);
-        jout(['ok' => true, 'qr_token' => $token]);
+        $pin = $ped['pin_entrega'] ?: generar_pin();
+        db()->prepare("UPDATE pedidos SET qr_entrega_token = ?, pin_entrega = ?, qr_entrega_generado_at = COALESCE(qr_entrega_generado_at, NOW()) WHERE id = ?")
+            ->execute([$token, $pin, $pid]);
+        jout(['ok' => true, 'qr_token' => $token, 'pin' => $pin]);
         break;
 
     // ─── Descartar un pedido disponible: NO lo bloquea para el resto de la flota ───

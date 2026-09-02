@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
+import { Image, Linking, Pressable, ScrollView, Share, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { CaretLeftIcon, ChatCircleDotsIcon, CheckCircleIcon, CircleIcon, ConfettiIcon, PhoneIcon, QrCodeIcon, ShareNetworkIcon, StarIcon, XIcon } from "phosphor-react-native";
+import { BagIcon, CaretLeftIcon, ChatCircleDotsIcon, CheckCircleIcon, CircleIcon, ConfettiIcon, MapPinIcon, NoteIcon, PhoneIcon, QrCodeIcon, ShareNetworkIcon, StarIcon, XIcon } from "phosphor-react-native";
 import { WebMapView } from "../../components/ui/WebMapView";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
@@ -16,11 +16,13 @@ import { Avatar } from "../../components/ui/Avatar";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { Sheet } from "../../components/ui/Sheet";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
-import { QrScanBox } from "../../components/domain/QrScanBox";
+import { codigoDesdeValor, QrScanBox } from "../../components/domain/QrScanBox";
+import { CodigoQrCard } from "../../components/domain/CodigoQrCard";
+import { useSmoothMarker } from "@/hooks/use-smooth-marker";
 
 type Props = NativeStackScreenProps<RootStackParamList, "OrderDetail">;
 
-const PASOS = [
+const PASOS_DOMICILIO = [
   { key: "pendiente_confirmacion", label: "Pedido recibido" },
   { key: "preparacion", label: "Preparando en la tienda" },
   { key: "camino_tienda", label: "Repartidor va a la tienda" },
@@ -28,7 +30,23 @@ const PASOS = [
   { key: "entregado", label: "Entregado" },
 ] as const;
 
+const PASOS_RECOGIDA = [
+  { key: "pendiente_confirmacion", label: "Pedido recibido" },
+  { key: "preparacion", label: "Preparando en la tienda" },
+  { key: "listo", label: "Listo para recoger" },
+  { key: "entregado", label: "Recogido" },
+] as const;
+
+function pasosDe(pedido: Pedido) {
+  return pedido.tipo_entrega === "recogida" ? PASOS_RECOGIDA : PASOS_DOMICILIO;
+}
+
 function pasoActivoIndex(pedido: Pedido): number {
+  if (pedido.tipo_entrega === "recogida") {
+    if (pedido.estado === "entregado") return 3;
+    if (pedido.estado === "preparacion") return pedido.qr_recogida_token ? 2 : 1;
+    return 0;
+  }
   if (pedido.estado === "entregado") return 4;
   if (pedido.estado === "en_camino") return pedido.progreso_repartidor === "recolectado" || pedido.progreso_repartidor === "camino_cliente" ? 3 : 2;
   if (pedido.estado === "preparacion") return pedido.repartidor_id ? 2 : 1;
@@ -80,7 +98,7 @@ export function OrderDetailScreen({ route, navigation }: Props) {
     if (!qrValor.trim()) return;
     setConfirmandoQr(true);
     try {
-      await pedidosApi.confirmarEntrega(route.params.id, qrValor.trim());
+      await pedidosApi.confirmarEntrega(route.params.id, codigoDesdeValor(qrValor));
       toast.show("¡Entrega confirmada! Gracias por tu compra.", "success");
       setQrOpen(false);
       setQrValor("");
@@ -89,6 +107,21 @@ export function OrderDetailScreen({ route, navigation }: Props) {
       toast.show(err instanceof ApiError ? err.message : "Código inválido.", "error");
     } finally {
       setConfirmandoQr(false);
+    }
+  };
+
+  const [confirmandoRecogida, setConfirmandoRecogida] = useState(false);
+  const confirmarRecogidaPropia = async () => {
+    if (!pedido?.qr_recogida_token) return;
+    setConfirmandoRecogida(true);
+    try {
+      await pedidosApi.confirmarEntrega(route.params.id, { qr_token: pedido.qr_recogida_token });
+      toast.show("¡Recogida confirmada! Gracias por tu compra.", "success");
+      cargar();
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo confirmar.", "error");
+    } finally {
+      setConfirmandoRecogida(false);
     }
   };
 
@@ -104,6 +137,10 @@ export function OrderDetailScreen({ route, navigation }: Props) {
     return { destino, tienda, repartidor, centro, ruta };
   }, [pedido]);
 
+  // Suaviza el marcador del repartidor entre cada actualización de ubicación (polling
+  // cada ~6s, ver arriba) para que se deslice en vez de saltar de golpe en el mapa.
+  const repartidorSuave = useSmoothMarker(mapa?.repartidor ?? null);
+
   if (!pedido) {
     return (
       <View style={{ flex: 1, padding: 20, paddingTop: insets.top + 20, gap: 12 }}>
@@ -114,7 +151,8 @@ export function OrderDetailScreen({ route, navigation }: Props) {
   }
 
   const activo = pasoActivoIndex(pedido);
-  const puedeCancel = pedido.estado === "pendiente_confirmacion" || (pedido.estado === "preparacion" && !pedido.repartidor_id);
+  const esRecogida = pedido.tipo_entrega === "recogida";
+  const puedeCancel = pedido.estado === "pendiente_confirmacion" || (pedido.estado === "preparacion" && (esRecogida || !pedido.repartidor_id));
   const puedeCalificar = pedido.estado === "entregado" && !pedido.mi_calificacion;
 
   return (
@@ -154,9 +192,9 @@ export function OrderDetailScreen({ route, navigation }: Props) {
 
         {!["cancelado", "rechazado_repartidor"].includes(pedido.estado) && (
           <View style={[styles.timelineCard, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
-            {PASOS.map((paso, i) => {
+            {pasosDe(pedido).map((paso, i, arr) => {
               const done = i <= activo;
-              const isLast = i === PASOS.length - 1;
+              const isLast = i === arr.length - 1;
               return (
                 <View key={paso.key} style={{ flexDirection: "row", gap: 12 }}>
                   <View style={{ alignItems: "center" }}>
@@ -170,7 +208,7 @@ export function OrderDetailScreen({ route, navigation }: Props) {
           </View>
         )}
 
-        {mapa && !["cancelado", "rechazado_repartidor"].includes(pedido.estado) && (
+        {mapa && !esRecogida && !["cancelado", "rechazado_repartidor"].includes(pedido.estado) && (
           <View style={[styles.mapCard, { borderColor: tokens.border }]}>
             <WebMapView
               center={mapa.centro}
@@ -179,10 +217,25 @@ export function OrderDetailScreen({ route, navigation }: Props) {
               route={mapa.ruta ? { coordinates: mapa.ruta, color: tokens.cyan, width: 4 } : null}
               markers={[
                 ...(mapa.tienda ? [{ id: "tienda", coordinate: mapa.tienda, color: tokens.warn }] : []),
-                ...(mapa.repartidor ? [{ id: "repartidor", coordinate: mapa.repartidor, color: tokens.cyan }] : []),
+                ...(repartidorSuave ? [{ id: "repartidor", coordinate: repartidorSuave, color: tokens.cyan }] : []),
                 ...(mapa.destino ? [{ id: "destino", coordinate: mapa.destino, color: tokens.ok }] : []),
               ]}
             />
+          </View>
+        )}
+
+        {esRecogida && pedido.estado === "preparacion" && (
+          <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
+            {pedido.qr_recogida_token && pedido.pin_recogida ? (
+              <>
+                <CodigoQrCard token={pedido.qr_recogida_token} pin={pedido.pin_recogida} mensaje="Muestra este código en la tienda al recoger tu pedido." />
+                <Button onPress={confirmarRecogidaPropia} loading={confirmandoRecogida} style={{ marginTop: 4 }}>
+                  Ya recogí mi pedido
+                </Button>
+              </>
+            ) : (
+              <Text style={{ fontSize: 13, color: tokens.textSecondary, textAlign: "center" }}>La tienda está preparando tu pedido. Te avisaremos cuando esté listo para recoger.</Text>
+            )}
           </View>
         )}
 
@@ -221,7 +274,10 @@ export function OrderDetailScreen({ route, navigation }: Props) {
         <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
           <Text style={{ fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13.5, color: tokens.textPrimary, marginBottom: 10 }}>Productos</Text>
           {pedido.items.map((it) => (
-            <View key={it.producto_id} style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 5 }}>
+            <View key={it.producto_id} style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6 }}>
+              <View style={[styles.itemThumb, { backgroundColor: tokens.surface2 }]}>
+                {it.imagen ? <Image source={{ uri: it.imagen }} style={StyleSheet.absoluteFill} /> : <BagIcon size={16} color={tokens.textMuted} />}
+              </View>
               <Text style={{ fontSize: 13, color: tokens.textSecondary, flex: 1 }}>
                 {it.cantidad}× {it.nombre}
               </Text>
@@ -234,9 +290,23 @@ export function OrderDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
-          <Text style={{ fontSize: 13, color: tokens.textSecondary }}>{pedido.direccion_entrega}</Text>
-          <Text style={{ fontSize: 13, color: tokens.textSecondary, marginTop: 4, textTransform: "capitalize" }}>Pago: {pedido.metodo_pago}</Text>
+        <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border, gap: 8 }]}>
+          {!esRecogida && (
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+              <MapPinIcon size={15} color={tokens.textMuted} style={{ marginTop: 1 }} />
+              <Text style={{ fontSize: 13, color: tokens.textSecondary, flex: 1 }}>{pedido.direccion_entrega}</Text>
+            </View>
+          )}
+          <Text style={{ fontSize: 13, color: tokens.textSecondary, textTransform: "capitalize" }}>
+            Pago: {pedido.metodo_pago}
+            {pedido.metodo_pago === "efectivo" && pedido.efectivo_paga_con ? ` (pagas con ${money(pedido.efectivo_paga_con)})` : ""}
+          </Text>
+          {pedido.notas && (
+            <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+              <NoteIcon size={15} color={tokens.textMuted} style={{ marginTop: 1 }} />
+              <Text style={{ fontSize: 13, color: tokens.textSecondary, flex: 1 }}>{pedido.notas}</Text>
+            </View>
+          )}
         </View>
 
         <View style={{ flexDirection: "row", gap: 10 }}>
@@ -260,7 +330,7 @@ export function OrderDetailScreen({ route, navigation }: Props) {
       <ConfirmDialog visible={confirmandoCancelar} title="¿Cancelar este pedido?" description="Se reembolsará el total a tu billetera de inmediato." confirmLabel="Sí, cancelar" danger loading={cancelando} onConfirm={cancelar} onCancel={() => setConfirmandoCancelar(false)} />
 
       <Sheet visible={qrOpen} onClose={() => setQrOpen(false)} title="Confirmar entrega">
-        <QrScanBox valor={qrValor} onChange={setQrValor} hint="Pídele al repartidor el código QR de entrega y escanéalo, o pégalo abajo." />
+        <QrScanBox valor={qrValor} onChange={setQrValor} hint="Escanea el código QR que te muestra el repartidor, o teclea el PIN de 6 dígitos si no puedes escanear." />
         <View style={{ marginTop: 16, marginBottom: 8 }}>
           <Button onPress={confirmarEntrega} loading={confirmandoQr}>
             Confirmar
@@ -334,6 +404,7 @@ const styles = StyleSheet.create({
   repRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: 14, borderWidth: 1 },
   iconBtn: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   card: { borderRadius: 14, borderWidth: 1, padding: 16 },
+  itemThumb: { width: 32, height: 32, borderRadius: 8, overflow: "hidden", alignItems: "center", justifyContent: "center", flexShrink: 0 },
   totalRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 8, paddingTop: 8, borderTopWidth: 1 },
   mapCard: { height: 200, borderRadius: 18, borderWidth: 1, overflow: "hidden" },
   pin: { width: 16, height: 16, borderRadius: 8, borderWidth: 3 },

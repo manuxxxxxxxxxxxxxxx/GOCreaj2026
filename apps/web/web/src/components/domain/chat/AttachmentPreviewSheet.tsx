@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { FilePdf, PaperPlaneTilt, Trash } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { Crop, FilePdf, PaperPlaneTilt, Trash } from "@phosphor-icons/react";
 import { Sheet } from "../../ui/Sheet";
 
 interface Props {
@@ -8,6 +8,8 @@ interface Props {
   enviando: boolean;
   onCancel: () => void;
   onConfirm: (caption: string) => void;
+  /** Solo aplica a kind === "imagen": abre el recorte libre antes de enviar. */
+  onCrop?: () => void;
 }
 
 function tamanoLegible(bytes: number): string {
@@ -17,11 +19,20 @@ function tamanoLegible(bytes: number): string {
 }
 
 /** Confirmación previa a enviar un adjunto: nada sale del composer sin que el usuario vea y apruebe la vista previa. */
-export function AttachmentPreviewSheet({ file, kind, enviando, onCancel, onConfirm }: Props) {
+export function AttachmentPreviewSheet({ file, kind, enviando, onCancel, onConfirm, onCrop }: Props) {
   const [caption, setCaption] = useState("");
-  const url = useMemo(() => URL.createObjectURL(file), [file]);
+  const [url, setUrl] = useState<string | null>(null);
 
-  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  // Objeto creado y revocado dentro del MISMO efecto (no vía useMemo) -- en React 18 con
+  // StrictMode, el doble-invoke de efectos en dev revocaba una URL memoizada compartida
+  // entre el montaje simulado y el remontaje, dejando la vista previa en blanco.
+  useEffect(() => {
+    const u = URL.createObjectURL(file);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [file]);
+
+  if (!url) return null;
 
   const titulo = kind === "imagen" ? "Enviar foto" : kind === "video" ? "Enviar video" : "Enviar documento";
 
@@ -40,7 +51,34 @@ export function AttachmentPreviewSheet({ file, kind, enviando, onCancel, onConfi
           maxHeight: 360,
         }}
       >
-        {kind === "imagen" && <img src={url} alt="" style={{ width: "100%", maxHeight: 360, objectFit: "contain" }} />}
+        {kind === "imagen" && (
+          <div style={{ position: "relative", width: "100%" }}>
+            <img src={url} alt="" style={{ width: "100%", maxHeight: 360, objectFit: "contain" }} />
+            {onCrop && (
+              <button
+                onClick={onCrop}
+                aria-label="Recortar foto"
+                style={{
+                  position: "absolute",
+                  top: 10,
+                  right: 10,
+                  width: 34,
+                  height: 34,
+                  borderRadius: "50%",
+                  border: "none",
+                  background: "rgba(0,0,0,0.55)",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                }}
+              >
+                <Crop size={16} />
+              </button>
+            )}
+          </div>
+        )}
         {kind === "video" && <video src={url} controls style={{ width: "100%", maxHeight: 360 }} />}
         {kind === "pdf" && (
           <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 18, width: "100%" }}>

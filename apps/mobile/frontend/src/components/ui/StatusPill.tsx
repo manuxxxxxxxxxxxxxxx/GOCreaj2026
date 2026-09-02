@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
-import { CheckCircleIcon, ClockIcon, PackageIcon, ProhibitIcon, TruckIcon, XCircleIcon, type IconProps } from "phosphor-react-native";
+import { CheckCircleIcon, ClockIcon, MagnifyingGlassIcon, PackageIcon, ProhibitIcon, TruckIcon, XCircleIcon, type IconProps } from "phosphor-react-native";
 import type { EstadoPedido } from "../../lib/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { radius } from "../../theme/tokens";
@@ -9,7 +9,7 @@ import type { ComponentType } from "react";
 
 const ESTADOS_ACTIVOS: EstadoPedido[] = ["preparacion", "en_camino"];
 
-export function StatusPill({ estado }: { estado: EstadoPedido }) {
+export function StatusPill({ estado, buscandoRepartidor }: { estado: EstadoPedido; buscandoRepartidor?: boolean }) {
   const { tokens } = useTheme();
   const pulse = useSharedValue(0.35);
   const activo = ESTADOS_ACTIVOS.includes(estado);
@@ -30,7 +30,8 @@ export function StatusPill({ estado }: { estado: EstadoPedido }) {
     cancelado: { label: "Cancelado", bg: tokens.dangerBg, ink: tokens.dangerInk, Icon: XCircleIcon },
     rechazado_repartidor: { label: "Rechazado", bg: tokens.dangerBg, ink: tokens.dangerInk, Icon: ProhibitIcon },
   };
-  const c = CONFIG[estado] ?? CONFIG.pendiente_confirmacion;
+  const base = CONFIG[estado] ?? CONFIG.pendiente_confirmacion;
+  const c = buscandoRepartidor && estado === "preparacion" ? { ...base, label: "Buscando repartidor", Icon: MagnifyingGlassIcon } : base;
   const Icon = c.Icon;
   return (
     <View style={[styles.base, { backgroundColor: c.bg }]}>

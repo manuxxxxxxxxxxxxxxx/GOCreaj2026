@@ -26,8 +26,8 @@ export function Register() {
     }
     setLoading(true);
     try {
-      await register({ nombre: nombre.trim(), email: email.trim(), password });
-      navigate("/onboarding", { replace: true });
+      const res = await register({ nombre: nombre.trim(), email: email.trim(), password });
+      navigate("/onboarding", { replace: true, state: { usernameSugerido: res.username_sugerido } });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo crear la cuenta.");
     } finally {

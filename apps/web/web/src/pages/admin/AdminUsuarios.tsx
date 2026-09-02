@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { MagnifyingGlass, Prohibit } from "@phosphor-icons/react";
+import { ArrowCounterClockwise, MagnifyingGlass, Prohibit } from "@phosphor-icons/react";
 import { adminApi, ApiError } from "../../lib/api";
 import type { Rol, Usuario } from "../../lib/types";
 import { formatDate } from "../../lib/format";
+import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { Avatar } from "../../components/ui/Avatar";
 import { Skeleton } from "../../components/ui/Skeleton";
@@ -11,6 +12,7 @@ import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 const ROLES: (Rol | "")[] = ["", "comprador", "vendedor", "repartidor", "admin"];
 
 export function AdminUsuarios() {
+  const { usuario: admin } = useAuth();
   const [usuarios, setUsuarios] = useState<Usuario[] | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -48,11 +50,14 @@ export function AdminUsuarios() {
   };
 
   const cambiarRol = async (u: Usuario, nuevoRol: Rol) => {
+    const anterior = u.rol;
+    // Optimista: refleja el nuevo rol al instante en la tabla, sin esperar el round-trip.
+    setUsuarios((prev) => prev && prev.map((x) => (x.id === u.id ? { ...x, rol: nuevoRol } : x)));
     try {
       await adminApi.actualizarUsuario({ usuario_id: u.id, rol: nuevoRol });
       toast.show("Rol actualizado", "success");
-      cargar();
     } catch (err) {
+      setUsuarios((prev) => prev && prev.map((x) => (x.id === u.id ? { ...x, rol: anterior } : x)));
       toast.show(err instanceof ApiError ? err.message : "No se pudo cambiar el rol.", "error");
     }
   };
@@ -104,7 +109,13 @@ export function AdminUsuarios() {
                     </div>
                   </td>
                   <td style={{ padding: "10px 14px" }}>
-                    <select value={u.rol} onChange={(e) => cambiarRol(u, e.target.value as Rol)} style={{ fontSize: 12, border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "4px 8px", background: "var(--surface-1)", textTransform: "capitalize" }}>
+                    <select
+                      value={u.rol}
+                      onChange={(e) => cambiarRol(u, e.target.value as Rol)}
+                      disabled={u.id === admin?.id}
+                      title={u.id === admin?.id ? "No puedes cambiar tu propio rol. Otro administrador debe hacerlo." : undefined}
+                      style={{ fontSize: 12, border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "4px 8px", background: "var(--surface-1)", textTransform: "capitalize", opacity: u.id === admin?.id ? 0.5 : 1, cursor: u.id === admin?.id ? "not-allowed" : "pointer" }}
+                    >
                       {(["comprador", "vendedor", "repartidor", "admin"] as Rol[]).map((r) => (
                         <option key={r} value={r}>
                           {r}
@@ -119,9 +130,17 @@ export function AdminUsuarios() {
                     {u.created_at ? formatDate(u.created_at) : "—"}
                   </td>
                   <td style={{ padding: "10px 14px", textAlign: "right" }}>
-                    <button onClick={() => setBaneando(u)} aria-label="Suspender usuario" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", display: "flex" }}>
-                      <Prohibit size={16} />
-                    </button>
+                    {u.id === admin?.id ? (
+                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>—</span>
+                    ) : u.activo ? (
+                      <button onClick={() => setBaneando(u)} aria-label="Suspender usuario" title="Suspender usuario" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", display: "flex" }}>
+                        <Prohibit size={16} />
+                      </button>
+                    ) : (
+                      <button onClick={() => setBaneando(u)} aria-label="Reactivar usuario" title="Reactivar usuario" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--ok)", display: "flex" }}>
+                        <ArrowCounterClockwise size={16} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

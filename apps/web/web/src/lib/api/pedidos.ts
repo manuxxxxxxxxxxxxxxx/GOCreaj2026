@@ -15,11 +15,11 @@ export const pedidosApi = {
 
   estado: (pedido_id: number) => get<{ ok: true; pedido: Pedido }>("pedidos_tracking", "estado", { pedido_id }),
 
-  confirmarEntrega: (pedido_id: number, qr_token: string) =>
+  confirmarEntrega: (pedido_id: number, codigo: { qr_token: string } | { pin: string }) =>
     post<{ ok: true; comision: number; ganancia_repartidor: number; ganancia_vendedor: number }>(
       "pedidos_tracking",
       "confirmar_entrega",
-      { pedido_id, qr_token },
+      { pedido_id, ...codigo },
     ),
 
   actualizarUbicacionRepartidor: (data: { pedido_id: number; lat: number; lng: number }) =>

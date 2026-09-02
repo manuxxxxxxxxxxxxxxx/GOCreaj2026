@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "SV[Go] usa la cámara para escanear los códigos QR de recogida y entrega de tus pedidos.",
+        "NSCameraUsageDescription": "SV[Go] usa la cámara para escanear códigos QR y para tomar fotos en el chat, tus productos y tu perfil.",
         "NSLocationWhenInUseUsageDescription": "SV[Go] usa tu ubicación para mostrarte tiendas cercanas y calcular el envío.",
         "NSPhotoLibraryUsageDescription": "SV[Go] usa tus fotos para que subas imágenes de productos, tu perfil y tu tienda."
       },

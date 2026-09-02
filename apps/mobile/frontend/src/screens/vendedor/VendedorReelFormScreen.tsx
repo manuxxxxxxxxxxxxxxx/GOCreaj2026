@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
@@ -13,9 +13,11 @@ import { vendedorApi, ApiError } from "../../lib/api";
 import { CategoryPicker } from "../../components/domain/CategoryPicker";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
+import { WebFormContainer } from "../../components/ui/WebFormContainer";
 
 const MAX_VIDEO_MB = 80;
 const MAX_VIDEO_SECONDS = 90;
+const WIDE_BREAKPOINT = 860;
 
 type Props = NativeStackScreenProps<RootStackParamList, "VendedorReelForm">;
 
@@ -28,6 +30,8 @@ export function VendedorReelFormScreen({ navigation }: Props) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const { width } = useWindowDimensions();
+  const ancha = Platform.OS === "web" && width >= WIDE_BREAKPOINT;
   const [tiendaId, setTiendaId] = useState<number | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
   const [nombre, setNombre] = useState("");
@@ -105,7 +109,8 @@ export function VendedorReelFormScreen({ navigation }: Props) {
         </Pressable>
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
+        <WebFormContainer maxWidth={960} style={{ padding: 20 }}>
         <View style={{ flexDirection: "row", gap: 16 }}>
           <Pressable onPress={elegirVideo} style={[styles.videoPicker, { backgroundColor: "#000", borderColor: tokens.borderStrong }]}>
             {videoUri ? (
@@ -134,20 +139,23 @@ export function VendedorReelFormScreen({ navigation }: Props) {
             <SectionLabel>Producto</SectionLabel>
             <Input label="Nombre" value={nombre} onChangeText={setNombre} />
             <Input label="Precio" value={precio} onChangeText={setPrecio} keyboardType="decimal-pad" />
+            {ancha && <Input label="Stock" value={stock} onChangeText={setStock} keyboardType="number-pad" />}
           </View>
         </View>
 
-        <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border, marginTop: 20 }]}>
-          <SectionLabel>Detalles</SectionLabel>
-          <View style={{ gap: 14 }}>
-            <Input label="Descripción" value={descripcion} onChangeText={setDescripcion} multiline />
-            <Input label="Stock" value={stock} onChangeText={setStock} keyboardType="number-pad" />
+        <View style={ancha ? { flexDirection: "row", gap: 14, marginTop: 20 } : undefined}>
+          <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border, marginTop: ancha ? 0 : 20 }, ancha && { flex: 1 }]}>
+            <SectionLabel>Detalles</SectionLabel>
+            <View style={{ gap: 14 }}>
+              <Input label="Descripción" value={descripcion} onChangeText={setDescripcion} multiline />
+              {!ancha && <Input label="Stock" value={stock} onChangeText={setStock} keyboardType="number-pad" />}
+            </View>
           </View>
-        </View>
 
-        <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border, marginTop: 14 }]}>
-          <SectionLabel>Categoría</SectionLabel>
-          <CategoryPicker value={categoria} onChange={setCategoria} />
+          <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border, marginTop: ancha ? 0 : 14 }, ancha && { flex: 1 }]}>
+            <SectionLabel>Categoría</SectionLabel>
+            <CategoryPicker value={categoria} onChange={setCategoria} />
+          </View>
         </View>
 
         <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border, marginTop: 14 }]}>
@@ -174,6 +182,7 @@ export function VendedorReelFormScreen({ navigation }: Props) {
         <Button size="lg" onPress={publicar} loading={guardando} style={{ marginTop: guardando ? 10 : 22 }}>
           Publicar Reel
         </Button>
+        </WebFormContainer>
       </ScrollView>
       </KeyboardAvoidingView>
     </View>

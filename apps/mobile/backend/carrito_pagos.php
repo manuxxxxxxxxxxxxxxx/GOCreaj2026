@@ -81,11 +81,18 @@ switch ($action) {
         break;
 
     case 'checkout':
-        require_fields($data, ['metodo_pago','direccion_entrega']);
+        require_fields($data, ['metodo_pago']);
         if (!in_array($data['metodo_pago'], ['efectivo','tarjeta','paypal'])) jout(['ok' => false, 'error' => 'Metodo invalido'], 400);
+        $tipoEntrega = ($data['tipo_entrega'] ?? 'domicilio') === 'recogida' ? 'recogida' : 'domicilio';
+        // Recoger en tienda no necesita dirección de entrega -- solo a domicilio.
+        if ($tipoEntrega === 'domicilio') require_fields($data, ['direccion_entrega']);
+        $direccionEntrega = $tipoEntrega === 'recogida' ? ($data['direccion_entrega'] ?? 'Recoger en tienda') : $data['direccion_entrega'];
+        // Recoger en tienda + efectivo: solo para pedidos de $20 o menos (evita manejar
+        // vueltos grandes en el mostrador) -- por encima de eso hay que pagar con tarjeta.
+        $pickupEfectivoMax = 20.0;
 
         // Validar zona de cobertura
-        if (!empty($data['municipio'])) {
+        if ($tipoEntrega === 'domicilio' && !empty($data['municipio'])) {
             $cob = db()->prepare("SELECT cobertura_activa FROM municipios_sv WHERE nombre = ? LIMIT 1");
             $cob->execute([$data['municipio']]);
             $activa = $cob->fetchColumn();
@@ -149,7 +156,7 @@ switch ($action) {
         }
 
         $st = db()->prepare(
-            "SELECT c.cantidad, p.id as producto_id, p.nombre, p.stock, t.vendedor_id,
+            "SELECT c.cantidad, p.id as producto_id, p.nombre, p.stock, p.stock_ilimitado, t.vendedor_id,
                     IF(p.precio_oferta IS NOT NULL AND p.precio_oferta > 0 AND (p.oferta_hasta IS NULL OR p.oferta_hasta > NOW()), p.precio_oferta, p.precio) AS precio
              FROM carrito c JOIN productos p ON p.id = c.producto_id JOIN tiendas t ON t.id = p.tienda_id WHERE c.usuario_id = ?"
         );
@@ -158,7 +165,7 @@ switch ($action) {
         if (!$items) jout(['ok' => false, 'error' => 'Carrito vacio'], 400);
 
         foreach ($items as $it) {
-            if ((int)$it['stock'] < (int)$it['cantidad']) {
+            if (!$it['stock_ilimitado'] && (int)$it['stock'] < (int)$it['cantidad']) {
                 jout(['ok' => false, 'error' => "Sin stock: {$it['nombre']}"], 400);
             }
         }
@@ -194,10 +201,26 @@ switch ($action) {
         }
 
         // ── Costo de envío: se recalcula 100% en el servidor según el modo elegido ──
+        // "Recoger en tienda" no tiene tramo de reparto, así que no hay costo de envío.
         $envioModo = ($data['envio_modo'] ?? 'estandar') === 'express' ? 'express' : 'estandar';
-        $costoEnvioTotal = $envioModo === 'express' ? 4.99 : 2.50;
+        $costoEnvioTotal = $tipoEntrega === 'recogida' ? 0 : ($envioModo === 'express' ? 4.99 : 2.50);
         $numVendedores = max(1, count($porVendedor));
         $costoEnvioPorVendedor = round($costoEnvioTotal / $numVendedores, 2);
+
+        // Valida la regla de efectivo/tarjeta de "recoger en tienda" ANTES de tocar la BD:
+        // se recalcula el total por vendedor con la misma fórmula que el loop de abajo,
+        // pero fuera de la transacción, para poder rechazar todo el checkout de una vez.
+        if ($tipoEntrega === 'recogida' && $data['metodo_pago'] === 'efectivo') {
+            foreach ($porVendedor as $arr) {
+                $subtotalV = 0;
+                foreach ($arr as $i) $subtotalV += $i['precio'] * $i['cantidad'];
+                $descuentoV = ($cupon && $subtotalGlobal > 0) ? round($descuentoGlobal * ($subtotalV / $subtotalGlobal), 2) : 0;
+                $totalV = max(0, $subtotalV - $descuentoV) + $costoEnvioPorVendedor;
+                if ($totalV > $pickupEfectivoMax) {
+                    jout(['ok' => false, 'error' => "Para recoger en tienda, los pedidos de más de \$" . number_format($pickupEfectivoMax, 0) . " deben pagarse con tarjeta."], 400);
+                }
+            }
+        }
 
         $pedidoIds = [];
         $numerosPedido = [];
@@ -213,17 +236,18 @@ switch ($action) {
                 $numeroPedido = generar_numero_pedido();
                 $ins = db()->prepare(
                     "INSERT INTO pedidos
-                     (numero_pedido, comprador_id, vendedor_id, total, metodo_pago, direccion_entrega, lat_entrega, lng_entrega, pago_estado, pago_referencia, efectivo_paga_con, municipio_entrega, departamento_entrega, cupon_codigo, descuento_cupon, estado)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente_confirmacion')"
+                     (numero_pedido, comprador_id, vendedor_id, total, metodo_pago, tipo_entrega, direccion_entrega, lat_entrega, lng_entrega, pago_estado, pago_referencia, efectivo_paga_con, municipio_entrega, departamento_entrega, cupon_codigo, descuento_cupon, notas, estado)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pendiente_confirmacion')"
                 );
                 $ins->execute([
                     $numeroPedido,
                     $user['id'], $vendedor_id, round($total, 2),
-                    $data['metodo_pago'], $data['direccion_entrega'],
+                    $data['metodo_pago'], $tipoEntrega, $direccionEntrega,
                     $data['lat'] ?? null, $data['lng'] ?? null,
                     $pago_estado, $pago_ref, $efectivoPagaCon,
                     $data['municipio'] ?? null, $data['departamento'] ?? null,
                     $cupon ? $cupon['codigo'] : null, $descuentoVendedor,
+                    !empty($data['notas']) ? trim((string)$data['notas']) : null,
                 ]);
                 $pid = (int)db()->lastInsertId();
                 $pedidoIds[] = $pid;
@@ -237,13 +261,16 @@ switch ($action) {
                     "UPDATE productos
                      SET stock = stock - ?,
                          estado_stock = IF(stock - ? <= 0, 'agotado', 'disponible')
-                     WHERE id = ? AND stock >= ?"
+                     WHERE id = ? AND stock >= ? AND stock_ilimitado = 0"
                 );
                 foreach ($arr as $i) {
                     $cant = (int)$i['cantidad'];
-                    $decStock->execute([$cant, $cant, (int)$i['producto_id'], $cant]);
-                    if ($decStock->rowCount() === 0) {
-                        throw new RuntimeException("Sin stock suficiente de \"{$i['nombre']}\" — alguien más lo compró primero.");
+                    // Stock ilimitado: no hay número que descontar ni riesgo de sobreventa.
+                    if (!$i['stock_ilimitado']) {
+                        $decStock->execute([$cant, $cant, (int)$i['producto_id'], $cant]);
+                        if ($decStock->rowCount() === 0) {
+                            throw new RuntimeException("Sin stock suficiente de \"{$i['nombre']}\" — alguien más lo compró primero.");
+                        }
                     }
                     $insItem->execute([$pid, $i['producto_id'], $cant, $i['precio']]);
                 }

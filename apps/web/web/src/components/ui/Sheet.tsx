@@ -80,6 +80,11 @@ export function Sheet({ open, onClose, title, children, maxWidth = 480 }: Props)
           boxShadow: "var(--shadow-lg)",
           display: "flex",
           flexDirection: "column",
+          overflowX: "hidden",
+          // Solo permite el gesto táctil vertical (scroll/arrastrar para cerrar) -- sin esto
+          // un swipe horizontal sobre el formulario lo interpreta el navegador como gesto de
+          // "volver atrás" en vez de quedarse dentro del sheet.
+          touchAction: "pan-y",
           transform: `translateY(${dragY}px)`,
           transition: dragging.current ? "none" : "transform var(--dur-base) var(--ease-spring)",
           animation: dragY === 0 ? "sheet-in var(--dur-base) var(--ease-out) both" : undefined,
@@ -106,7 +111,7 @@ export function Sheet({ open, onClose, title, children, maxWidth = 480 }: Props)
             </button>
           </div>
         )}
-        <div style={{ overflowY: "auto", padding: "0 20px 24px" }}>{children}</div>
+        <div style={{ overflowY: "auto", overflowX: "hidden", padding: "0 20px 24px" }}>{children}</div>
       </div>
     </div>,
     document.body,

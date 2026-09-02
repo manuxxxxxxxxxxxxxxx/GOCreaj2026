@@ -5,6 +5,10 @@ export interface LoginResponse {
   ok: true;
   usuario: Usuario;
   token: string;
+  /** Solo en registro/social: true si la cuenta se acaba de crear (dispara el onboarding de username + foto). */
+  es_nuevo?: boolean;
+  /** Sugerencia de @username generada del nombre (ej. "rodrigoescobar54"), cuando la cuenta no tiene uno todavía. */
+  username_sugerido?: string | null;
 }
 
 export const authApi = {
@@ -23,10 +27,16 @@ export const authApi = {
     post<{ ok: true; disponible: boolean }>("auth", "check_username", { username, exclude_id: excludeId }),
 
   actualizarPerfil: (data: Partial<Usuario> & { password_actual?: string; password_nueva?: string; foto_perfil?: string }) =>
-    post<{ ok: true; usuario: Usuario }>("auth", "actualizar_perfil", data),
+    post<{ ok: true; usuario: Usuario; email_verificacion_enviado?: boolean; codigo_dev?: string | null }>("auth", "actualizar_perfil", data),
+
+  emailVerificar: (codigo: string) => post<{ ok: true; usuario: Usuario }>("auth", "email_verificar", { codigo }),
+
+  emailReenviarCodigo: () => post<{ ok: true; codigo_dev: string; email: string }>("auth", "email_reenviar_codigo"),
+
+  emailCancelar: () => post<{ ok: true }>("auth", "email_cancelar"),
 
   actualizarUbicacion: (data: { municipio: string; lat?: number; lng?: number }) =>
-    post<{ ok: true }>("auth", "actualizar_ubicacion", data),
+    post<{ ok: true; usuario: Usuario }>("auth", "actualizar_ubicacion", data),
 
   misRoles: () => get<{ ok: true; roles: string[]; rol_activo: string }>("auth", "mis_roles"),
 

@@ -16,6 +16,7 @@ export const adminApi = {
         compradores: number;
         vendedores: number;
         repartidores: number;
+        admins: number;
         pedidos: number;
         pedidos_hoy: number;
         ingresos_total: number;

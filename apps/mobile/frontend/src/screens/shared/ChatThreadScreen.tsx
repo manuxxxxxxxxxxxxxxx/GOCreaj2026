@@ -8,6 +8,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import {
   ArchiveIcon,
   ArrowBendUpLeftIcon,
+  CameraIcon,
   CaretLeftIcon,
   CheckIcon,
   ChecksIcon,
@@ -22,6 +23,7 @@ import {
   SmileyIcon,
   StarIcon,
   StarHalfIcon,
+  VideoCameraIcon,
   XIcon,
 } from "phosphor-react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
@@ -129,12 +131,27 @@ export function ChatThreadScreen({ route, navigation }: Props) {
     }
   };
 
-  const elegirFoto = async () => {
+  const elegirFotoGaleria = async () => {
     setMenuAdjuntar(false);
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images", "videos"], quality: 0.7 });
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.7, allowsEditing: true });
     if (res.canceled || !res.assets[0]) return;
-    const asset = res.assets[0];
-    setPendiente({ uri: asset.uri, kind: asset.type === "video" ? "video" : "imagen" });
+    setPendiente({ uri: res.assets[0].uri, kind: "imagen" });
+  };
+
+  const tomarFoto = async () => {
+    setMenuAdjuntar(false);
+    const permiso = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permiso.granted) return toast.show("Necesitamos permiso de cámara para tomar la foto.", "warning");
+    const res = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.7, allowsEditing: true });
+    if (res.canceled || !res.assets[0]) return;
+    setPendiente({ uri: res.assets[0].uri, kind: "imagen" });
+  };
+
+  const elegirVideo = async () => {
+    setMenuAdjuntar(false);
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["videos"], quality: 0.7 });
+    if (res.canceled || !res.assets[0]) return;
+    setPendiente({ uri: res.assets[0].uri, kind: "video" });
   };
 
   const elegirDocumento = async () => {
@@ -403,7 +420,9 @@ export function ChatThreadScreen({ route, navigation }: Props) {
             <>
               <Pressable onPress={() => setMenuAdjuntar(false)} style={styles.menuScrim} />
               <View style={[styles.attachMenu, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
-                <AttachMenuItem icon={<ImageIcon size={16} color={tokens.cyan} />} label="Foto o video" onPress={elegirFoto} />
+                <AttachMenuItem icon={<CameraIcon size={16} color={tokens.cyan} />} label="Cámara" onPress={tomarFoto} />
+                <AttachMenuItem icon={<ImageIcon size={16} color={tokens.cyan} />} label="Foto" onPress={elegirFotoGaleria} />
+                <AttachMenuItem icon={<VideoCameraIcon size={16} color={tokens.cyan} />} label="Video" onPress={elegirVideo} />
                 <AttachMenuItem icon={<FileArrowUpIcon size={16} color={tokens.violet} />} label="Documento" onPress={elegirDocumento} />
                 <AttachMenuItem
                   icon={<MapPinIcon size={16} color={tokens.coral} />}
@@ -459,15 +478,30 @@ function MensajeVideo({ uri, marginBottom }: { uri: string; marginBottom: number
   return <VideoView player={player} nativeControls style={{ width: 200, height: 200, borderRadius: 10, marginBottom }} />;
 }
 
+const VELOCIDADES = [1, 1.5, 2];
+
 function MensajeAudio({ uri, duracion, mio }: { uri: string; duracion: number; mio: boolean }) {
   const { tokens } = useTheme();
   const player = useAudioPlayer(uri);
   const status = useAudioPlayerStatus(player);
   const progreso = status.duration > 0 ? status.currentTime / status.duration : 0;
+  const [trackWidth, setTrackWidth] = useState(0);
+  const [velocidadIdx, setVelocidadIdx] = useState(0);
 
   useEffect(() => {
     if (status.didJustFinish) player.seekTo(0);
   }, [status.didJustFinish, player]);
+
+  const seekAlRatio = (ratio: number) => {
+    if (!status.duration) return;
+    player.seekTo(Math.min(status.duration, Math.max(0, ratio * status.duration)));
+  };
+
+  const ciclarVelocidad = () => {
+    const next = (velocidadIdx + 1) % VELOCIDADES.length;
+    setVelocidadIdx(next);
+    player.setPlaybackRate(VELOCIDADES[next]);
+  };
 
   return (
     <View style={styles.audioRow}>
@@ -478,12 +512,26 @@ function MensajeAudio({ uri, duracion, mio }: { uri: string; duracion: number; m
       >
         {status.playing ? <PauseIcon size={13} weight="fill" color={mio ? tokens.cyanInk : tokens.cyan} /> : <PlayIcon size={13} weight="fill" color={mio ? tokens.cyanInk : tokens.cyan} />}
       </Pressable>
-      <View style={[styles.audioTrack, { backgroundColor: mio ? "rgba(255,255,255,0.35)" : tokens.border }]}>
-        <View style={{ width: `${progreso * 100}%`, height: "100%", backgroundColor: mio ? "#fff" : tokens.cyan }} />
-      </View>
+      <Pressable
+        onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
+        onPress={(e) => trackWidth > 0 && seekAlRatio(e.nativeEvent.locationX / trackWidth)}
+        accessibilityLabel="Progreso del audio"
+        style={styles.audioTrackHit}
+      >
+        <View style={[styles.audioTrack, { backgroundColor: mio ? "rgba(255,255,255,0.35)" : tokens.border }]}>
+          <View style={{ width: `${progreso * 100}%`, height: "100%", backgroundColor: mio ? "#fff" : tokens.cyan }} />
+        </View>
+      </Pressable>
       <Text style={{ fontSize: 10.5, opacity: 0.85, color: mio ? tokens.cyanInk : tokens.textMuted }}>
         {Math.floor(duracion / 60)}:{String(duracion % 60).padStart(2, "0")}
       </Text>
+      <Pressable
+        onPress={ciclarVelocidad}
+        accessibilityLabel="Cambiar velocidad de reproducción"
+        style={[styles.audioSpeedBtn, { backgroundColor: mio ? "rgba(255,255,255,0.25)" : tokens.cyanBg }]}
+      >
+        <Text style={{ fontSize: 10.5, fontFamily: "Inter_700Bold", color: mio ? tokens.cyanInk : tokens.cyan }}>{VELOCIDADES[velocidadIdx]}x</Text>
+      </Pressable>
     </View>
   );
 }
@@ -513,9 +561,11 @@ const styles = StyleSheet.create({
   sendBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
   pdfRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4, marginBottom: 6, maxWidth: 200 },
   pdfIcon: { width: 34, height: 34, borderRadius: 8, alignItems: "center", justifyContent: "center" },
-  audioRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 2, minWidth: 190 },
+  audioRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 2, minWidth: 210 },
   audioBtn: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  audioTrack: { flex: 1, height: 3, borderRadius: 2, overflow: "hidden" },
+  audioTrackHit: { flex: 1, justifyContent: "center", paddingVertical: 8 },
+  audioTrack: { height: 3, borderRadius: 2, overflow: "hidden" },
+  audioSpeedBtn: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 999, flexShrink: 0 },
   menuScrim: { position: "absolute", top: -1000, bottom: -1000, left: -1000, right: -1000 },
   attachMenu: {
     position: "absolute",

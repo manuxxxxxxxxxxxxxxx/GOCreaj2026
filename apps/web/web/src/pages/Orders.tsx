@@ -86,7 +86,7 @@ export function Orders() {
                           <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>{p.items.length} producto{p.items.length !== 1 ? "s" : ""}</div>
                         </div>
                         <div style={{ textAlign: "right", flexShrink: 0 }}>
-                          <StatusPill estado={p.estado} buscandoRepartidor={!p.repartidor_id} />
+                          <StatusPill estado={p.estado} buscandoRepartidor={p.tipo_entrega !== "recogida" && !p.repartidor_id} />
                           <div className="tabular" style={{ fontWeight: 700, marginTop: 8 }}>{money(p.total)}</div>
                         </div>
                       </div>

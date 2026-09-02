@@ -1,9 +1,9 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View, type DimensionValue } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { PlusIcon } from "phosphor-react-native";
+import { HeartIcon, PlusIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import type { Producto } from "../../lib/types";
 import { money } from "../../lib/format";
@@ -11,13 +11,20 @@ import { useTheme } from "../../theme/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import { useToast } from "../../context/ToastContext";
-import { carritoApi, ApiError } from "../../lib/api";
+import { carritoApi, interaccionesApi, ApiError } from "../../lib/api";
 import { triggerFly } from "../../lib/cartFly";
 import { glowShadow } from "../../theme/tokens";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-export function ProductCard({ producto, height = 150 }: { producto: Producto; height?: DimensionValue }) {
+interface Props {
+  producto: Producto;
+  height?: DimensionValue;
+  /** Shows a floating wishlist heart in the top-right corner (store-profile grids). */
+  showWishlist?: boolean;
+}
+
+export function ProductCard({ producto, height = 150, showWishlist }: Props) {
   const { tokens } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { usuario } = useAuth();
@@ -26,6 +33,18 @@ export function ProductCard({ producto, height = 150 }: { producto: Producto; he
   const addBtnRef = useRef<View>(null);
   const cardScale = useSharedValue(1);
   const addScale = useSharedValue(1);
+  const [guardado, setGuardado] = useState(!!producto.yo_guardado);
+
+  const toggleGuardar = async () => {
+    if (!usuario) return;
+    setGuardado((g) => !g);
+    try {
+      const r = await interaccionesApi.toggleGuardar(producto.id);
+      setGuardado(r.accion === "guardar");
+    } catch {
+      setGuardado((g) => !g);
+    }
+  };
 
   const agotado = producto.estado_stock === "agotado" || producto.stock <= 0;
   const enOferta = !!producto.precio_oferta && producto.precio_oferta > 0;
@@ -85,6 +104,11 @@ export function ProductCard({ producto, height = 150 }: { producto: Producto; he
             </AnimatedPressable>
           </View>
         )}
+        {showWishlist && (
+          <Pressable onPress={toggleGuardar} accessibilityLabel={guardado ? "Quitar de guardados" : "Guardar en mi lista"} style={styles.wishlistBtn}>
+            <HeartIcon size={13} weight={guardado ? "fill" : "regular"} color={guardado ? tokens.coral : "#fff"} />
+          </Pressable>
+        )}
       </View>
       <View style={{ padding: 10 }}>
         <Text numberOfLines={1} style={{ fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13, color: tokens.textPrimary }}>
@@ -109,4 +133,5 @@ const styles = StyleSheet.create({
   agotadoOverlay: { alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,11,20,0.4)" },
   addBtnWrap: { position: "absolute", right: 8, bottom: 8 },
   addBtn: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
+  wishlistBtn: { position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,11,20,0.45)" },
 });

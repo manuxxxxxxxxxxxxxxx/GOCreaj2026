@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Bicycle, ChatCircleDots, Headset, Package, ShoppingBag, Storefront, UsersThree } from "@phosphor-icons/react";
+import { Bicycle, ChatCircleDots, Headset, Package, ShieldCheck, ShoppingBag, Storefront, UsersThree } from "@phosphor-icons/react";
 import { adminApi } from "../../lib/api";
-import { money, relativeTime } from "../../lib/format";
+import { relativeTime } from "../../lib/format";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Reveal } from "../../components/ui/Reveal";
@@ -36,7 +36,7 @@ export function AdminResumen() {
             <Kpi icon={<Bicycle size={16} />} label="Repartidores" value={String(stats.repartidores)} />,
             <Kpi icon={<Package size={16} />} label="Pedidos hoy" value={String(stats.pedidos_hoy)} tone="cyan" />,
             <Kpi icon={<Package size={16} />} label="Pedidos totales" value={String(stats.pedidos)} />,
-            <Kpi icon={<ShoppingBag size={16} />} label="Ingresos entregados" value={money(stats.ingresos_total)} tone="ok" />,
+            <Kpi icon={<ShieldCheck size={16} />} label="Admins" value={String(stats.admins)} tone="ok" />,
             <Kpi icon={<Headset size={16} />} label="Soporte abierto" value={String(stats.soporte_abiertos)} tone={stats.soporte_abiertos > 0 ? "warn" : undefined} />,
           ].map((kpi, i) => (
             <Reveal key={i} index={i}>

@@ -2,18 +2,22 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "web-vite",
+      "name": "web",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "apps/web/web", "run", "dev"],
-      "port": 5173,
-      "autoPort": true
+      "port": 5173
+    },
+    {
+      "name": "web-verify",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "apps/web/web", "run", "dev", "--", "--port", "5183"],
+      "port": 5183
     },
     {
       "name": "mobile-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "apps/mobile/frontend", "run", "web"],
-      "port": 8081,
-      "autoPort": true
+      "runtimeArgs": ["--prefix", "apps/mobile/frontend", "run", "web", "--", "--port", "8092"],
+      "port": 8092
     }
   ]
 }

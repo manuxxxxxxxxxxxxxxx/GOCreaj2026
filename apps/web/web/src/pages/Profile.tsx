@@ -1,47 +1,37 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Bell,
   BookmarkSimple,
   Camera,
   CaretRight,
   GearSix,
-  Handshake,
   Heart,
-  Headset,
   MapPinLine,
-  MapTrifold,
   Moped,
-  PencilSimple,
-  SignOut,
+  Package,
   Star,
   Storefront,
   Trophy,
   User,
-  Wallet as WalletIcon,
-  X,
 } from "@phosphor-icons/react";
-import { authApi, productosApi, pedidosApi, vendedorApi, interaccionesApi, ApiError } from "../lib/api";
-import type { Municipio, Producto } from "../lib/types";
-import { fileToBase64, calcularPerfilCompleto } from "../lib/format";
+import { authApi, pedidosApi, vendedorApi, interaccionesApi, ApiError } from "../lib/api";
+import type { Pedido, Producto, Tienda } from "../lib/types";
+import { fileToBase64, calcularPerfilCompleto, money, formatDateTime, numeroPedido } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
 import { Avatar } from "../components/ui/Avatar";
 import { AvatarRing } from "../components/ui/AvatarRing";
-import { VerifiedBadge } from "../components/ui/VerifiedBadge";
-import { Input } from "../components/ui/Input";
-import { PhoneInput } from "../components/ui/PhoneInput";
-import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Reveal } from "../components/ui/Reveal";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
-import { ConfirmDialog } from "../components/ui/ConfirmDialog";
+import { StatusPill } from "../components/ui/StatusPill";
 import { ProductGrid } from "../components/domain/ProductGrid";
 import { ProfileBadges, type ProfileBadge } from "../components/domain/ProfileBadges";
 
-/** Cuántos productos se muestran en el grid de vista previa (Me gusta / Guardados) antes de "Ver todo". */
+/** Cuántos productos se muestran en el grid de vista previa antes de "Ver todo". */
 const COLECCION_PREVIEW = 9;
+const PEDIDOS_PREVIEW = 5;
 
 const ROLE_META: Record<string, { label: string; accent: "cyan" | "violet" | "coral"; icon: React.ReactNode }> = {
   comprador: { label: "Comprador", accent: "cyan", icon: <User size={12} weight="bold" /> },
@@ -49,118 +39,78 @@ const ROLE_META: Record<string, { label: string; accent: "cyan" | "violet" | "co
   repartidor: { label: "Repartidor", accent: "coral", icon: <Moped size={12} weight="bold" /> },
 };
 
+type CompradorTab = "pedidos" | "likes" | "guardados";
+type VendedorTab = "productos" | "reels" | "resenas";
+type ResenaVendedor = { id: number; estrellas: number; comentario: string; created_at: string; comprador_nombre: string };
+
 export function Profile() {
-  const { usuario, actualizarUsuarioLocal, cambiarRol, logout } = useAuth();
+  const { usuario, actualizarUsuarioLocal } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [nombre, setNombre] = useState(usuario?.nombre ?? "");
-  const [email, setEmail] = useState(usuario?.email ?? "");
-  const [telefono, setTelefono] = useState(usuario?.telefono ?? "");
-  const [guardando, setGuardando] = useState(false);
-  const [editando, setEditando] = useState(false);
-  const [roles, setRoles] = useState<string[]>([]);
-  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
-  const [municipios, setMunicipios] = useState<Municipio[] | null>(null);
-  const [municipio, setMunicipio] = useState(usuario?.municipio ?? "");
-  const [guardandoUbicacion, setGuardandoUbicacion] = useState(false);
-  const [stats, setStats] = useState<{ label: string; value: number }[] | null>(null);
-  const [tab, setTab] = useState<"likes" | "guardados">("likes");
+
+  // El repartidor y el admin tienen su propia pantalla de perfil — esta es la
+  // vista estilo TikTok compartida por comprador y vendedor.
+  useEffect(() => {
+    if (usuario?.rol === "repartidor") navigate("/repartidor/perfil", { replace: true });
+    else if (usuario?.rol === "admin") navigate("/admin", { replace: true });
+  }, [usuario?.rol, navigate]);
+
+  const [compradorTab, setCompradorTab] = useState<CompradorTab>("pedidos");
+  const [vendedorTab, setVendedorTab] = useState<VendedorTab>("productos");
+
+  const [pedidos, setPedidos] = useState<Pedido[] | null>(null);
   const [likes, setLikes] = useState<Producto[] | null>(null);
   const [likesTotal, setLikesTotal] = useState(0);
   const [guardados, setGuardados] = useState<Producto[] | null>(null);
   const [guardadosTotal, setGuardadosTotal] = useState(0);
 
-  useEffect(() => {
-    authApi.misRoles().then((r) => setRoles(r.roles)).catch(() => {});
-    productosApi.municipiosCatalogo().then((r) => setMunicipios(r.municipios)).catch(() => setMunicipios([]));
-  }, []);
-
-  useEffect(() => {
-    // Se cargan ambas de una vez (no solo la pestaña activa): el hero del comprador
-    // ya necesita los conteos de Favoritos/Guardados apenas entra al perfil. Solo se
-    // trae una vista previa (COLECCION_PREVIEW) — "Ver todo" lleva a la lista completa paginada.
-    interaccionesApi
-      .misLikes(1, COLECCION_PREVIEW)
-      .then((r) => {
-        setLikes(r.productos);
-        setLikesTotal(r.total);
-      })
-      .catch(() => setLikes([]));
-    interaccionesApi
-      .misGuardados(1, COLECCION_PREVIEW)
-      .then((r) => {
-        setGuardados(r.productos);
-        setGuardadosTotal(r.total);
-      })
-      .catch(() => setGuardados([]));
-  }, []);
+  const [tienda, setTienda] = useState<Tienda | null | undefined>(undefined);
+  const [productosVendedor, setProductosVendedor] = useState<Producto[] | null>(null);
+  const [ventasCount, setVentasCount] = useState<number | null>(null);
+  const [resenasVendedor, setResenasVendedor] = useState<ResenaVendedor[] | null>(null);
 
   useEffect(() => {
     if (!usuario) return;
     if (usuario.rol === "comprador") {
-      pedidosApi.misPedidos().then((r) => setStats([{ label: "Pedidos", value: r.pedidos.length }])).catch(() => setStats(null));
+      pedidosApi
+        .misPedidos()
+        .then((r) => setPedidos(r.pedidos))
+        .catch(() => setPedidos([]));
+      interaccionesApi
+        .misLikes(1, COLECCION_PREVIEW)
+        .then((r) => {
+          setLikes(r.productos);
+          setLikesTotal(r.total);
+        })
+        .catch(() => setLikes([]));
+      interaccionesApi
+        .misGuardados(1, COLECCION_PREVIEW)
+        .then((r) => {
+          setGuardados(r.productos);
+          setGuardadosTotal(r.total);
+        })
+        .catch(() => setGuardados([]));
     } else if (usuario.rol === "vendedor") {
-      Promise.all([vendedorApi.misProductos(), vendedorApi.misVentas()])
-        .then(([p, v]) =>
-          setStats([
-            { label: "Productos", value: p.productos.length },
-            { label: "Reels", value: p.productos.filter((x) => x.es_reel).length },
-            { label: "Ventas", value: v.pedidos.length },
-          ]),
-        )
-        .catch(() => setStats(null));
-    } else {
-      setStats(null);
+      vendedorApi
+        .misTiendas()
+        .then((r) => setTienda(r.tiendas[0] ?? null))
+        .catch(() => setTienda(null));
+      vendedorApi
+        .misProductos()
+        .then((r) => setProductosVendedor(r.productos))
+        .catch(() => setProductosVendedor([]));
+      vendedorApi
+        .misVentas()
+        .then((r) => setVentasCount(r.pedidos.length))
+        .catch(() => setVentasCount(null));
+      vendedorApi
+        .misResenas()
+        .then((r) => setResenasVendedor(r.resenas))
+        .catch(() => setResenasVendedor([]));
     }
   }, [usuario?.rol]);
 
-  const municipiosPorDepto = useMemo(() => {
-    if (!municipios) return [];
-    const grupos = new Map<string, Municipio[]>();
-    for (const m of municipios) {
-      if (!grupos.has(m.departamento)) grupos.set(m.departamento, []);
-      grupos.get(m.departamento)!.push(m);
-    }
-    return Array.from(grupos.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [municipios]);
-
-  const guardarUbicacion = async (valor: string) => {
-    setMunicipio(valor);
-    setGuardandoUbicacion(true);
-    try {
-      const r = await authApi.actualizarUbicacion({ municipio: valor });
-      actualizarUsuarioLocal(r.usuario);
-      toast.show(valor ? "Ubicación actualizada" : "Ubicación quitada — verás resultados de todo el país", "success");
-    } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : "No se pudo actualizar tu ubicación.", "error");
-    } finally {
-      setGuardandoUbicacion(false);
-    }
-  };
-
-  if (!usuario) return null;
-
-  const guardar = async () => {
-    setGuardando(true);
-    try {
-      const r = await authApi.actualizarPerfil({ nombre, email, telefono });
-      actualizarUsuarioLocal(r.usuario);
-      toast.show("Perfil actualizado", "success");
-      setEditando(false);
-    } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : "No se pudo actualizar.", "error");
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  const cancelarEdicion = () => {
-    setNombre(usuario.nombre);
-    setEmail(usuario.email);
-    setTelefono(usuario.telefono ?? "");
-    setEditando(false);
-  };
+  if (!usuario || usuario.rol === "repartidor" || usuario.rol === "admin") return null;
 
   const subirFoto = async (file: File) => {
     const b64 = await fileToBase64(file);
@@ -174,30 +124,50 @@ export function Profile() {
   };
 
   const roleMeta = ROLE_META[usuario.rol] ?? ROLE_META.comprador;
-  const pedidosCount = stats?.find((s) => s.label === "Pedidos")?.value;
-  const heroStats: { label: string; value: string }[] | null =
-    usuario.rol === "repartidor"
-      ? [
-          { label: "Calificación", value: usuario.repartidor_calificacion_promedio ? usuario.repartidor_calificacion_promedio.toFixed(1) : "Nuevo" },
-          { label: "Reseñas", value: String(usuario.repartidor_total_resenas ?? 0) },
-        ]
-      : usuario.rol === "comprador"
-        ? [
-            { label: "Pedidos", value: pedidosCount !== undefined ? String(pedidosCount) : "-" },
-            { label: "Favoritos", value: likes !== null ? String(likesTotal) : "-" },
-            { label: "Guardados", value: guardados !== null ? String(guardadosTotal) : "-" },
-          ]
-        : stats
-          ? stats.map((s) => ({ label: s.label, value: String(s.value) }))
-          : null;
+  const esVendedor = usuario.rol === "vendedor";
+  const reelsVendedor = productosVendedor?.filter((p) => p.es_reel) ?? [];
+  const productosNoReel = productosVendedor?.filter((p) => !p.es_reel) ?? [];
+
+  const heroStats: { label: string; value: string; onClick?: () => void }[] = esVendedor
+    ? [
+        { label: "Productos", value: productosVendedor ? String(productosNoReel.length) : "-", onClick: () => setVendedorTab("productos") },
+        { label: "Reels", value: productosVendedor ? String(reelsVendedor.length) : "-", onClick: () => setVendedorTab("reels") },
+        { label: "Ventas", value: ventasCount !== null ? String(ventasCount) : "-" },
+        {
+          label: "Calificación",
+          value: tienda?.calificacion_promedio ? tienda.calificacion_promedio.toFixed(1) : "Nuevo",
+          onClick: () => setVendedorTab("resenas"),
+        },
+      ]
+    : [
+        { label: "Pedidos", value: pedidos !== null ? String(pedidos.length) : "-", onClick: () => setCompradorTab("pedidos") },
+        { label: "Me gusta", value: likes !== null ? String(likesTotal) : "-", onClick: () => setCompradorTab("likes") },
+        { label: "Guardados", value: guardados !== null ? String(guardadosTotal) : "-", onClick: () => setCompradorTab("guardados") },
+      ];
+
+  const pedidosCount = pedidos?.length ?? 0;
+  const ahora = new Date();
+  const pedidosEsteMes = pedidos?.filter((p) => {
+    const d = new Date(p.created_at);
+    return d.getMonth() === ahora.getMonth() && d.getFullYear() === ahora.getFullYear();
+  }).length ?? 0;
 
   const compradorBadges: ProfileBadge[] = [
-    { icon: <Trophy size={13} weight="fill" />, label: "Primera compra", achieved: (pedidosCount ?? 0) >= 1 },
-    { icon: <Trophy size={13} weight="fill" />, label: "Comprador frecuente", achieved: (pedidosCount ?? 0) >= 10 },
+    { icon: <Trophy size={16} weight="fill" />, label: "Primera compra", current: pedidosCount, target: 1, accent: "cyan" },
+    { icon: <Trophy size={16} weight="fill" />, label: "Comprador frecuente", current: pedidosEsteMes, target: 10, accent: "cyan", nota: "Se reinicia cada mes" },
   ];
 
+  const vendedorBadges: ProfileBadge[] = [
+    { icon: <Trophy size={16} weight="fill" />, label: "Primera venta", current: ventasCount ?? 0, target: 1, accent: "violet" },
+    { icon: <Trophy size={16} weight="fill" />, label: "Catálogo activo", current: productosNoReel.length, target: 5, accent: "violet" },
+    { icon: <Trophy size={16} weight="fill" />, label: "Vendedor establecido", current: ventasCount ?? 0, target: 25, accent: "violet" },
+  ];
+
+  const badgesListas = esVendedor ? !!productosVendedor : !!pedidos;
+  const badgesActivas = esVendedor ? vendedorBadges : compradorBadges;
+
   return (
-    <div style={{ maxWidth: 640, display: "flex", flexDirection: "column", gap: 24 }}>
+    <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
       <section className="glow-mesh" style={{ position: "relative", borderRadius: "var(--radius-lg)", background: "var(--surface-1)", border: "1px solid var(--border)", overflow: "hidden" }}>
         <button
           onClick={() => navigate("/perfil/configuracion")}
@@ -222,90 +192,103 @@ export function Profile() {
         >
           <GearSix size={17} />
         </button>
-        <Reveal style={{ display: "flex", flexDirection: "column", gap: 20, padding: "28px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-          <div style={{ position: "relative", flexShrink: 0 }}>
-            {usuario.rol === "comprador" ? (
-              <AvatarRing nombre={usuario.nombre} foto={usuario.foto_perfil} size={84} progress={calcularPerfilCompleto(usuario)} color="cyan" />
-            ) : (
-              <Avatar nombre={usuario.nombre} foto={usuario.foto_perfil} size={84} />
-            )}
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && subirFoto(e.target.files[0])} />
-            <button
-              onClick={() => fileRef.current?.click()}
-              aria-label="Cambiar foto"
-              style={{
-                position: "absolute",
-                bottom: usuario.rol === "comprador" ? 3 : -2,
-                right: usuario.rol === "comprador" ? 3 : -2,
-                width: 28,
-                height: 28,
-                borderRadius: "50%",
-                background: "var(--cyan)",
-                color: "var(--cyan-ink)",
-                border: "2px solid var(--surface-1)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-              }}
-            >
-              <Camera size={14} weight="bold" />
-            </button>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
-            <h1 style={{ fontSize: 22, display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{usuario.nombre}</span>
-              {usuario.rol === "comprador" && !!usuario.telefono_verificado && <VerifiedBadge />}
-            </h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <span
+        <Reveal style={{ display: "flex", flexDirection: "column", gap: 18, padding: "28px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+            <div style={{ position: "relative", flexShrink: 0 }}>
+              {usuario.rol === "comprador" ? (
+                <AvatarRing nombre={usuario.nombre} foto={usuario.foto_perfil} size={84} progress={calcularPerfilCompleto(usuario)} color="cyan" />
+              ) : (
+                <Avatar nombre={usuario.nombre} foto={usuario.foto_perfil} size={84} />
+              )}
+              <input id="profile-photo-input" type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && subirFoto(e.target.files[0])} />
+              <label
+                htmlFor="profile-photo-input"
+                aria-label="Cambiar foto"
                 style={{
-                  display: "inline-flex",
+                  position: "absolute",
+                  bottom: usuario.rol === "comprador" ? 3 : -2,
+                  right: usuario.rol === "comprador" ? 3 : -2,
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  background: "var(--cyan)",
+                  color: "var(--cyan-ink)",
+                  border: "2px solid var(--surface-1)",
+                  display: "flex",
                   alignItems: "center",
-                  gap: 5,
-                  padding: "4px 10px",
-                  borderRadius: "var(--radius-pill)",
-                  background: `var(--${roleMeta.accent}-bg)`,
-                  color: `var(--${roleMeta.accent})`,
-                  fontSize: 12,
-                  fontWeight: 700,
+                  justifyContent: "center",
+                  cursor: "pointer",
                 }}
               >
-                {roleMeta.icon} {roleMeta.label}
-              </span>
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                  padding: "4px 10px",
-                  borderRadius: "var(--radius-pill)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-secondary)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
-                <MapPinLine size={12} /> {usuario.municipio ?? "Sin ubicación"}
-              </span>
+                <Camera size={14} weight="bold" />
+              </label>
             </div>
-            <p style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{usuario.email}</p>
-          </div>
-        </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
+              <h1 style={{ fontSize: 22, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{esVendedor && tienda ? tienda.nombre : usuario.nombre}</h1>
+              {usuario.username && <p style={{ fontSize: 12.5, color: "var(--text-muted)" }}>@{usuario.username}</p>}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "4px 10px",
+                    borderRadius: "var(--radius-pill)",
+                    background: `var(--${roleMeta.accent}-bg)`,
+                    color: `var(--${roleMeta.accent})`,
+                    fontSize: 12,
+                    fontWeight: 700,
+                  }}
+                >
+                  {roleMeta.icon} {roleMeta.label}
+                </span>
+                <button
+                  onClick={() => navigate("/direcciones")}
+                  title="Configurar mi ubicación"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    padding: "4px 10px",
+                    borderRadius: "var(--radius-pill)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text-secondary)",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    background: "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <MapPinLine size={12} /> {usuario.municipio ?? "Sin ubicación"}
+                </button>
+              </div>
+              <p style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{esVendedor ? usuario.nombre : usuario.email}</p>
+            </div>
 
-        {heroStats && (
+            {badgesListas && badgesActivas.length > 0 && (
+              <div style={{ marginLeft: "auto" }}>
+                <ProfileBadges badges={badgesActivas} size={44} roleLabel={roleMeta.label} />
+              </div>
+            )}
+          </div>
+
           <div style={{ display: "flex", borderTop: "1px solid var(--border)", paddingTop: 16 }}>
             {heroStats.map((s, i) => (
-              <div
+              <button
                 key={s.label}
+                onClick={s.onClick}
+                disabled={!s.onClick}
                 style={{
                   flex: 1,
                   textAlign: "center",
-                  borderLeft: i > 0 ? "1px solid var(--border)" : "none",
                   display: "flex",
                   flexDirection: "column",
                   gap: 2,
+                  background: "none",
+                  border: "none",
+                  borderLeft: i > 0 ? "1px solid var(--border)" : "none",
+                  cursor: s.onClick ? "pointer" : "default",
+                  padding: "2px 0",
                 }}
               >
                 <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4, fontFamily: "var(--font-display)", fontWeight: 700, fontSize: 18, color: "var(--text-primary)" }}>
@@ -313,22 +296,94 @@ export function Profile() {
                   {s.value}
                 </span>
                 <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{s.label}</span>
-              </div>
+              </button>
             ))}
           </div>
-        )}
 
-        {usuario.rol === "comprador" && stats && <ProfileBadges badges={compradorBadges} />}
         </Reveal>
       </section>
 
+      {esVendedor && tienda !== undefined && (
+        <button
+          disabled={!tienda}
+          onClick={() => tienda && navigate(`/tienda/${tienda.id}`)}
+          style={{
+            display: "block",
+            width: "100%",
+            padding: 0,
+            textAlign: "left",
+            background: "var(--surface-1)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius-md)",
+            overflow: "hidden",
+            cursor: tienda ? "pointer" : "default",
+          }}
+        >
+          <div style={{ height: 72, background: "var(--surface-2)", position: "relative" }}>
+            {tienda?.portada && (
+              <img src={tienda.portada} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+            )}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "var(--radius-md)",
+                border: "2px solid var(--surface-1)",
+                background: "var(--surface-2)",
+                overflow: "hidden",
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {tienda?.logo ? <img src={tienda.logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Storefront size={18} color="var(--text-muted)" />}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {tienda?.nombre ?? "Todavía no tienes tienda"}
+              </div>
+              {tienda ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <Star size={11} weight="fill" color="var(--warn)" />
+                  <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+                    {tienda.calificacion_promedio ? tienda.calificacion_promedio.toFixed(1) : "Nuevo"} · Vista previa pública
+                  </span>
+                </div>
+              ) : (
+                <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>Configúrala en "Mi tienda" más abajo</span>
+              )}
+            </div>
+            {tienda && <CaretRight size={16} color="var(--text-muted)" />}
+          </div>
+        </button>
+      )}
+
       <div>
         <div style={{ display: "flex", borderBottom: "1px solid var(--border)" }}>
-          <TabButton active={tab === "likes"} icon={<Heart size={16} weight={tab === "likes" ? "fill" : "regular"} />} label="Me gusta" onClick={() => setTab("likes")} />
-          <TabButton active={tab === "guardados"} icon={<BookmarkSimple size={16} weight={tab === "guardados" ? "fill" : "regular"} />} label="Guardados" onClick={() => setTab("guardados")} />
+          {esVendedor ? (
+            <>
+              <TabButton active={vendedorTab === "productos"} icon={<Storefront size={16} weight={vendedorTab === "productos" ? "fill" : "regular"} />} label="Productos" onClick={() => setVendedorTab("productos")} />
+              <TabButton active={vendedorTab === "reels"} icon={<Package size={16} weight={vendedorTab === "reels" ? "fill" : "regular"} />} label="Reels" onClick={() => setVendedorTab("reels")} />
+              <TabButton active={vendedorTab === "resenas"} icon={<Star size={16} weight={vendedorTab === "resenas" ? "fill" : "regular"} />} label="Reseñas" onClick={() => setVendedorTab("resenas")} />
+            </>
+          ) : (
+            <>
+              <TabButton active={compradorTab === "pedidos"} icon={<Package size={16} weight={compradorTab === "pedidos" ? "fill" : "regular"} />} label="Pedidos" onClick={() => setCompradorTab("pedidos")} />
+              <TabButton active={compradorTab === "likes"} icon={<Heart size={16} weight={compradorTab === "likes" ? "fill" : "regular"} />} label="Me gusta" onClick={() => setCompradorTab("likes")} />
+              <TabButton active={compradorTab === "guardados"} icon={<BookmarkSimple size={16} weight={compradorTab === "guardados" ? "fill" : "regular"} />} label="Guardados" onClick={() => setCompradorTab("guardados")} />
+            </>
+          )}
         </div>
+
         <div style={{ paddingTop: 12 }}>
-          {tab === "likes" &&
+          {!esVendedor && compradorTab === "pedidos" && (
+            <PedidosPreview pedidos={pedidos} onVerTodos={() => navigate("/pedidos")} navigate={navigate} />
+          )}
+
+          {!esVendedor && compradorTab === "likes" &&
             (likes === null ? (
               <Skeleton height={160} />
             ) : likes.length === 0 ? (
@@ -339,7 +394,8 @@ export function Profile() {
                 {likesTotal > likes.length && <VerTodoButton onClick={() => navigate("/perfil/coleccion/likes")} total={likesTotal} />}
               </>
             ))}
-          {tab === "guardados" &&
+
+          {!esVendedor && compradorTab === "guardados" &&
             (guardados === null ? (
               <Skeleton height={160} />
             ) : guardados.length === 0 ? (
@@ -350,169 +406,97 @@ export function Profile() {
                 {guardadosTotal > guardados.length && <VerTodoButton onClick={() => navigate("/perfil/coleccion/guardados")} total={guardadosTotal} />}
               </>
             ))}
-        </div>
-      </div>
 
-      {roles.length > 1 && (
-        <Card>
-          <h2 style={{ fontSize: 13.5, marginBottom: 10 }}>Cambiar de rol</h2>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {roles.map((r) => {
-              const meta = ROLE_META[r] ?? ROLE_META.comprador;
-              const active = usuario.rol === r;
-              return (
-                <button
-                  key={r}
-                  onClick={() => cambiarRol(r as "comprador" | "vendedor" | "repartidor")}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "8px 14px",
-                    borderRadius: "var(--radius-pill)",
-                    border: `1px solid ${active ? `var(--${meta.accent})` : "var(--border)"}`,
-                    background: active ? `var(--${meta.accent}-bg)` : "var(--surface-1)",
-                    color: active ? `var(--${meta.accent})` : "var(--text-secondary)",
-                    fontSize: 12.5,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                  }}
-                >
-                  {meta.icon} {meta.label}
-                </button>
-              );
-            })}
-          </div>
-        </Card>
-      )}
-
-      <Card>
-        <h2 style={{ fontSize: 13.5, marginBottom: 4 }}>Ubicación</h2>
-        <p style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 12 }}>
-          Filtra lo que ves en Inicio y Reels por tu municipio. Déjalo en blanco para ver resultados de todo el país.
-        </p>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <MapPinLine size={15} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-          <select
-            value={municipio}
-            onChange={(e) => guardarUbicacion(e.target.value)}
-            disabled={guardandoUbicacion}
-            style={{ flex: 1, height: 40, borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--text-primary)", padding: "0 10px", fontSize: 13 }}
-          >
-            <option value="">Todo el país (sin filtrar)</option>
-            {municipiosPorDepto.map(([depto, ms]) => (
-              <optgroup key={depto} label={depto}>
-                {ms.map((m) => (
-                  <option key={m.id} value={m.nombre}>
-                    {m.nombre}
-                  </option>
-                ))}
-              </optgroup>
+          {esVendedor && vendedorTab === "productos" &&
+            (productosVendedor === null ? (
+              <Skeleton height={160} />
+            ) : productosNoReel.length === 0 ? (
+              <EmptyState icon={<Storefront size={22} />} title="Sin productos todavía" description="Agrega productos desde tu panel de vendedor." actionLabel="Ir al panel" onAction={() => navigate("/vendedor/productos")} />
+            ) : (
+              <ProductGrid productos={productosNoReel} />
             ))}
-          </select>
+
+          {esVendedor && vendedorTab === "reels" &&
+            (productosVendedor === null ? (
+              <Skeleton height={160} />
+            ) : reelsVendedor.length === 0 ? (
+              <EmptyState icon={<Package size={22} />} title="Sin reels todavía" description="Publica un reel para mostrar tus productos en video." actionLabel="Ir al panel" onAction={() => navigate("/vendedor/productos")} />
+            ) : (
+              <ProductGrid productos={reelsVendedor} />
+            ))}
+
+          {esVendedor && vendedorTab === "resenas" &&
+            (resenasVendedor === null ? (
+              <Skeleton height={160} />
+            ) : resenasVendedor.length === 0 ? (
+              <EmptyState icon={<Star size={22} />} title="Sin reseñas todavía" />
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {resenasVendedor.map((r) => (
+                  <Card key={r.id}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>{r.comprador_nombre}</span>
+                      <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{formatDateTime(r.created_at)}</span>
+                    </div>
+                    <div style={{ display: "flex", gap: 2, marginBottom: 4 }}>
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star key={i} size={12} weight={i < r.estrellas ? "fill" : "regular"} color="var(--warn)" />
+                      ))}
+                    </div>
+                    {r.comentario && <p style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>{r.comentario}</p>}
+                  </Card>
+                ))}
+              </div>
+            ))}
         </div>
-      </Card>
-
-      <Card>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: editando ? 14 : 4 }}>
-          <h2 style={{ fontSize: 13.5 }}>Información personal</h2>
-          {!editando && (
-            <button
-              onClick={() => setEditando(true)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", color: "var(--cyan)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", padding: "4px 2px" }}
-            >
-              <PencilSimple size={13} weight="bold" /> Editar
-            </button>
-          )}
-        </div>
-
-        {editando ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <Input label="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-            <Input label="Correo" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <PhoneInput value={telefono} onChange={setTelefono} />
-            <div style={{ display: "flex", gap: 8 }}>
-              <Button onClick={guardar} loading={guardando}>
-                Guardar cambios
-              </Button>
-              <Button variant="ghost" onClick={cancelarEdicion} disabled={guardando}>
-                <X size={15} /> Cancelar
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            <InfoRow label="Nombre" value={usuario.nombre} />
-            <InfoRow label="Correo" value={usuario.email} />
-            <InfoRow label="Teléfono" value={usuario.telefono || "Sin registrar"} last />
-          </div>
-        )}
-      </Card>
-
-      <NavSection
-        title="Cuenta"
-        items={[
-          { icon: <MapPinLine size={17} />, label: "Direcciones", onClick: () => navigate("/direcciones") },
-          { icon: <WalletIcon size={17} />, label: "Billetera", onClick: () => navigate("/wallet") },
-          { icon: <Bell size={17} />, label: "Notificaciones", onClick: () => navigate("/notificaciones") },
-        ]}
-      />
-
-      <NavSection
-        title="Actividad"
-        items={[
-          { icon: <MapTrifold size={17} />, label: "Mis pedidos", onClick: () => navigate("/pedidos") },
-          ...(usuario.rol === "comprador" ? [{ icon: <Handshake size={17} />, label: "Convertirse en socio", onClick: () => navigate("/convertirse") }] : []),
-          ...(usuario.rol === "vendedor" ? [{ icon: <Storefront size={17} />, label: "Panel de vendedor", onClick: () => navigate("/vendedor") }] : []),
-          ...(usuario.rol === "repartidor" ? [{ icon: <Moped size={17} />, label: "Mi perfil de repartidor", onClick: () => navigate("/repartidor/perfil") }] : []),
-        ]}
-      />
-
-      <NavSection
-        title="Más"
-        items={[
-          { icon: <GearSix size={17} />, label: "Configuración avanzada", onClick: () => navigate("/perfil/configuracion") },
-          { icon: <Headset size={17} />, label: "Soporte", onClick: () => navigate("/soporte") },
-        ]}
-      />
-
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-        <Button
-          variant="secondary"
-          fullWidth
-          onClick={() => {
-            logout();
-            navigate("/login");
-          }}
-        >
-          <SignOut size={16} /> Cerrar sesión
-        </Button>
-        <button
-          onClick={() => setConfirmandoEliminar(true)}
-          style={{ background: "none", border: "none", color: "var(--danger)", fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "4px" }}
-        >
-          Eliminar cuenta
-        </button>
       </div>
-
-      <ConfirmDialog
-        open={confirmandoEliminar}
-        title="¿Eliminar tu cuenta?"
-        description="Esta acción desactiva tu cuenta de inmediato. Contacta a soporte si cambias de opinión."
-        confirmLabel="Eliminar cuenta"
-        danger
-        onCancel={() => setConfirmandoEliminar(false)}
-        onConfirm={async () => {
-          try {
-            await authApi.eliminarCuenta();
-            logout();
-            navigate("/login");
-          } catch (err) {
-            toast.show(err instanceof ApiError ? err.message : "No se pudo eliminar la cuenta.", "error");
-          }
-        }}
-      />
     </div>
+  );
+}
+
+function PedidosPreview({ pedidos, onVerTodos, navigate }: { pedidos: Pedido[] | null; onVerTodos: () => void; navigate: (path: string) => void }) {
+  if (pedidos === null) return <Skeleton height={160} />;
+  if (pedidos.length === 0) {
+    return <EmptyState icon={<Package size={22} />} title="Todavía no has pedido nada" actionLabel="Explorar tiendas" onAction={() => navigate("/explorar")} />;
+  }
+  const preview = pedidos.slice(0, PEDIDOS_PREVIEW);
+  return (
+    <>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {preview.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => navigate(`/pedidos/${p.id}`)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              padding: "12px 14px",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border)",
+              background: "var(--surface-1)",
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>Pedido #{numeroPedido(p)}</div>
+              <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {p.vendedor_nombre} · {formatDateTime(p.created_at)}
+              </div>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <StatusPill estado={p.estado} buscandoRepartidor={p.tipo_entrega !== "recogida" && !p.repartidor_id} />
+              <div className="tabular" style={{ fontWeight: 700, fontSize: 12.5, marginTop: 6 }}>
+                {money(p.total)}
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+      {pedidos.length > preview.length ? <VerTodoButton onClick={onVerTodos} total={pedidos.length} /> : <VerTodoLink onClick={onVerTodos} />}
+    </>
   );
 }
 
@@ -534,6 +518,28 @@ function VerTodoButton({ onClick, total }: { onClick: () => void; total: number 
       }}
     >
       Ver todo ({total})
+    </button>
+  );
+}
+
+function VerTodoLink({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "block",
+        width: "100%",
+        marginTop: 10,
+        padding: "10px 0",
+        background: "none",
+        border: "none",
+        color: "var(--cyan)",
+        fontSize: 12.5,
+        fontWeight: 700,
+        cursor: "pointer",
+      }}
+    >
+      Ver historial completo
     </button>
   );
 }
@@ -560,67 +566,5 @@ function TabButton({ active, icon, label, onClick }: { active: boolean; icon: Re
     >
       {icon} {label}
     </button>
-  );
-}
-
-function NavSection({ title, items }: { title: string; items: { icon: React.ReactNode; label: string; onClick: () => void }[] }) {
-  if (items.length === 0) return null;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <h2 style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--text-muted)", padding: "0 2px" }}>{title}</h2>
-      <Card padding="4px 14px">
-        {items.map((item, i) => (
-          <NavRow key={item.label} icon={item.icon} label={item.label} onClick={item.onClick} last={i === items.length - 1} />
-        ))}
-      </Card>
-    </div>
-  );
-}
-
-function NavRow({ icon, label, onClick, last }: { icon: React.ReactNode; label: string; onClick: () => void; last?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        width: "100%",
-        padding: "10px 2px",
-        background: "none",
-        border: "none",
-        borderBottom: last ? "none" : "1px solid var(--border)",
-        cursor: "pointer",
-        textAlign: "left",
-        color: "var(--text-primary)",
-      }}
-    >
-      <span
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: "50%",
-          background: "var(--cyan-bg)",
-          color: "var(--cyan)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </span>
-      <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600 }}>{label}</span>
-      <CaretRight size={14} color="var(--text-muted)" />
-    </button>
-  );
-}
-
-function InfoRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 2px", borderBottom: last ? "none" : "1px solid var(--border)" }}>
-      <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{label}</span>
-      <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>{value}</span>
-    </div>
   );
 }

@@ -6,22 +6,29 @@ import { Input } from "../ui/Input";
 import { useTheme } from "../../theme/ThemeContext";
 
 const PREVIEW_COUNT = 12;
+const PAGE_SIZE = 24;
 
 /** Selector de categoría con buscador — son 129 categorías, muy largo para mostrarlas todas de una.
- * Sin búsqueda muestra una vista previa (con la seleccionada siempre visible) + "Mostrar todas". */
+ * Sin búsqueda muestra una vista previa (con la seleccionada siempre visible) y "Ver más" la va
+ * revelando de a poco en vez de saltar directo a las 129. */
 export function CategoryPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
   const { tokens } = useTheme();
   const [busqueda, setBusqueda] = useState("");
-  const [mostrarTodas, setMostrarTodas] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PREVIEW_COUNT);
 
   const normalizada = busqueda.trim().toLowerCase();
 
+  const ordenadas = useMemo(() => {
+    const resto = CATEGORIAS.filter((c) => c !== value);
+    return CATEGORIAS.includes(value as Categoria) ? [value as Categoria, ...resto] : resto;
+  }, [value]);
+
   const visibles = useMemo(() => {
     if (normalizada) return CATEGORIAS.filter((c) => CATEGORIA_LABEL[c].toLowerCase().includes(normalizada));
-    if (mostrarTodas) return CATEGORIAS;
-    const resto = CATEGORIAS.filter((c) => c !== value);
-    return (CATEGORIAS.includes(value as Categoria) ? [value as Categoria, ...resto] : resto).slice(0, PREVIEW_COUNT);
-  }, [normalizada, mostrarTodas, value]);
+    return ordenadas.slice(0, visibleCount);
+  }, [normalizada, ordenadas, visibleCount]);
+
+  const restantes = CATEGORIAS.length - visibleCount;
 
   return (
     <View style={{ gap: 10 }}>
@@ -54,9 +61,9 @@ export function CategoryPicker({ value, onChange }: { value: string; onChange: (
         })}
         {visibles.length === 0 && <Text style={{ fontSize: 12.5, color: tokens.textMuted }}>Sin resultados para "{busqueda}"</Text>}
       </View>
-      {!normalizada && !mostrarTodas && (
-        <Pressable onPress={() => setMostrarTodas(true)}>
-          <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: tokens.cyan }}>Mostrar todas ({CATEGORIAS.length})</Text>
+      {!normalizada && restantes > 0 && (
+        <Pressable onPress={() => setVisibleCount((n) => Math.min(CATEGORIAS.length, n + PAGE_SIZE))}>
+          <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: tokens.cyan }}>Ver más ({Math.min(restantes, PAGE_SIZE)} más)</Text>
         </Pressable>
       )}
     </View>

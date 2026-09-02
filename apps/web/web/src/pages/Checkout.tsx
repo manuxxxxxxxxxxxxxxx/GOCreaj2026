@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CreditCard, Money, PaypalLogo, Plus, Rocket, Truck } from "@phosphor-icons/react";
+import { CreditCard, Money, PaypalLogo, Plus, Rocket, Storefront, Truck } from "@phosphor-icons/react";
 import { carritoApi, direccionesApi, ApiError } from "../lib/api";
 import type { Cupon, DireccionUsuario, MetodoPago } from "../lib/types";
 import { money } from "../lib/format";
@@ -21,7 +21,9 @@ export function Checkout() {
   const [direccionId, setDireccionId] = useState<number | null>(null);
   const [metodosGuardados, setMetodosGuardados] = useState<MetodoPago[]>([]);
   const [metodo, setMetodo] = useState<MetodoUI>("efectivo");
+  const [tipoEntrega, setTipoEntrega] = useState<"domicilio" | "recogida">("domicilio");
   const [envioModo, setEnvioModo] = useState<"estandar" | "express">("estandar");
+  const [notas, setNotas] = useState("");
   const [metodoPagoId, setMetodoPagoId] = useState<number | null>(null);
   const [tarjetaNumero, setTarjetaNumero] = useState("");
   const [tarjetaExp, setTarjetaExp] = useState("");
@@ -58,12 +60,16 @@ export function Checkout() {
   }, [cargandoCart, items.length, navigate]);
 
   const direccion = direcciones?.find((d) => d.id === direccionId) ?? null;
-  const costoEnvio = envioModo === "express" ? 4.99 : 2.5;
+  const esRecogida = tipoEntrega === "recogida";
+  const costoEnvio = esRecogida ? 0 : envioModo === "express" ? 4.99 : 2.5;
   const descuento = cupon?.descuento ?? 0;
   const totalFinal = Math.max(0, total - descuento) + costoEnvio;
+  const PICKUP_EFECTIVO_MAX = 20;
+  const recogidaEfectivoBloqueado = esRecogida && metodo === "efectivo" && totalFinal > PICKUP_EFECTIVO_MAX;
 
   const confirmar = async () => {
-    if (!direccion) return toast.show("Selecciona una dirección de entrega.", "warning");
+    if (!esRecogida && !direccion) return toast.show("Selecciona una dirección de entrega.", "warning");
+    if (recogidaEfectivoBloqueado) return toast.show(`Para recoger en tienda, pedidos de más de $${PICKUP_EFECTIVO_MAX} deben pagarse con tarjeta.`, "warning");
     if (metodo === "tarjeta" && !metodoPagoId) {
       const numero = tarjetaNumero.replace(/\D/g, "");
       if (numero.length < 13 || tarjetaCvv.length < 3 || !/^\d{2}\/\d{2}$/.test(tarjetaExp)) {
@@ -76,11 +82,12 @@ export function Checkout() {
     try {
       const res = await carritoApi.checkout({
         metodo_pago: metodo,
-        direccion_entrega: `${direccion.direccion}${direccion.referencia ? ", " + direccion.referencia : ""}`,
-        lat: direccion.lat ?? undefined,
-        lng: direccion.lng ?? undefined,
-        municipio: direccion.municipio,
-        departamento: direccion.departamento,
+        tipo_entrega: tipoEntrega,
+        direccion_entrega: direccion ? `${direccion.direccion}${direccion.referencia ? ", " + direccion.referencia : ""}` : undefined,
+        lat: direccion?.lat ?? undefined,
+        lng: direccion?.lng ?? undefined,
+        municipio: direccion?.municipio,
+        departamento: direccion?.departamento,
         metodo_pago_id: metodoPagoId ?? undefined,
         tarjeta_numero: metodo === "tarjeta" && !metodoPagoId ? tarjetaNumero : undefined,
         tarjeta_cvv: metodo === "tarjeta" && !metodoPagoId ? tarjetaCvv : undefined,
@@ -90,6 +97,7 @@ export function Checkout() {
         efectivo_paga_con: metodo === "efectivo" && efectivoPagaCon ? Number(efectivoPagaCon) : undefined,
         envio_modo: envioModo,
         cupon_codigo: cupon?.cupon.codigo,
+        notas: notas.trim() || undefined,
       });
       sessionStorage.removeItem("gocreaj_cupon");
       pedidoRealizadoRef.current = true;
@@ -118,62 +126,76 @@ export function Checkout() {
         <h1 style={{ fontSize: 22 }}>Checkout</h1>
 
         <section>
-          <h2 style={{ fontSize: 14, marginBottom: 10 }}>Dirección de entrega</h2>
-          {direcciones === null ? (
-            <Skeleton height={80} />
-          ) : direcciones.length === 0 ? (
-            <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-              No tienes direcciones guardadas.{" "}
-              <button onClick={() => navigate("/direcciones")} style={{ color: "var(--cyan)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>
-                Agregar una
-              </button>
-            </p>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {direcciones.map((d) => (
-                <label
-                  key={d.id}
-                  style={{
-                    display: "flex",
-                    gap: 10,
-                    alignItems: "flex-start",
-                    padding: 12,
-                    border: `1px solid ${direccionId === d.id ? "var(--cyan)" : "var(--border)"}`,
-                    borderRadius: "var(--radius-md)",
-                    background: direccionId === d.id ? "var(--cyan-bg)" : "var(--surface-1)",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input type="radio" name="direccion" checked={direccionId === d.id} onChange={() => setDireccionId(d.id)} style={{ marginTop: 3 }} />
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: 13.5 }}>{d.alias}</div>
-                    <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
-                      {d.direccion}, {d.municipio}
-                    </div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section>
-          <h2 style={{ fontSize: 14, marginBottom: 10 }}>Modo de envío</h2>
+          <h2 style={{ fontSize: 14, marginBottom: 10 }}>Entrega</h2>
           <div style={{ display: "flex", gap: 10 }}>
-            <OptionCard active={envioModo === "estandar"} onClick={() => setEnvioModo("estandar")} icon={<Truck size={18} />} title="Estándar" subtitle={money(2.5)} />
-            <OptionCard active={envioModo === "express"} onClick={() => setEnvioModo("express")} icon={<Rocket size={18} />} title="Express" subtitle={money(4.99)} />
+            <OptionCard active={!esRecogida && envioModo === "estandar"} onClick={() => { setTipoEntrega("domicilio"); setEnvioModo("estandar"); }} icon={<Truck size={18} />} title="Estándar" subtitle={money(2.5)} />
+            <OptionCard active={!esRecogida && envioModo === "express"} onClick={() => { setTipoEntrega("domicilio"); setEnvioModo("express"); }} icon={<Rocket size={18} />} title="Express" subtitle={money(4.99)} />
+            <OptionCard active={esRecogida} onClick={() => setTipoEntrega("recogida")} icon={<Storefront size={18} />} title="Recoger" subtitle="En tienda" />
           </div>
         </section>
+
+        {esRecogida ? (
+          <section style={{ padding: 12, border: "1px solid var(--border)", borderRadius: "var(--radius-md)", background: "var(--surface-1)" }}>
+            <div style={{ fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Recoges tú mismo en la tienda</div>
+            <p style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>Sin costo de envío. La tienda te avisará cuando esté listo, con un código para confirmar la recogida.</p>
+          </section>
+        ) : (
+          <section>
+            <h2 style={{ fontSize: 14, marginBottom: 10 }}>Dirección de entrega</h2>
+            {direcciones === null ? (
+              <Skeleton height={80} />
+            ) : direcciones.length === 0 ? (
+              <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+                No tienes direcciones guardadas.{" "}
+                <button onClick={() => navigate("/direcciones")} style={{ color: "var(--cyan)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>
+                  Agregar una
+                </button>
+              </p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {direcciones.map((d) => (
+                  <label
+                    key={d.id}
+                    style={{
+                      display: "flex",
+                      gap: 10,
+                      alignItems: "flex-start",
+                      padding: 12,
+                      border: `1px solid ${direccionId === d.id ? "var(--cyan)" : "var(--border)"}`,
+                      borderRadius: "var(--radius-md)",
+                      background: direccionId === d.id ? "var(--cyan-bg)" : "var(--surface-1)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <input type="radio" name="direccion" checked={direccionId === d.id} onChange={() => setDireccionId(d.id)} style={{ marginTop: 3 }} />
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{d.alias}</div>
+                      <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
+                        {d.direccion}, {d.municipio}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         <section>
           <h2 style={{ fontSize: 14, marginBottom: 10 }}>Método de pago</h2>
           <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-            <OptionCard active={metodo === "efectivo"} onClick={() => setMetodo("efectivo")} icon={<Money size={18} />} title="Efectivo" subtitle="Contra entrega" />
+            <OptionCard active={metodo === "efectivo"} onClick={() => setMetodo("efectivo")} icon={<Money size={18} />} title="Efectivo" subtitle={esRecogida ? "Hasta $20" : "Contra entrega"} />
             <OptionCard active={metodo === "tarjeta"} onClick={() => setMetodo("tarjeta")} icon={<CreditCard size={18} />} title="Tarjeta" subtitle="Crédito o débito" />
             <OptionCard active={metodo === "paypal"} onClick={() => setMetodo("paypal")} icon={<PaypalLogo size={18} />} title="PayPal" subtitle="Con 2FA" />
           </div>
 
-          {metodo === "efectivo" && (
+          {recogidaEfectivoBloqueado && (
+            <p style={{ fontSize: 12.5, color: "var(--danger)", marginBottom: 12 }}>
+              Para recoger en tienda, los pedidos de más de ${PICKUP_EFECTIVO_MAX} deben pagarse con tarjeta.
+            </p>
+          )}
+
+          {metodo === "efectivo" && !esRecogida && (
             <Input label="¿Con cuánto pagas? (opcional)" type="number" min={0} step="0.01" value={efectivoPagaCon} onChange={(e) => setEfectivoPagaCon(e.target.value)} placeholder={money(totalFinal)} hint="Así el repartidor lleva tu cambio listo." />
           )}
 
@@ -217,20 +239,31 @@ export function Checkout() {
 
           {metodo === "paypal" && <Input label="Código 2FA de PayPal" inputMode="numeric" value={paypal2fa} onChange={(e) => setPaypal2fa(e.target.value)} placeholder="123456" />}
         </section>
+
+        <section>
+          <h2 style={{ fontSize: 14, marginBottom: 10 }}>Notas para el pedido (opcional)</h2>
+          <textarea
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+            rows={3}
+            placeholder={esRecogida ? "Ej. Llego en carro rojo, avísame por chat" : "Ej. Sin cebolla, tocar el timbre"}
+            style={{ width: "100%", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", padding: 12, fontSize: 13.5, fontFamily: "inherit", resize: "vertical" }}
+          />
+        </section>
       </div>
 
       <div style={{ position: "sticky", top: 80, background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
         <h2 style={{ fontSize: 15 }}>Total a pagar</h2>
         <Row label="Subtotal" value={money(total)} />
         {cupon && <Row label={`Cupón ${cupon.cupon.codigo}`} value={`− ${money(descuento)}`} tone="var(--ok)" />}
-        <Row label="Envío" value={money(costoEnvio)} />
+        <Row label="Envío" value={esRecogida ? "Gratis" : money(costoEnvio)} />
         <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12, display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <span style={{ fontWeight: 700 }}>Total</span>
           <span className="tabular" style={{ fontSize: 20, fontWeight: 800 }}>
             {money(totalFinal)}
           </span>
         </div>
-        <Button size="lg" fullWidth hero onClick={confirmar} loading={enviando}>
+        <Button size="lg" fullWidth hero onClick={confirmar} loading={enviando} disabled={recogidaEfectivoBloqueado}>
           Confirmar pedido
         </Button>
       </div>

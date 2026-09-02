@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { Bicycle, CheckCircle, ChatCircleDots, Circle, Confetti, Copy, MapPin, Phone, QrCode, Star, Storefront, X } from "@phosphor-icons/react";
+import { Bag, Bicycle, CheckCircle, ChatCircleDots, Circle, Confetti, Copy, MapPin, Note, Phone, QrCode, Star, Storefront, X } from "@phosphor-icons/react";
 import { pedidosApi, ApiError } from "../lib/api";
 import type { Pedido } from "../lib/types";
 import { money, formatDateTime, numeroPedido } from "../lib/format";
@@ -11,10 +11,11 @@ import { Avatar } from "../components/ui/Avatar";
 import { Skeleton } from "../components/ui/Skeleton";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { Sheet } from "../components/ui/Sheet";
-import { QrScanBox } from "../components/domain/QrScanBox";
+import { codigoDesdeValor, QrScanBox } from "../components/domain/QrScanBox";
+import { CodigoQrCard } from "../components/domain/CodigoQrCard";
 import { MapView, type MapMarker } from "../components/ui/MapView";
 
-const PASOS = [
+const PASOS_DOMICILIO = [
   { key: "pendiente_confirmacion", label: "Pedido recibido" },
   { key: "preparacion", label: "Preparando en la tienda" },
   { key: "camino_tienda", label: "Repartidor va a la tienda" },
@@ -22,7 +23,23 @@ const PASOS = [
   { key: "entregado", label: "Entregado" },
 ] as const;
 
+const PASOS_RECOGIDA = [
+  { key: "pendiente_confirmacion", label: "Pedido recibido" },
+  { key: "preparacion", label: "Preparando en la tienda" },
+  { key: "listo", label: "Listo para recoger" },
+  { key: "entregado", label: "Recogido" },
+] as const;
+
+function pasosDe(pedido: Pedido) {
+  return pedido.tipo_entrega === "recogida" ? PASOS_RECOGIDA : PASOS_DOMICILIO;
+}
+
 function pasoActivoIndex(pedido: Pedido): number {
+  if (pedido.tipo_entrega === "recogida") {
+    if (pedido.estado === "entregado") return 3;
+    if (pedido.estado === "preparacion") return pedido.qr_recogida_token ? 2 : 1;
+    return 0;
+  }
   if (pedido.estado === "entregado") return 4;
   if (pedido.estado === "en_camino") {
     if (pedido.progreso_repartidor === "recolectado" || pedido.progreso_repartidor === "camino_cliente") return 3;
@@ -87,7 +104,7 @@ export function OrderTracking() {
     if (!id || !qrValor.trim()) return;
     setConfirmandoQr(true);
     try {
-      await pedidosApi.confirmarEntrega(Number(id), qrValor.trim());
+      await pedidosApi.confirmarEntrega(Number(id), codigoDesdeValor(qrValor));
       toast.show("¡Entrega confirmada! Gracias por tu compra.", "success");
       setQrOpen(false);
       setQrValor("");
@@ -96,6 +113,21 @@ export function OrderTracking() {
       toast.show(err instanceof ApiError ? err.message : "Código inválido.", "error");
     } finally {
       setConfirmandoQr(false);
+    }
+  };
+
+  const [confirmandoRecogida, setConfirmandoRecogida] = useState(false);
+  const confirmarRecogidaPropia = async () => {
+    if (!id || !pedido?.qr_recogida_token) return;
+    setConfirmandoRecogida(true);
+    try {
+      await pedidosApi.confirmarEntrega(Number(id), { qr_token: pedido.qr_recogida_token });
+      toast.show("¡Recogida confirmada! Gracias por tu compra.", "success");
+      cargar();
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo confirmar.", "error");
+    } finally {
+      setConfirmandoRecogida(false);
     }
   };
 
@@ -109,10 +141,11 @@ export function OrderTracking() {
   }
 
   const activo = pasoActivoIndex(pedido);
-  const puedeCancel = pedido.estado === "pendiente_confirmacion" || (pedido.estado === "preparacion" && !pedido.repartidor_id);
+  const esRecogida = pedido.tipo_entrega === "recogida";
+  const puedeCancel = pedido.estado === "pendiente_confirmacion" || (pedido.estado === "preparacion" && (esRecogida || !pedido.repartidor_id));
   const puedeCalificar = pedido.estado === "entregado" && !pedido.mi_calificacion;
 
-  const enSeguimiento = pedido.estado === "preparacion" || pedido.estado === "en_camino";
+  const enSeguimiento = !esRecogida && (pedido.estado === "preparacion" || pedido.estado === "en_camino");
   const markers: MapMarker[] = [];
   if (enSeguimiento && pedido.tienda_lat && pedido.tienda_lng) {
     markers.push({ id: "tienda", lat: pedido.tienda_lat, lng: pedido.tienda_lng, color: "var(--warn)", label: pedido.tienda_nombre ?? "Tienda" });
@@ -189,15 +222,15 @@ export function OrderTracking() {
           <h1 style={{ fontSize: 20 }}>Pedido #{numeroPedido(pedido)}</h1>
           <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 2 }}>{formatDateTime(pedido.created_at)} · {pedido.vendedor_nombre}</div>
         </div>
-        <StatusPill estado={pedido.estado} buscandoRepartidor={!pedido.repartidor_id} />
+        <StatusPill estado={pedido.estado} buscandoRepartidor={!esRecogida && !pedido.repartidor_id} />
       </div>
 
       {pedido.estado !== "cancelado" && pedido.estado !== "rechazado_repartidor" && (
         <div className="glow-mesh" style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 22 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-            {PASOS.map((paso, i) => {
+            {pasosDe(pedido).map((paso, i, arr) => {
               const done = i <= activo;
-              const isLast = i === PASOS.length - 1;
+              const isLast = i === arr.length - 1;
               return (
                 <div key={paso.key} style={{ display: "flex", gap: 14 }}>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
@@ -239,6 +272,21 @@ export function OrderTracking() {
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {esRecogida && pedido.estado === "preparacion" && (
+        <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: 20 }}>
+          {pedido.qr_recogida_token && pedido.pin_recogida ? (
+            <>
+              <CodigoQrCard token={pedido.qr_recogida_token} pin={pedido.pin_recogida} mensaje="Muestra este código en la tienda al recoger tu pedido." />
+              <Button fullWidth style={{ marginTop: 16 }} onClick={confirmarRecogidaPropia} loading={confirmandoRecogida}>
+                Ya recogí mi pedido
+              </Button>
+            </>
+          ) : (
+            <p style={{ fontSize: 13, color: "var(--text-secondary)", textAlign: "center" }}>La tienda está preparando tu pedido. Te avisaremos cuando esté listo para recoger.</p>
+          )}
         </div>
       )}
 
@@ -287,8 +335,11 @@ export function OrderTracking() {
       <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: 16 }}>
         <h2 style={{ fontSize: 13.5, marginBottom: 10 }}>Productos</h2>
         {pedido.items.map((it) => (
-          <div key={it.producto_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0", color: "var(--text-secondary)" }}>
-            <span>
+          <div key={it.producto_id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, padding: "6px 0", color: "var(--text-secondary)" }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, overflow: "hidden", background: "var(--surface-2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              {it.imagen ? <img src={it.imagen} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Bag size={15} color="var(--text-muted)" />}
+            </div>
+            <span style={{ flex: 1 }}>
               {it.cantidad}× {it.nombre}
             </span>
             <span className="tabular">{money(it.precio_unitario * it.cantidad)}</span>
@@ -300,9 +351,23 @@ export function OrderTracking() {
         </div>
       </div>
 
-      <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: 16, fontSize: 13, color: "var(--text-secondary)" }}>
-        <div>{pedido.direccion_entrega}</div>
-        <div style={{ marginTop: 4, textTransform: "capitalize" }}>Pago: {pedido.metodo_pago}</div>
+      <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: 16, fontSize: 13, color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: 8 }}>
+        {!esRecogida && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <MapPin size={15} color="var(--text-muted)" style={{ marginTop: 2, flexShrink: 0 }} />
+            <span>{pedido.direccion_entrega}</span>
+          </div>
+        )}
+        <div style={{ textTransform: "capitalize" }}>
+          Pago: {pedido.metodo_pago}
+          {pedido.metodo_pago === "efectivo" && pedido.efectivo_paga_con ? ` (pagas con ${money(pedido.efectivo_paga_con)})` : ""}
+        </div>
+        {pedido.notas && (
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+            <Note size={15} color="var(--text-muted)" style={{ marginTop: 2, flexShrink: 0 }} />
+            <span>{pedido.notas}</span>
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", gap: 10 }}>
@@ -328,7 +393,7 @@ export function OrderTracking() {
       />
 
       <Sheet open={qrOpen} onClose={() => setQrOpen(false)} title="Confirmar entrega">
-        <QrScanBox valor={qrValor} onChange={setQrValor} hint="Pídele al repartidor el código QR de entrega y escanéalo, o pégalo abajo." />
+        <QrScanBox valor={qrValor} onChange={setQrValor} hint="Escanea el código QR que te muestra el repartidor, o teclea el PIN de 6 dígitos." />
         <Button fullWidth style={{ marginTop: 16 }} onClick={confirmarEntregaConQr} loading={confirmandoQr}>
           Confirmar
         </Button>

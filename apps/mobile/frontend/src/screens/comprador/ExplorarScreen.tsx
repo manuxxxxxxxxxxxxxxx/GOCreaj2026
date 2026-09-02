@@ -325,10 +325,11 @@ export function ExplorarScreen() {
               }}
               onPress={() => setSeleccionada(null)}
               layersControl
+              persistKey="explorar"
             />
             {seleccionada && (
               <Animated.View
-                entering={FadeInDown.duration(280).springify().damping(16)}
+                entering={FadeInDown.duration(240)}
                 style={[styles.storeCard, { backgroundColor: tokens.surface1, borderColor: tokens.border, bottom: insets.bottom + 80 }]}
               >
                 <Pressable onPress={() => navigation.navigate("StoreDetail", { id: seleccionada.id })}>
@@ -382,7 +383,7 @@ export function ExplorarScreen() {
           columnWrapperStyle={{ gap: 12, paddingHorizontal: 20 }}
           contentContainerStyle={{ gap: 12, paddingBottom: 140 }}
           renderItem={({ item, index }) => (
-            <Animated.View entering={FadeInDown.duration(360).delay(Math.min(index, 9) * 55).springify().damping(16)} style={{ flex: 1 }}>
+            <Animated.View entering={FadeInDown.duration(280).delay(Math.min(index, 9) * 40)} style={{ flex: 1 }}>
               <ProductCard producto={item} height={130} />
             </Animated.View>
           )}
@@ -437,7 +438,7 @@ export function ExplorarScreen() {
                 onPress={() => elegirTodoGrupo(grupoVisto)}
                 style={[
                   styles.municipioRow,
-                  { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12, borderColor: grupo === grupoVisto.id && !categoria ? tokens.cyan : tokens.border, backgroundColor: grupo === grupoVisto.id && !categoria ? tokens.cyanBg : "transparent" },
+                  { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 12, borderColor: grupo === grupoVisto.id && !categoria ? tokens.cyan : tokens.border, backgroundColor: grupo === grupoVisto.id && !categoria ? tokens.cyanBg : tokens.surface1 },
                 ]}
               >
                 <Text style={{ fontSize: 18 }}>{grupoVisto.emoji}</Text>
@@ -463,7 +464,7 @@ export function ExplorarScreen() {
                 onPress={limpiarCategoria}
                 style={[
                   styles.municipioRow,
-                  { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14, borderColor: !categoria && !grupo ? tokens.cyan : "transparent", backgroundColor: !categoria && !grupo ? tokens.cyanBg : "transparent" },
+                  { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14, borderColor: !categoria && !grupo ? tokens.cyan : tokens.border, backgroundColor: !categoria && !grupo ? tokens.cyanBg : tokens.surface1 },
                 ]}
               >
                 <SquaresFourIcon size={16} color={!categoria && !grupo ? tokens.cyan : tokens.textSecondary} />

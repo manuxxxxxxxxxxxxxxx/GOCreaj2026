@@ -12,6 +12,12 @@ interface AuthContextValue {
   refrescar: () => Promise<void>;
   actualizarUsuarioLocal: (u: Usuario) => void;
   cambiarRol: (rol: "comprador" | "vendedor" | "repartidor") => Promise<void>;
+  /** true justo después de un registro/login social que creó una cuenta nueva sin username -- dispara el onboarding de username + foto. */
+  mostrarOnboarding: boolean;
+  /** Sugerencia de @username generada por el backend a partir del nombre, para prellenar el paso de onboarding. */
+  usernameSugerido: string | null;
+  /** Cierra el onboarding (se llama al terminar o al saltarlo). */
+  cerrarOnboarding: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -19,6 +25,8 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [mostrarOnboarding, setMostrarOnboarding] = useState(false);
+  const [usernameSugerido, setUsernameSugerido] = useState<string | null>(null);
 
   const cargarSesion = useCallback(async () => {
     try {
@@ -46,17 +54,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await authApi.register(data);
     await persistToken(res.token);
     setUsuario(res.usuario);
+    if (res.es_nuevo && !res.usuario.username) {
+      setUsernameSugerido(res.username_sugerido ?? null);
+      setMostrarOnboarding(true);
+    }
   }, []);
 
   const loginSocial = useCallback(async (data: Parameters<typeof authApi.social>[0]) => {
     const res = await authApi.social(data);
     await persistToken(res.token);
     setUsuario(res.usuario);
+    if (res.es_nuevo && !res.usuario.username) {
+      setUsernameSugerido(res.username_sugerido ?? null);
+      setMostrarOnboarding(true);
+    }
   }, []);
 
   const logout = useCallback(() => {
     void persistToken(null);
     setUsuario(null);
+    setMostrarOnboarding(false);
   }, []);
 
   const cambiarRol = useCallback(async (rol: "comprador" | "vendedor" | "repartidor") => {
@@ -64,9 +81,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUsuario(res.usuario);
   }, []);
 
+  const cerrarOnboarding = useCallback(() => setMostrarOnboarding(false), []);
+
   const value = useMemo(
-    () => ({ usuario, cargando, login, register, loginSocial, logout, refrescar: cargarSesion, actualizarUsuarioLocal: setUsuario, cambiarRol }),
-    [usuario, cargando, login, register, loginSocial, logout, cargarSesion, cambiarRol],
+    () => ({
+      usuario,
+      cargando,
+      login,
+      register,
+      loginSocial,
+      logout,
+      refrescar: cargarSesion,
+      actualizarUsuarioLocal: setUsuario,
+      cambiarRol,
+      mostrarOnboarding,
+      usernameSugerido,
+      cerrarOnboarding,
+    }),
+    [usuario, cargando, login, register, loginSocial, logout, cargarSesion, cambiarRol, mostrarOnboarding, usernameSugerido, cerrarOnboarding],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -15,8 +15,9 @@ import {
   SpeakerSimpleHigh,
   SpeakerSimpleSlash,
   Storefront,
+  Trash,
 } from "@phosphor-icons/react";
-import { productosApi, interaccionesApi, carritoApi, ApiError } from "../lib/api";
+import { productosApi, interaccionesApi, carritoApi, vendedorApi, ApiError } from "../lib/api";
 import type { Producto } from "../lib/types";
 import { money } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
@@ -63,6 +64,12 @@ export function Reels() {
   useEffect(() => {
     cargarReels();
   }, [cargarReels]);
+
+  // Actualiza el contador de comentarios en el momento (sin esto se queda con el valor
+  // que trajo el fetch inicial hasta que se recarga toda la lista de reels).
+  const bumpComentarios = useCallback((productoId: number) => {
+    setReels((prev) => prev && prev.map((r) => (r.id === productoId ? { ...r, comentarios_count: (r.comentarios_count ?? 0) + 1 } : r)));
+  }, []);
 
   // Única fuente de verdad para navegar: clampa, hace scroll Y actualiza el
   // índice de una vez -- así los botones laterales, la rueda y el teclado se
@@ -153,12 +160,14 @@ export function Reels() {
               onComentarios={() => setComentariosDe(r)}
               onPreguntar={() => setPreguntarA(r)}
               onReportar={() => setReportarA(r)}
+              onEliminado={() => setReels((rs) => (rs ?? []).filter((x) => x.id !== r.id))}
               onVisible={() => {
                 indiceRef.current = i;
                 setIndice(i);
               }}
             />
           ))}
+
         </div>
 
         <div style={{ position: "absolute", right: -54, top: "50%", transform: "translateY(-50%)", display: "flex", flexDirection: "column", gap: 12, zIndex: 3 }}>
@@ -206,7 +215,9 @@ export function Reels() {
           </button>
         )}
 
-        {comentariosDe && <CommentsSheet producto={comentariosDe} onClose={() => setComentariosDe(null)} />}
+        {comentariosDe && (
+          <CommentsSheet producto={comentariosDe} onClose={() => setComentariosDe(null)} onComentarioNuevo={() => bumpComentarios(comentariosDe.id)} />
+        )}
         {preguntarA && <QuestionsSheet producto={preguntarA} onClose={() => setPreguntarA(null)} />}
         {reportarA && <ReportSheet producto={reportarA} onClose={() => setReportarA(null)} />}
         {subiendoReel && (
@@ -247,6 +258,7 @@ function ReelCard({
   onComentarios,
   onPreguntar,
   onReportar,
+  onEliminado,
   onVisible,
 }: {
   producto: Producto;
@@ -255,6 +267,7 @@ function ReelCard({
   onComentarios: () => void;
   onPreguntar: () => void;
   onReportar: () => void;
+  onEliminado: () => void;
   onVisible: () => void;
 }) {
   const navigate = useNavigate();
@@ -263,8 +276,27 @@ function ReelCard({
   const toast = useToast();
   const videoRef = useRef<HTMLVideoElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const seekingRef = useRef(false);
   const [playing, setPlaying] = useState(false);
+  const [progreso, setProgreso] = useState(0);
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
+  const esDueno = usuario?.id === producto.vendedor_id;
+
+  const eliminar = async () => {
+    if (!window.confirm("¿Eliminar este reel? Se quitará de Reels y de tu catálogo. Esta acción no se puede deshacer.")) return;
+    setEliminando(true);
+    try {
+      await vendedorApi.eliminarProducto(producto.id);
+      toast.show("Reel eliminado", "success");
+      onEliminado();
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo eliminar.", "error");
+    } finally {
+      setEliminando(false);
+    }
+  };
   const [estado, setEstado] = useState({
     like: !!producto.yo_like,
     likes: producto.likes_count ?? 0,
@@ -292,6 +324,12 @@ function ReelCard({
         } else {
           video?.pause();
           setPlaying(false);
+          // Reinicia al inicio: así cada vez que se vuelve a este reel (scroll de ida y
+          // vuelta) arranca de nuevo en vez de seguir donde quedó pausado.
+          if (video) {
+            video.currentTime = 0;
+            setProgreso(0);
+          }
         }
       },
       { threshold: [0, 0.6, 1] },
@@ -311,6 +349,32 @@ function ReelCard({
       video.pause();
       setPlaying(false);
     }
+  };
+
+  // Algunos navegadores (sobre todo Safari/iOS) no siempre respetan el atributo `loop`
+  // nativo cuando el video se pausó/retomó por JS -- se reinicia a mano para que el
+  // reel siempre repita en vez de quedarse congelado en el último frame.
+  const onEnded = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.currentTime = 0;
+    video.play().then(() => setPlaying(true)).catch(() => {});
+  };
+
+  const onTimeUpdate = () => {
+    const video = videoRef.current;
+    if (!video || seekingRef.current || !video.duration) return;
+    setProgreso(video.currentTime / video.duration);
+  };
+
+  const seekTo = (clientX: number) => {
+    const video = videoRef.current;
+    const bar = barRef.current;
+    if (!video || !bar || !video.duration) return;
+    const rect = bar.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+    video.currentTime = ratio * video.duration;
+    setProgreso(ratio);
   };
 
   const toggleLike = async () => {
@@ -351,9 +415,41 @@ function ReelCard({
       style={{ position: "relative", height: "100%", width: "100%", flexShrink: 0, overflow: "hidden", background: "#000", scrollSnapAlign: "start", scrollSnapStop: "always" }}
     >
       {producto.video_url ? (
-        <video ref={videoRef} src={producto.video_url} loop muted={muted} playsInline onClick={togglePlay} style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }} />
+        <video
+          ref={videoRef}
+          src={producto.video_url}
+          loop
+          muted={muted}
+          playsInline
+          onClick={togglePlay}
+          onEnded={onEnded}
+          onTimeUpdate={onTimeUpdate}
+          style={{ width: "100%", height: "100%", objectFit: "cover", cursor: "pointer" }}
+        />
       ) : (
         producto.imagen && <img src={producto.imagen} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      )}
+
+      {producto.video_url && (
+        <div
+          ref={barRef}
+          onPointerDown={(e) => {
+            seekingRef.current = true;
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+            seekTo(e.clientX);
+          }}
+          onPointerMove={(e) => {
+            if (seekingRef.current) seekTo(e.clientX);
+          }}
+          onPointerUp={() => {
+            seekingRef.current = false;
+          }}
+          style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: 18, display: "flex", alignItems: "flex-end", cursor: "pointer", zIndex: 2, touchAction: "none" }}
+        >
+          <div style={{ height: 3, width: "100%", background: "rgba(255,255,255,0.25)" }}>
+            <div style={{ height: "100%", width: `${progreso * 100}%`, background: "var(--cyan)" }} />
+          </div>
+        </div>
       )}
 
       {!playing && (
@@ -431,33 +527,57 @@ function ReelCard({
           {menuAbierto && (
             <>
               <div onClick={() => setMenuAbierto(false)} style={{ position: "fixed", inset: 0, zIndex: 3 }} />
-              <button
-                onClick={() => {
-                  setMenuAbierto(false);
-                  onReportar();
-                }}
-                style={{
-                  position: "absolute",
-                  bottom: "calc(100% + 8px)",
-                  right: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  whiteSpace: "nowrap",
-                  background: "var(--surface-1)",
-                  color: "var(--danger)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "var(--radius-sm)",
-                  padding: "8px 12px",
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  zIndex: 4,
-                  boxShadow: "var(--shadow-md)",
-                }}
-              >
-                <Flag size={13} weight="fill" /> Reportar video
-              </button>
+              <div style={{ position: "absolute", bottom: "calc(100% + 8px)", right: 0, display: "flex", flexDirection: "column", gap: 6, zIndex: 4 }}>
+                {esDueno && (
+                  <button
+                    onClick={() => {
+                      setMenuAbierto(false);
+                      eliminar();
+                    }}
+                    disabled={eliminando}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      whiteSpace: "nowrap",
+                      background: "var(--surface-1)",
+                      color: "var(--danger)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "var(--radius-sm)",
+                      padding: "8px 12px",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      boxShadow: "var(--shadow-md)",
+                    }}
+                  >
+                    <Trash size={13} weight="fill" /> Eliminar reel
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setMenuAbierto(false);
+                    onReportar();
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    whiteSpace: "nowrap",
+                    background: "var(--surface-1)",
+                    color: "var(--danger)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-sm)",
+                    padding: "8px 12px",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxShadow: "var(--shadow-md)",
+                  }}
+                >
+                  <Flag size={13} weight="fill" /> Reportar video
+                </button>
+              </div>
             </>
           )}
         </div>

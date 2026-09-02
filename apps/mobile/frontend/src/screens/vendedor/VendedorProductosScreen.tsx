@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { CaretLeftIcon, PencilIcon, PlusIcon, StorefrontIcon } from "phosphor-react-native";
+import { CaretLeftIcon, FilmSlateIcon, PencilIcon, PlusIcon, StorefrontIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { vendedorApi } from "../../lib/api";
@@ -37,9 +37,14 @@ export function VendedorProductosScreen({ navigation }: Props) {
           <CaretLeftIcon size={16} color={tokens.textPrimary} />
         </Pressable>
         <Text style={{ flex: 1, fontSize: 18, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>Productos</Text>
-        <Button size="sm" icon={<PlusIcon size={14} color={tokens.cyanInk} />} onPress={() => navigation.navigate("VendedorProductoForm", {})}>
-          Nuevo
-        </Button>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Button size="sm" variant="secondary" icon={<FilmSlateIcon size={14} color={tokens.violet} />} onPress={() => navigation.navigate("VendedorReelForm")}>
+            Reel
+          </Button>
+          <Button size="sm" variant="secondary" icon={<PlusIcon size={14} color={tokens.cyan} />} onPress={() => navigation.navigate("VendedorProductoForm", {})}>
+            Producto
+          </Button>
+        </View>
       </View>
 
       {productos === null ? (
@@ -68,7 +73,7 @@ export function VendedorProductosScreen({ navigation }: Props) {
                   <Text numberOfLines={1} style={{ fontFamily: "Inter_600SemiBold", fontSize: 12.5, color: tokens.textPrimary }}>{item.nombre}</Text>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 4 }}>
                     <Text style={{ fontFamily: "IBMPlexMono_500Medium", fontSize: 12, fontWeight: "700", color: tokens.textPrimary }}>{money(item.precio_oferta || item.precio)}</Text>
-                    <Text style={{ fontSize: 11, color: tokens.textMuted }}>Stock: {item.stock}</Text>
+                    <Text style={{ fontSize: 11, color: tokens.textMuted }}>{item.stock_ilimitado ? "Ilimitado" : `Stock: ${item.stock}`}</Text>
                   </View>
                 </View>
               </Pressable>

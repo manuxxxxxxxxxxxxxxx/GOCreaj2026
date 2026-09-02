@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bicycle, LockSimple, MapPin, Power } from "@phosphor-icons/react";
+import { Bicycle, LockSimple, MapPin, Package, Power, Star } from "@phosphor-icons/react";
 import { repartidorApi, ApiError } from "../../lib/api";
 import type { Pedido } from "../../lib/types";
 import { money } from "../../lib/format";
@@ -15,6 +15,8 @@ export function RepartidorDisponibles() {
   const [enLinea, setEnLinea] = useState(false);
   const [pedidos, setPedidos] = useState<(Pedido & { distancia_km?: number; ganancia_repartidor: number })[] | null>(null);
   const [bloqueado, setBloqueado] = useState(false);
+  const [stats, setStats] = useState<{ hoy: number; semana: number; entregas_hoy: number } | null>(null);
+  const [perfil, setPerfil] = useState<{ repartidor_calificacion_promedio: number; entregas_completadas: number } | null>(null);
   const toast = useToast();
 
   const cargar = () => {
@@ -29,6 +31,13 @@ export function RepartidorDisponibles() {
     cargar();
     const t = window.setInterval(cargar, 9000);
     return () => window.clearInterval(t);
+  }, []);
+
+  // Antes solo vivían en Billetera/Perfil -- esta pantalla "home" del repartidor no daba
+  // ningún vistazo rápido a cómo va el día, a diferencia del Resumen del vendedor.
+  useEffect(() => {
+    repartidorApi.wallet().then((r) => setStats(r.stats)).catch(() => {});
+    repartidorApi.miPerfil().then((r) => setPerfil(r.perfil)).catch(() => {});
   }, []);
 
   const toggle = async () => {
@@ -83,6 +92,19 @@ export function RepartidorDisponibles() {
         </button>
       </div>
 
+      {(stats || perfil) && (
+        <div style={{ display: "flex", gap: 10 }}>
+          <StatTile icon={<Package size={14} color="var(--cyan)" />} label="Hoy" value={stats ? money(stats.hoy) : "—"} />
+          <StatTile icon={<Bicycle size={14} color="var(--cyan)" />} label="Entregas hoy" value={stats ? String(stats.entregas_hoy) : "—"} />
+          <StatTile icon={<Package size={14} color="var(--cyan)" />} label="Esta semana" value={stats ? money(stats.semana) : "—"} />
+          <StatTile
+            icon={<Star size={14} weight="fill" color="var(--warn)" />}
+            label="Calificación"
+            value={perfil?.repartidor_calificacion_promedio ? perfil.repartidor_calificacion_promedio.toFixed(1) : "Nuevo"}
+          />
+        </div>
+      )}
+
       {!enLinea ? (
         <EmptyState icon={<Power size={26} />} title="Estás desconectado" description="Conéctate para empezar a recibir pedidos disponibles cerca de ti." actionLabel="Conectarme" onAction={toggle} />
       ) : bloqueado ? (
@@ -124,6 +146,18 @@ export function RepartidorDisponibles() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function StatTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 4px", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--surface-1)" }}>
+      {icon}
+      <span className="tabular" style={{ fontSize: 13.5, fontWeight: 700, marginTop: 4 }}>
+        {value}
+      </span>
+      <span style={{ fontSize: 10.5, color: "var(--text-muted)", marginTop: 1 }}>{label}</span>
     </div>
   );
 }

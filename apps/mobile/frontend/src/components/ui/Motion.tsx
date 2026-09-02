@@ -12,8 +12,10 @@ export function AnimatedListItem({
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
+  // Sin .springify(): un fundido con deslizamiento simple, sin el rebote/sobregiro de un
+  // resorte poco amortiguado (se veía como un salto exagerado al entrar cada tarjeta).
   return (
-    <Animated.View entering={FadeInDown.duration(360).delay(Math.min(index, 9) * 50).springify().damping(16)} style={style}>
+    <Animated.View entering={FadeInDown.duration(280).delay(Math.min(index, 9) * 40)} style={style}>
       {children}
     </Animated.View>
   );
@@ -22,7 +24,7 @@ export function AnimatedListItem({
 /** Whole-screen mount reveal for non-list content (detail screens, forms). */
 export function ScreenReveal({ children, style, delay = 0 }: { children: React.ReactNode; style?: StyleProp<ViewStyle>; delay?: number }) {
   return (
-    <Animated.View entering={FadeInDown.duration(380).delay(delay).springify().damping(17)} style={style}>
+    <Animated.View entering={FadeInDown.duration(300).delay(delay)} style={style}>
       {children}
     </Animated.View>
   );

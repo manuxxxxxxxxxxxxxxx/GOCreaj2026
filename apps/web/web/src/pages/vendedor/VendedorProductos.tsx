@@ -1,20 +1,24 @@
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Storefront } from "@phosphor-icons/react";
+import { FilmSlate, Infinity, Pencil, Plus, Storefront } from "@phosphor-icons/react";
 import { vendedorApi, ApiError } from "../../lib/api";
 import type { Producto, Tienda } from "../../lib/types";
-import { money, fileToBase64 } from "../../lib/format";
+import { money } from "../../lib/format";
 import { useToast } from "../../context/ToastContext";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Sheet } from "../../components/ui/Sheet";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
-import { CATEGORIAS, CATEGORIA_LABEL } from "../../lib/categoryIcons";
+import { PriceInput } from "../../components/ui/PriceInput";
+import { MultiImagePicker } from "../../components/domain/MultiImagePicker";
+import { CategoryPicker } from "../../components/domain/CategoryPicker";
+import { SubirReelSheet } from "../../components/domain/SubirReelSheet";
 
 export function VendedorProductos() {
   const [productos, setProductos] = useState<Producto[] | null>(null);
   const [tiendas, setTiendas] = useState<Tienda[] | null>(null);
   const [editando, setEditando] = useState<Producto | "nuevo" | null>(null);
+  const [subiendoReel, setSubiendoReel] = useState(false);
 
   const cargar = () => {
     vendedorApi.misProductos().then((r) => setProductos(r.productos)).catch(() => setProductos([]));
@@ -33,9 +37,14 @@ export function VendedorProductos() {
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h1 style={{ fontSize: 20 }}>Productos</h1>
-        <Button onClick={() => setEditando("nuevo")} disabled={!tiendas?.length}>
-          <Plus size={16} /> Nuevo producto
-        </Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button variant="secondary" onClick={() => setSubiendoReel(true)} disabled={!tiendas?.length}>
+            <FilmSlate size={16} color="var(--violet)" /> Nuevo Reel
+          </Button>
+          <Button variant="secondary" onClick={() => setEditando("nuevo")} disabled={!tiendas?.length}>
+            <Plus size={16} color="var(--cyan)" /> Nuevo producto
+          </Button>
+        </div>
       </div>
 
       {productos === null ? (
@@ -67,7 +76,7 @@ export function VendedorProductos() {
                 <div style={{ fontWeight: 600, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.nombre}</div>
                 <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
                   <span className="tabular" style={{ fontWeight: 700, fontSize: 13 }}>{money(p.precio_oferta || p.precio)}</span>
-                  <span className="tabular" style={{ fontSize: 12, color: "var(--text-muted)" }}>Stock: {p.stock}</span>
+                  <span className="tabular" style={{ fontSize: 12, color: "var(--text-muted)" }}>{p.stock_ilimitado ? "Ilimitado" : `Stock: ${p.stock}`}</span>
                 </div>
               </div>
             </button>
@@ -86,6 +95,16 @@ export function VendedorProductos() {
           }}
         />
       )}
+
+      {subiendoReel && (
+        <SubirReelSheet
+          onClose={() => setSubiendoReel(false)}
+          onPublicado={() => {
+            setSubiendoReel(false);
+            cargar();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -93,18 +112,19 @@ export function VendedorProductos() {
 function ProductoForm({ producto, tiendaId, onClose, onSaved }: { producto: Producto | null; tiendaId?: number; onClose: () => void; onSaved: () => void }) {
   const [nombre, setNombre] = useState(producto?.nombre ?? "");
   const [descripcion, setDescripcion] = useState(producto?.descripcion ?? "");
-  const [precio, setPrecio] = useState(String(producto?.precio ?? ""));
-  const [precioOferta, setPrecioOferta] = useState(producto?.precio_oferta ? String(producto.precio_oferta) : "");
+  const [precio, setPrecio] = useState(producto?.precio ?? 0);
+  const [precioOferta, setPrecioOferta] = useState(producto?.precio_oferta ?? 0);
+  const [stockIlimitado, setStockIlimitado] = useState(!!producto?.stock_ilimitado);
   const [stock, setStock] = useState(String(producto?.stock ?? "0"));
   const [categoria, setCategoria] = useState(producto?.categoria ?? "comida");
-  const [imagen, setImagen] = useState<string | null>(producto?.imagen ?? null);
-  const [esReel, setEsReel] = useState(!!producto?.es_reel);
+  const [imagenes, setImagenes] = useState<string[]>(producto?.imagenes && producto.imagenes.length ? producto.imagenes : producto?.imagen ? [producto.imagen] : []);
   const [activo, setActivo] = useState(producto?.activo !== 0);
   const [guardando, setGuardando] = useState(false);
   const toast = useToast();
 
   const guardar = async () => {
     if (!nombre.trim() || !precio) return toast.show("Nombre y precio son obligatorios.", "warning");
+    if (imagenes.length === 0) return toast.show("Agrega al menos una foto.", "warning");
     setGuardando(true);
     try {
       if (producto) {
@@ -112,13 +132,16 @@ function ProductoForm({ producto, tiendaId, onClose, onSaved }: { producto: Prod
           producto_id: producto.id,
           nombre,
           descripcion,
-          precio: Number(precio),
-          precio_oferta: precioOferta ? Number(precioOferta) : undefined,
+          precio,
+          precio_oferta: precioOferta || undefined,
           quitar_oferta: !precioOferta,
-          stock: Number(stock),
+          stock_ilimitado: stockIlimitado,
+          stock: stockIlimitado ? 0 : Number(stock),
           categoria,
           activo: activo ? 1 : 0,
-          imagen: imagen && imagen.startsWith("data:") ? imagen : undefined,
+          // Siempre se manda la galería completa (URLs existentes + fotos nuevas en base64)
+          // -- así una foto que se quitó de la lista también se quita al guardar.
+          imagenes,
         });
         toast.show("Producto actualizado", "success");
       } else {
@@ -127,12 +150,12 @@ function ProductoForm({ producto, tiendaId, onClose, onSaved }: { producto: Prod
           tienda_id: tiendaId,
           nombre,
           descripcion,
-          precio: Number(precio),
-          precio_oferta: precioOferta ? Number(precioOferta) : undefined,
-          stock: Number(stock),
+          precio,
+          precio_oferta: precioOferta || undefined,
+          stock_ilimitado: stockIlimitado,
+          stock: stockIlimitado ? 0 : Number(stock),
           categoria,
-          es_reel: esReel,
-          imagen: imagen ?? undefined,
+          imagenes,
         });
         toast.show("Producto creado", "success");
       }
@@ -147,39 +170,49 @@ function ProductoForm({ producto, tiendaId, onClose, onSaved }: { producto: Prod
   return (
     <Sheet open onClose={onClose} title={producto ? "Editar producto" : "Nuevo producto"}>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-        <label
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 140, borderRadius: "var(--radius-md)", background: "var(--surface-2)", border: "1px dashed var(--border-strong)", cursor: "pointer", overflow: "hidden" }}
-        >
-          {imagen ? <img src={imagen} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Subir foto del producto</span>}
-          <input type="file" accept="image/*" hidden onChange={async (e) => e.target.files?.[0] && setImagen(await fileToBase64(e.target.files[0]))} />
-        </label>
+        <div>
+          <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 8 }}>Fotos (hasta 10)</label>
+          <MultiImagePicker imagenes={imagenes} onChange={setImagenes} />
+        </div>
         <Input label="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>Descripción</label>
           <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} style={{ width: "100%", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", padding: 12, fontSize: 13.5, fontFamily: "inherit", resize: "vertical" }} />
         </div>
         <div style={{ display: "flex", gap: 10 }}>
-          <Input label="Precio" type="number" step="0.01" value={precio} onChange={(e) => setPrecio(e.target.value)} />
-          <Input label="Precio oferta (opcional)" type="number" step="0.01" value={precioOferta} onChange={(e) => setPrecioOferta(e.target.value)} />
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Input label="Stock" type="number" value={stock} onChange={(e) => setStock(e.target.value)} />
           <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>Categoría</label>
-            <select value={categoria} onChange={(e) => setCategoria(e.target.value)} style={{ width: "100%", height: 44, borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", padding: "0 12px", fontSize: 14, background: "var(--surface-1)" }}>
-              {CATEGORIAS.map((c) => (
-                <option key={c} value={c}>
-                  {CATEGORIA_LABEL[c]}
-                </option>
-              ))}
-            </select>
+            <PriceInput label="Precio" value={precio} onChange={setPrecio} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <PriceInput label="Precio oferta (opcional)" value={precioOferta} onChange={setPrecioOferta} />
           </div>
         </div>
-        {!producto && (
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
-            <input type="checkbox" checked={esReel} onChange={(e) => setEsReel(e.target.checked)} /> Publicar también como Reel
-          </label>
-        )}
+
+        <div>
+          <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 8 }}>Inventario</label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => setStockIlimitado(false)}
+              style={{ flex: 1, padding: "10px 4px", borderRadius: "var(--radius-md)", border: `1px solid ${!stockIlimitado ? "var(--cyan)" : "var(--border)"}`, background: !stockIlimitado ? "var(--cyan-bg)" : "var(--surface-1)", color: !stockIlimitado ? "var(--cyan)" : "var(--text-secondary)", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+            >
+              Cantidad limitada
+            </button>
+            <button
+              type="button"
+              onClick={() => setStockIlimitado(true)}
+              style={{ flex: 1, padding: "10px 4px", borderRadius: "var(--radius-md)", border: `1px solid ${stockIlimitado ? "var(--cyan)" : "var(--border)"}`, background: stockIlimitado ? "var(--cyan-bg)" : "var(--surface-1)", color: stockIlimitado ? "var(--cyan)" : "var(--text-secondary)", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}
+            >
+              <Infinity size={13} style={{ marginRight: 4, verticalAlign: -2 }} /> Stock ilimitado
+            </button>
+          </div>
+          {!stockIlimitado && <Input label="Cantidad disponible" type="number" value={stock} onChange={(e) => setStock(e.target.value)} style={{ marginTop: 10 }} />}
+        </div>
+
+        <div>
+          <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 8 }}>Categoría</label>
+          <CategoryPicker value={categoria} onChange={setCategoria} />
+        </div>
         {producto && (
           <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
             <input type="checkbox" checked={activo} onChange={(e) => setActivo(e.target.checked)} /> Producto visible en la tienda

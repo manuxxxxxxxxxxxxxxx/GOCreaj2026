@@ -27,6 +27,7 @@ import { Reels } from "./pages/Reels";
 import { Profile } from "./pages/Profile";
 import { MiColeccion } from "./pages/MiColeccion";
 import { ConfiguracionAvanzada } from "./pages/ConfiguracionAvanzada";
+import { Seguridad } from "./pages/Seguridad";
 import { Direcciones } from "./pages/Direcciones";
 import { Wallet } from "./pages/Wallet";
 import { Notifications } from "./pages/Notifications";
@@ -164,6 +165,14 @@ export default function App() {
                     element={
                       <RequireAuth>
                         <MiColeccion />
+                      </RequireAuth>
+                    }
+                  />
+                  <Route
+                    path="/perfil/seguridad"
+                    element={
+                      <RequireAuth>
+                        <Seguridad />
                       </RequireAuth>
                     }
                   />

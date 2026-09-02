@@ -14,7 +14,8 @@ export const carritoApi = {
 
   checkout: (data: {
     metodo_pago: "efectivo" | "tarjeta" | "paypal";
-    direccion_entrega: string;
+    tipo_entrega?: "domicilio" | "recogida";
+    direccion_entrega?: string;
     lat?: number;
     lng?: number;
     municipio?: string;
@@ -28,6 +29,7 @@ export const carritoApi = {
     efectivo_paga_con?: number;
     envio_modo?: "estandar" | "express";
     cupon_codigo?: string;
+    notas?: string;
   }) =>
     post<{ ok: true; pedidos: number[]; numeros_pedido: string[]; pago_estado: string; pago_referencia: string; descuento_aplicado: number }>(
       "carrito_pagos",

@@ -4,6 +4,11 @@ require_once __DIR__ . '/conexion.php';
 $user = current_user();
 if (!$user || $user['rol'] !== 'vendedor') jout(['ok' => false, 'error' => 'Acceso denegado'], 403);
 
+// Autosana el despacho automático en cada request -- ver ofrecer_siguiente_repartidor()
+// en conexion.php. El vendedor consulta 'mis_pedidos' seguido mientras espera repartidor,
+// así que esto alcanza para que la oferta avance aunque el repartidor ofrecido nunca conteste.
+avanzar_despacho_global();
+
 $action = $_GET['action'] ?? 'mis_tiendas';
 $data = jread();
 
@@ -97,8 +102,22 @@ switch ($action) {
         require_fields($data, ['tienda_id','nombre','precio']);
         $cat = $data['categoria'] ?? 'general';
         if (!in_array($cat, CATEGORIAS_VALIDAS, true)) jout(['ok' => false, 'error' => 'Categoría inválida'], 400);
+        if ((float)$data['precio'] <= 0 || (float)$data['precio'] > MAX_PRECIO_PRODUCTO) {
+            jout(['ok' => false, 'error' => 'El precio debe ser mayor a $0 y no más de $' . number_format(MAX_PRECIO_PRODUCTO, 2)], 400);
+        }
 
-        $imagen = !empty($data['imagen']) ? save_base64_image($data['imagen'], 'productos', 'p_' . $user['id']) : null;
+        // Galería: hasta MAX_IMAGENES_PRODUCTO fotos en `imagenes` (array base64) -- `imagen`
+        // (single, legacy) se mantiene como respaldo/compatibilidad si llega solo.
+        $imagenesArr = [];
+        if (!empty($data['imagenes']) && is_array($data['imagenes'])) {
+            foreach (array_slice($data['imagenes'], 0, MAX_IMAGENES_PRODUCTO) as $img) {
+                $url = save_base64_image($img, 'productos', 'p_' . $user['id']);
+                if ($url) $imagenesArr[] = $url;
+            }
+        }
+        $imagen = $imagenesArr[0] ?? (!empty($data['imagen']) ? save_base64_image($data['imagen'], 'productos', 'p_' . $user['id']) : null);
+        if ($imagen && !$imagenesArr) $imagenesArr[] = $imagen;
+        $imagenesJson = $imagenesArr ? json_encode($imagenesArr) : null;
         $video = null;
         if (!empty($_FILES['video'])) {
             // Reel subido como multipart/form-data (ver apps/mobile/frontend/src/lib/api/client.ts,
@@ -113,8 +132,9 @@ switch ($action) {
                 ? save_base64_video($data['video'], 'reels', 'r_' . $user['id'])
                 : $data['video'];
         }
-        $stock = (int)($data['stock'] ?? 0);
-        $estado_stock = $stock > 0 ? 'disponible' : 'agotado';
+        $stockIlimitado = !empty($data['stock_ilimitado']) ? 1 : 0;
+        $stock = $stockIlimitado ? 0 : (int)($data['stock'] ?? 0);
+        $estado_stock = ($stockIlimitado || $stock > 0) ? 'disponible' : 'agotado';
         $precioOferta = (isset($data['precio_oferta']) && $data['precio_oferta'] !== '') ? (float)$data['precio_oferta'] : null;
         if ($precioOferta !== null && $precioOferta >= (float)$data['precio']) {
             jout(['ok' => false, 'error' => 'El precio de oferta debe ser menor al precio normal'], 400);
@@ -130,8 +150,8 @@ switch ($action) {
         }
 
         $st = db()->prepare(
-            "INSERT INTO productos (tienda_id, nombre, descripcion, precio, precio_oferta, stock, imagen, video_url, categoria, es_reel, estado_stock, tiempo_preparacion, hashtags)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO productos (tienda_id, nombre, descripcion, precio, precio_oferta, stock, stock_ilimitado, imagen, imagenes, video_url, categoria, es_reel, estado_stock, tiempo_preparacion, hashtags)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $st->execute([
             $data['tienda_id'],
@@ -140,7 +160,9 @@ switch ($action) {
             $data['precio'],
             $precioOferta,
             $stock,
+            $stockIlimitado,
             $imagen,
+            $imagenesJson,
             $video,
             $cat,
             !empty($data['es_reel']) ? 1 : 0,
@@ -153,12 +175,24 @@ switch ($action) {
 
     case 'actualizar_producto':
         require_fields($data, ['producto_id']);
+        // Antes esta acción no verificaba dueño -- cualquier vendedor autenticado podía
+        // editar el producto de OTRA tienda con solo mandar su id (IDOR).
+        $own = db()->prepare("SELECT p.id FROM productos p JOIN tiendas t ON t.id = p.tienda_id WHERE p.id = ? AND t.vendedor_id = ?");
+        $own->execute([(int)$data['producto_id'], $user['id']]);
+        if (!$own->fetch()) jout(['ok' => false, 'error' => 'Producto no encontrado'], 404);
+
         if (isset($data['categoria']) && !in_array($data['categoria'], CATEGORIAS_VALIDAS, true)) {
             jout(['ok' => false, 'error' => 'Categoría inválida'], 400);
         }
+        if (isset($data['precio']) && ((float)$data['precio'] <= 0 || (float)$data['precio'] > MAX_PRECIO_PRODUCTO)) {
+            jout(['ok' => false, 'error' => 'El precio debe ser mayor a $0 y no más de $' . number_format(MAX_PRECIO_PRODUCTO, 2)], 400);
+        }
 
+        $stockIlimitado = isset($data['stock_ilimitado']) ? (!empty($data['stock_ilimitado']) ? 1 : 0) : null;
         $estado_stock = null;
-        if (isset($data['stock'])) {
+        if ($stockIlimitado === 1) {
+            $estado_stock = 'disponible';
+        } elseif (isset($data['stock'])) {
             $estado_stock = ((int)$data['stock']) > 0 ? 'disponible' : 'agotado';
         }
 
@@ -175,10 +209,28 @@ switch ($action) {
         }
         $tieneOferta = !empty($data['quitar_oferta']) || isset($data['precio_oferta']);
 
-        // Foto/video nuevos (base64) — el vendedor puede reemplazar el material del producto al editar
+        // Galería nueva (base64) — si mandan `imagenes`, reemplaza TODA la galería anterior.
         $nuevaImagen = null;
-        if (!empty($data['imagen']) && str_starts_with($data['imagen'], 'data:image')) {
+        $nuevasImagenesJson = null;
+        if (!empty($data['imagenes']) && is_array($data['imagenes'])) {
+            $subidas = [];
+            foreach (array_slice($data['imagenes'], 0, MAX_IMAGENES_PRODUCTO) as $img) {
+                // Cada entrada puede ser una nueva foto en base64, o una URL ya subida
+                // (una foto existente que el vendedor dejó igual al reordenar/editar la galería).
+                if (is_string($img) && str_starts_with($img, 'data:image')) {
+                    $url = save_base64_image($img, 'productos', 'p_' . $user['id']);
+                    if ($url) $subidas[] = $url;
+                } elseif (is_string($img) && $img !== '') {
+                    $subidas[] = $img;
+                }
+            }
+            if ($subidas) {
+                $nuevasImagenesJson = json_encode($subidas);
+                $nuevaImagen = $subidas[0];
+            }
+        } elseif (!empty($data['imagen']) && str_starts_with($data['imagen'], 'data:image')) {
             $nuevaImagen = save_base64_image($data['imagen'], 'productos', 'p_' . $user['id']);
+            if ($nuevaImagen) $nuevasImagenesJson = json_encode([$nuevaImagen]);
         }
         $nuevoVideo = null;
         if (!empty($data['video']) && str_starts_with($data['video'], 'data:video')) {
@@ -193,10 +245,12 @@ switch ($action) {
                 precio_oferta = CASE WHEN ? THEN ? ELSE precio_oferta END,
                 oferta_hasta = CASE WHEN ? THEN ? ELSE oferta_hasta END,
                 stock = COALESCE(?, stock),
+                stock_ilimitado = COALESCE(?, stock_ilimitado),
                 categoria = COALESCE(?, categoria),
                 activo = COALESCE(?, activo),
                 estado_stock = COALESCE(?, estado_stock),
                 imagen = COALESCE(?, imagen),
+                imagenes = COALESCE(?, imagenes),
                 video_url = COALESCE(?, video_url),
                 tiempo_preparacion = COALESCE(?, tiempo_preparacion)
              WHERE id = ?"
@@ -207,16 +261,28 @@ switch ($action) {
             $data['precio'] ?? null,
             $tieneOferta ? 1 : 0, $precioOferta,
             $tieneOferta ? 1 : 0, (!empty($data['quitar_oferta']) ? null : ($data['oferta_hasta'] ?? null)),
-            $data['stock'] ?? null,
+            $stockIlimitado === 1 ? 0 : ($data['stock'] ?? null),
+            $stockIlimitado,
             $data['categoria'] ?? null,
             $data['activo'] ?? null,
             $estado_stock,
             $nuevaImagen,
+            $nuevasImagenesJson,
             $nuevoVideo,
             $data['tiempo_preparacion'] ?? null,
             $data['producto_id'],
         ]);
         jout(['ok' => true, 'estado_stock' => $estado_stock, 'imagen' => $nuevaImagen, 'video_url' => $nuevoVideo]);
+        break;
+
+    // ─── Eliminar (borrado suave) un producto o reel propio -- antes solo el admin podía. ───
+    case 'eliminar_producto':
+        require_fields($data, ['producto_id']);
+        $own = db()->prepare("SELECT p.id FROM productos p JOIN tiendas t ON t.id = p.tienda_id WHERE p.id = ? AND t.vendedor_id = ?");
+        $own->execute([(int)$data['producto_id'], $user['id']]);
+        if (!$own->fetch()) jout(['ok' => false, 'error' => 'Producto no encontrado'], 404);
+        db()->prepare("UPDATE productos SET activo = 0 WHERE id = ?")->execute([(int)$data['producto_id']]);
+        jout(['ok' => true]);
         break;
 
     case 'mis_ventas':
@@ -248,7 +314,7 @@ switch ($action) {
             jout(['ok' => false, 'error' => 'Estado invalido'], 400);
         }
         $pid = (int)$data['pedido_id'];
-        $sel = db()->prepare("SELECT comprador_id, numero_pedido FROM pedidos WHERE id = ? AND vendedor_id = ?");
+        $sel = db()->prepare("SELECT comprador_id, numero_pedido, tipo_entrega FROM pedidos WHERE id = ? AND vendedor_id = ?");
         $sel->execute([$pid, $user['id']]);
         $ped = $sel->fetch();
         if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
@@ -258,6 +324,12 @@ switch ($action) {
 
         // El vendedor confirma el pedido: se notifica al comprador (sistema → comprador).
         crear_notificacion((int)$ped['comprador_id'], 'pedido', 'Pedido confirmado', "El vendedor confirmó tu pedido #{$ped['numero_pedido']} y lo está preparando.", $pid);
+
+        // El vendedor ya NO elige repartidor -- en cuanto el pedido queda en 'preparacion'
+        // dispara el despacho automático (ver ofrecer_siguiente_repartidor() en conexion.php).
+        // Un pedido "recoger en tienda" no lleva repartidor -- el comprador lo retira en
+        // persona (ver confirmar_recogida más abajo y pedidos_tracking.php confirmar_entrega).
+        if ($data['estado'] === 'preparacion' && $ped['tipo_entrega'] !== 'recogida') ofrecer_siguiente_repartidor($pid);
 
         jout(['ok' => true]);
         break;
@@ -366,6 +438,7 @@ switch ($action) {
         $sel->execute([$pid, $user['id']]);
         $ped = $sel->fetch();
         if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
+        if ($ped['tipo_entrega'] === 'recogida') jout(['ok' => false, 'error' => 'Este pedido es de recogida en tienda -- no lleva repartidor'], 400);
         if ($ped['estado'] !== 'preparacion') jout(['ok' => false, 'error' => 'El pedido debe estar aprobado antes de asignar repartidor'], 400);
         if ($ped['repartidor_id'] !== null) jout(['ok' => false, 'error' => 'Este pedido ya tiene repartidor asignado'], 400);
 
@@ -373,7 +446,10 @@ switch ($action) {
         $rSt->execute([$rid]);
         if (!$rSt->fetch()) jout(['ok' => false, 'error' => 'El repartidor ya no está disponible'], 400);
 
-        db()->prepare("UPDATE pedidos SET repartidor_id = ?, repartidor_asignado_at = NOW() WHERE id = ?")->execute([$rid, $pid]);
+        // Limpia cualquier oferta del despacho automático que siguiera pendiente para este
+        // pedido (ver ofrecer_siguiente_repartidor() en conexion.php) -- esto es una
+        // asignación manual explícita que la debe pisar, no competir con ella.
+        db()->prepare("UPDATE pedidos SET repartidor_id = ?, repartidor_asignado_at = NOW(), oferta_repartidor_id = NULL, oferta_expira_at = NULL WHERE id = ?")->execute([$rid, $pid]);
         crear_notificacion($rid, 'pedido', 'Nueva entrega asignada', "Una tienda te asignó el pedido #{$ped['numero_pedido']} directamente.", $pid);
         jout(['ok' => true]);
         break;
@@ -389,18 +465,23 @@ switch ($action) {
         $sel->execute([$pid, $user['id']]);
         $ped = $sel->fetch();
         if (!$ped) jout(['ok' => false, 'error' => 'Pedido no encontrado'], 404);
-        if (!$ped['repartidor_id']) jout(['ok' => false, 'error' => 'Este pedido aún no tiene repartidor asignado'], 400);
+        // En "recoger en tienda" no hay repartidor -- el código que se genera abajo lo usa
+        // directamente el comprador (ver pedidos_tracking.php action=confirmar_entrega).
+        if ($ped['tipo_entrega'] !== 'recogida' && !$ped['repartidor_id']) {
+            jout(['ok' => false, 'error' => 'Este pedido aún no tiene repartidor asignado'], 400);
+        }
 
         $token = $ped['qr_recogida_token'] ?: bin2hex(random_bytes(16));
-        db()->prepare("UPDATE pedidos SET confirmado_vendedor_recogida = 1, qr_recogida_token = ? WHERE id = ?")
-            ->execute([$token, $pid]);
+        $pin = $ped['pin_recogida'] ?: generar_pin();
+        db()->prepare("UPDATE pedidos SET confirmado_vendedor_recogida = 1, qr_recogida_token = ?, pin_recogida = ? WHERE id = ?")
+            ->execute([$token, $pin, $pid]);
 
         $yaConfirmadoRepartidor = (int)$ped['confirmado_repartidor_recogida'] === 1;
         if ($yaConfirmadoRepartidor) {
             db()->prepare("UPDATE pedidos SET estado = 'en_camino' WHERE id = ?")->execute([$pid]);
             crear_notificacion((int)$ped['comprador_id'], 'pedido', '¡Tu pedido va en camino!', "El repartidor recogió tu pedido #{$ped['numero_pedido']} y va hacia ti.", $pid);
         }
-        jout(['ok' => true, 'en_camino' => $yaConfirmadoRepartidor, 'qr_token' => $token]);
+        jout(['ok' => true, 'en_camino' => $yaConfirmadoRepartidor, 'qr_token' => $token, 'pin' => $pin]);
         break;
 
     // ─── Reseñas recibidas por el vendedor + respuesta pública ───

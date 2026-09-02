@@ -12,7 +12,8 @@ import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { Sheet } from "../../components/ui/Sheet";
-import { QrScanBox } from "../../components/domain/QrScanBox";
+import { codigoDesdeValor, QrScanBox } from "../../components/domain/QrScanBox";
+import { CodigoQrCard } from "../../components/domain/CodigoQrCard";
 import { MapView, type MapMarker } from "../../components/ui/MapView";
 
 const PROGRESO_LABEL: Record<string, string> = {
@@ -29,7 +30,7 @@ export function RepartidorEntregas() {
   const navigate = useNavigate();
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null);
   const [recogiendoDe, setRecogiendoDe] = useState<Pedido | null>(null);
-  const [entregaQr, setEntregaQr] = useState<{ pedido: Pedido; token: string } | null>(null);
+  const [entregaQr, setEntregaQr] = useState<{ pedido: Pedido; token: string; pin: string } | null>(null);
   const toast = useToast();
   const watchIdRef = useRef<number | null>(null);
 
@@ -79,7 +80,7 @@ export function RepartidorEntregas() {
   const generarQrEntrega = async (p: Pedido) => {
     try {
       const r = await repartidorApi.generarQrEntrega(p.id);
-      setEntregaQr({ pedido: p, token: r.qr_token });
+      setEntregaQr({ pedido: p, token: r.qr_token, pin: r.pin });
     } catch (err) {
       toast.show(err instanceof ApiError ? err.message : "No se pudo generar el código.", "error");
     }
@@ -213,10 +214,7 @@ export function RepartidorEntregas() {
 
       {entregaQr && (
         <Sheet open onClose={() => setEntregaQr(null)} title="Código de entrega">
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
-            <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>Muéstrale este código al comprador para que lo escanee y así confirmar la entrega.</p>
-            <div style={{ fontFamily: "var(--font-mono)", fontSize: 13, background: "var(--surface-2)", padding: "12px 16px", borderRadius: "var(--radius-sm)", wordBreak: "break-all" }}>{entregaQr.token}</div>
-          </div>
+          <CodigoQrCard token={entregaQr.token} pin={entregaQr.pin} mensaje="Muéstrale este código al comprador para que lo escanee (o dale el PIN) y así confirmar la entrega." />
         </Sheet>
       )}
 
@@ -252,7 +250,7 @@ function RecogidaSheet({ pedido, onClose, onDone }: { pedido: Pedido; onClose: (
     if (!valor.trim()) return;
     setEnviando(true);
     try {
-      const r = await repartidorApi.confirmarRecogida(pedido.id, valor.trim());
+      const r = await repartidorApi.confirmarRecogida(pedido.id, codigoDesdeValor(valor));
       toast.show(r.en_camino ? "¡Vas en camino al cliente!" : "Recogida confirmada. Esperando confirmación de la tienda.", "success");
       onDone();
     } catch (err) {
@@ -264,7 +262,7 @@ function RecogidaSheet({ pedido, onClose, onDone }: { pedido: Pedido; onClose: (
 
   return (
     <Sheet open onClose={onClose} title="Confirmar recogida">
-      <QrScanBox valor={valor} onChange={setValor} hint="Pídele a la tienda el código QR de recogida y escanéalo, o pégalo abajo." />
+      <QrScanBox valor={valor} onChange={setValor} hint="Escanea el código QR de la tienda, o teclea el PIN de 6 dígitos." />
       <Button fullWidth style={{ marginTop: 16 }} onClick={confirmar} loading={enviando}>
         Confirmar
       </Button>

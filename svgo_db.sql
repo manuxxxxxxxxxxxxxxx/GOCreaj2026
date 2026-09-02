@@ -442,3 +442,12 @@ ALTER TABLE pedidos
 -- =============================================
 ALTER TABLE solicitudes_rol
   ADD COLUMN IF NOT EXISTS municipio VARCHAR(80) NULL AFTER nombre_completo;
+
+-- =============================================
+-- MIGRATIONS v2.5 — Cambio de correo con confirmación + cooldown de datos personales
+-- =============================================
+ALTER TABLE usuarios
+  ADD COLUMN IF NOT EXISTS datos_changed_at        DATETIME     NULL AFTER username_changed_at,
+  ADD COLUMN IF NOT EXISTS email_pendiente         VARCHAR(180) NULL AFTER email,
+  ADD COLUMN IF NOT EXISTS email_verificacion_code VARCHAR(6)   NULL AFTER email_pendiente,
+  ADD COLUMN IF NOT EXISTS email_verificacion_exp  DATETIME     NULL AFTER email_verificacion_code;

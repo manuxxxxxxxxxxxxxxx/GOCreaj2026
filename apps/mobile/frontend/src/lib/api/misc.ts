@@ -88,7 +88,8 @@ export const solicitudesApi = {
 };
 
 export const soporteApi = {
-  crear: (asunto: string, descripcion: string) => post<{ ok: true; id: number }>("soporte", "crear", { asunto, descripcion }),
+  crear: (asunto: string, descripcion: string, adjunto?: string | null) =>
+    post<{ ok: true; id: number }>("soporte", "crear", { asunto, descripcion, adjunto }),
   misTickets: () => get<{ ok: true; reportes: ReporteSoporte[] }>("soporte", "mis_tickets"),
 };
 

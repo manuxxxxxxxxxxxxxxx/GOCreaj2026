@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
-import { CameraIcon, CaretLeftIcon, PackageIcon, StarIcon } from "phosphor-react-native";
+import { CameraIcon, CaretLeftIcon, PackageIcon, StarIcon, TrophyIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
@@ -15,6 +15,7 @@ import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
+import { ProfileBadges, type ProfileBadge } from "../../components/domain/ProfileBadges";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RepartidorPerfil">;
 
@@ -86,6 +87,12 @@ export function RepartidorPerfilScreen({ navigation }: Props) {
     );
   }
 
+  const repartidorBadges: ProfileBadge[] = [
+    { icon: <TrophyIcon size={16} weight="fill" color={tokens.coral} />, label: "Primera entrega", current: perfil.entregas_completadas, target: 1, accent: "coral" },
+    { icon: <TrophyIcon size={16} weight="fill" color={tokens.coral} />, label: "Repartidor confiable", current: perfil.entregas_completadas, target: 25, accent: "coral" },
+    { icon: <TrophyIcon size={16} weight="fill" color={tokens.coral} />, label: "Bien calificado", current: perfil.repartidor_total_resenas, target: 5, accent: "coral" },
+  ];
+
   return (
     <View style={{ flex: 1, paddingTop: insets.top }}>
       <View style={styles.header}>
@@ -111,6 +118,11 @@ export function RepartidorPerfilScreen({ navigation }: Props) {
               </Text>
             </View>
           </View>
+        </View>
+
+        <View>
+          <Text style={{ fontSize: 13.5, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary, marginBottom: 10, textAlign: "center" }}>Pasos completados</Text>
+          <ProfileBadges badges={repartidorBadges} />
         </View>
 
         <Card>

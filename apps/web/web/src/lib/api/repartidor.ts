@@ -9,10 +9,10 @@ export const repartidorApi = {
 
   aceptar: (pedido_id: number) => post<{ ok: true }>("repartidor_dashboard", "aceptar", { pedido_id }),
 
-  confirmarRecogida: (pedido_id: number, qr_token: string) =>
-    post<{ ok: true; en_camino: boolean }>("repartidor_dashboard", "confirmar_recogida", { pedido_id, qr_token }),
+  confirmarRecogida: (pedido_id: number, codigo: { qr_token: string } | { pin: string }) =>
+    post<{ ok: true; en_camino: boolean }>("repartidor_dashboard", "confirmar_recogida", { pedido_id, ...codigo }),
 
-  generarQrEntrega: (pedido_id: number) => post<{ ok: true; qr_token: string }>("repartidor_dashboard", "generar_qr_entrega", { pedido_id }),
+  generarQrEntrega: (pedido_id: number) => post<{ ok: true; qr_token: string; pin: string }>("repartidor_dashboard", "generar_qr_entrega", { pedido_id }),
 
   rechazar: (pedido_id: number) => post<{ ok: true }>("repartidor_dashboard", "rechazar", { pedido_id }),
 

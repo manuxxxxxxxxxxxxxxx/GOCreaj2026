@@ -24,6 +24,33 @@ define('AUTH_TTL_SECONDS', 60 * 60 * 24 * 30); // 30 días
 // de producción si se generan). Vacío = login con Google desactivado en el backend.
 define('GOOGLE_CLIENT_IDS', '195559019978-sqfadh1srban3akat11eiko3hpciq6pv.apps.googleusercontent.com');
 
+// ─── Correo saliente (verificación de registro) vía SMTP de Gmail ───
+// Rellena estos dos valores con tu cuenta: SMTP_USER es el correo de Gmail que
+// envía, SMTP_PASS es una "contraseña de aplicación" de 16 caracteres (NO tu
+// contraseña normal de Gmail) -- se genera en https://myaccount.google.com/apppasswords
+// (requiere verificación en 2 pasos activada en la cuenta).
+// Mientras estos dos campos queden vacíos, el sistema cae automáticamente a modo
+// simulado: el código de verificación se devuelve en la respuesta (codigo_dev) en
+// vez de enviarse de verdad, para poder seguir probando sin credenciales reales.
+define('SMTP_HOST', 'smtp.gmail.com');
+define('SMTP_PORT', 587);
+define('SMTP_USER', 'rirreada@gmail.com');
+define('SMTP_PASS', 'zvyicptetyjtouap');
+define('SMTP_FROM_NAME', 'SV[Go]');
+
+// ─── WhatsApp saliente (verificación de teléfono) vía Meta WhatsApp Cloud API ───
+// Se configura en developers.facebook.com (app de tipo "Business" → producto WhatsApp):
+// WHATSAPP_PHONE_NUMBER_ID sale de WhatsApp > API Setup ("Phone number ID", NO es el
+// número en sí). WHATSAPP_ACCESS_TOKEN es el token temporal de esa misma pantalla para
+// pruebas, o un token permanente de un System User (Business Settings > Users > System
+// Users) para producción. WHATSAPP_TEMPLATE_NAME es el nombre de una plantilla categoría
+// "Authentication" ya aprobada por Meta (se crea en WhatsApp Manager > Message Templates;
+// la aprobación suele tardar minutos, son gratis de crear).
+// Igual que el correo: si quedan vacíos, cae a modo simulado (código en la respuesta).
+define('WHATSAPP_PHONE_NUMBER_ID', '');
+define('WHATSAPP_ACCESS_TOKEN', '');
+define('WHATSAPP_TEMPLATE_NAME', 'verificacion_codigo');
+
 /**
  * Espejo de CATEGORIAS en apps/mobile/frontend/src/lib/categoryIcons.tsx — mantener sincronizado
  * si se agregan categorías ahí. Antes esta validación vivía duplicada en vendedor_dashboard.php
@@ -55,6 +82,12 @@ define('CATEGORIAS_VALIDAS', [
     'entretenimiento', 'lavanderia', 'mudanzas', 'reparaciones', 'cerrajeria',
     'segunda_mano', 'importados', 'religiosos', 'souvenirs',
 ]);
+
+// Techo de precio realista para un marketplace local (comida, ropa, electrodomésticos,
+// etc.) -- antes no existía ningún límite y un vendedor podía teclear "67000" o "10000000"
+// por error (o el input numérico simplemente no lo impedía) y el producto se guardaba tal cual.
+define('MAX_PRECIO_PRODUCTO', 9999.99);
+define('MAX_IMAGENES_PRODUCTO', 10);
 
 function db(): PDO {
     static $pdo = null;
@@ -445,6 +478,26 @@ function db_migrate(): void {
         "ALTER TABLE pedidos ADD COLUMN qr_entrega_token VARCHAR(40) NULL AFTER qr_recogida_token",
         "ALTER TABLE pedidos ADD COLUMN qr_entrega_generado_at DATETIME NULL AFTER qr_entrega_token",
 
+        // PIN de 6 dígitos como respaldo del QR (mismo momento en que se genera el QR, ver
+        // confirmar_recogida/generar_qr_entrega) -- 3 intentos fallidos bloquean ESE código
+        // puntual (recogida o entrega, no el pedido entero) y alertan a soporte. El QR nunca
+        // se bloquea: es imposible de adivinar, así que sigue siendo la salida de emergencia.
+        "ALTER TABLE pedidos ADD COLUMN pin_recogida VARCHAR(6) NULL AFTER qr_entrega_generado_at",
+        "ALTER TABLE pedidos ADD COLUMN pin_recogida_intentos TINYINT NOT NULL DEFAULT 0 AFTER pin_recogida",
+        "ALTER TABLE pedidos ADD COLUMN pin_recogida_bloqueado_hasta DATETIME NULL AFTER pin_recogida_intentos",
+        "ALTER TABLE pedidos ADD COLUMN pin_entrega VARCHAR(6) NULL AFTER pin_recogida_bloqueado_hasta",
+        "ALTER TABLE pedidos ADD COLUMN pin_entrega_intentos TINYINT NOT NULL DEFAULT 0 AFTER pin_entrega",
+        "ALTER TABLE pedidos ADD COLUMN pin_entrega_bloqueado_hasta DATETIME NULL AFTER pin_entrega_intentos",
+
+        // Despacho automático (ver ofrecer_siguiente_repartidor()/avanzar_despacho_global() más
+        // abajo): oferta individual y exclusiva a UN repartidor con un timer corto. Si expira o
+        // rechaza, se descarta (pedido_repartidor_descartes, tabla que ya existía para el
+        // mercado de "disponibles") y se ofrece al siguiente más cercano. Si nadie contesta a
+        // tiempo, el pedido queda libre para ese mercado normal -- no hace falta tocar esa
+        // consulta, ya filtra por repartidor_id IS NULL.
+        "ALTER TABLE pedidos ADD COLUMN oferta_repartidor_id INT NULL AFTER repartidor_asignado_at",
+        "ALTER TABLE pedidos ADD COLUMN oferta_expira_at DATETIME NULL AFTER oferta_repartidor_id",
+
         // productos — hashtags del Reel, separados por espacio, sin el "#" (se agrega al mostrarlos)
         "ALTER TABLE productos ADD COLUMN hashtags VARCHAR(255) NULL",
 
@@ -452,6 +505,58 @@ function db_migrate(): void {
         // autoincremental (que es secuencial y deja adivinar cuántos pedidos van en el sistema).
         "ALTER TABLE pedidos ADD COLUMN numero_pedido VARCHAR(12) NULL AFTER id",
         "ALTER TABLE pedidos ADD UNIQUE INDEX uk_pedidos_numero (numero_pedido)",
+
+        // usuarios — verificación de correo obligatoria al registrarse por formulario (no aplica
+        // a Google, que ya llega verificado). DEFAULT 1 para no bloquear cuentas ya existentes.
+        "ALTER TABLE usuarios ADD COLUMN email_verificado TINYINT(1) NOT NULL DEFAULT 1",
+        // usuarios — vigencia del código de WhatsApp (sms_code), igual que ya existe para
+        // email_verificacion_exp y reset_password_exp.
+        "ALTER TABLE usuarios ADD COLUMN sms_code_exp DATETIME NULL",
+
+        // soporte_reportes — tickets de "reportar un problema" (cualquier rol menos admin).
+        // La tabla ya existía (creada fuera del sistema de migraciones) pero soporte.php
+        // apuntaba al nombre equivocado ("reportes_soporte", que nunca existió) así que
+        // crear/listar tickets fallaba en silencio para el usuario -- ahora corregido para
+        // usar el mismo nombre que ya usa el lado admin. El CREATE cubre una instalación
+        // nueva desde cero; los ALTER de abajo ponen al día una base ya existente como esta.
+        "CREATE TABLE IF NOT EXISTS soporte_reportes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            usuario_id INT NOT NULL,
+            asunto VARCHAR(180) NOT NULL,
+            descripcion TEXT NOT NULL,
+            adjunto VARCHAR(255) NULL,
+            estado ENUM('abierto','en_proceso','resuelto','cerrado') NOT NULL DEFAULT 'abierto',
+            respuesta_admin TEXT NULL,
+            resuelto_at DATETIME NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_usuario (usuario_id),
+            INDEX idx_estado (estado)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        // adjunto/resuelto_at no existían en la tabla original; y el ENUM de estado no
+        // incluía 'resuelto' aunque toda la UI (botón "Resolver") ya lo escribe -- sin
+        // este ALTER, MODO ESTRICTO de MySQL rechaza ese UPDATE con "Data truncated".
+        "ALTER TABLE soporte_reportes ADD COLUMN adjunto VARCHAR(255) NULL AFTER descripcion",
+        "ALTER TABLE soporte_reportes ADD COLUMN resuelto_at DATETIME NULL",
+        "ALTER TABLE soporte_reportes MODIFY COLUMN estado ENUM('abierto','en_proceso','resuelto','cerrado') NOT NULL DEFAULT 'abierto'",
+
+        // pedidos — "recoger en tienda": el comprador retira en persona, sin repartidor.
+        // Reutiliza el mismo mecanismo QR/PIN de recogida que ya existía para el tramo
+        // tienda→repartidor (ver confirmar_recogida en vendedor_dashboard.php y
+        // confirmar_entrega en pedidos_tracking.php) -- ahora el comprador es quien lo
+        // escanea/teclea directamente en el mostrador.
+        "ALTER TABLE pedidos ADD COLUMN tipo_entrega ENUM('domicilio','recogida') NOT NULL DEFAULT 'domicilio' AFTER metodo_pago",
+        // pedidos — notas del comprador para el vendedor/repartidor (ej. "sin cebolla",
+        // "tocar el timbre"). La columna `notas` ya existía sin usarse en ningún flujo.
+
+        // productos — galería de hasta 10 fotos (antes una sola). `imagen` se mantiene
+        // sincronizada con la primera de `imagenes` para no romper ningún lugar que ya
+        // la lee (ProductCard, pedido_items, reels, etc.) -- `imagenes` es JSON array de URLs.
+        "ALTER TABLE productos ADD COLUMN imagenes TEXT NULL AFTER imagen",
+        // productos — "stock ilimitado": antes solo existía un número real, así que un
+        // vendedor sin control de inventario (ej. servicios, comida hecha al momento)
+        // tenía que inventar una cantidad falsa para no aparecer agotado.
+        "ALTER TABLE productos ADD COLUMN stock_ilimitado TINYINT(1) NOT NULL DEFAULT 0 AFTER stock",
     ];
     foreach ($stmts as $sql) {
         try { db()->exec($sql); } catch (PDOException $e) {}
@@ -571,9 +676,32 @@ function rewrite_upload_urls($data) {
     return $data;
 }
 
+/**
+ * `productos.imagenes` se guarda como TEXT con un JSON array de URLs adentro (ver
+ * crear_producto/actualizar_producto en vendedor_dashboard.php). PDO la devuelve tal cual
+ * -- un string sin decodificar -- así que sin este paso: (a) el frontend recibiría un
+ * string en vez de un array, y (b) rewrite_upload_urls no reescribiría las URLs de adentro
+ * (el regex espera que el valor completo empiece con "http", no un JSON que empieza con "[").
+ * Corre ANTES de rewrite_upload_urls para que las URLs ya decodificadas sí se reescriban.
+ */
+function decodificar_imagenes($data) {
+    if (is_array($data)) {
+        foreach ($data as $k => $v) {
+            if ($k === 'imagenes' && is_string($v)) {
+                $decoded = json_decode($v, true);
+                $data[$k] = is_array($decoded) ? $decoded : [];
+            } else {
+                $data[$k] = decodificar_imagenes($v);
+            }
+        }
+        return $data;
+    }
+    return $data;
+}
+
 function jout($data, int $code = 200): void {
     http_response_code($code);
-    echo json_encode(rewrite_upload_urls(numerizar_decimales($data)), JSON_UNESCAPED_UNICODE);
+    echo json_encode(rewrite_upload_urls(numerizar_decimales(decodificar_imagenes($data))), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -602,6 +730,25 @@ function generar_numero_pedido(): string {
         if (!$st->fetch()) return $codigo;
     }
     return 'SV-' . strtoupper(bin2hex(random_bytes(4)));
+}
+
+/**
+ * Sugerencia de @username a partir del nombre completo (ej. "Rodrigo Escobar" ->
+ * "rodrigoescobar54"): minúsculas, sin acentos/espacios, + 2 dígitos al azar para
+ * reducir choques. Reintenta con otro sufijo si ya existe; si tras varios intentos
+ * sigue ocupado, cae a un sufijo más largo garantizado único.
+ */
+function generar_username_sugerido(string $nombre): string {
+    $base = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $nombre) ?: $nombre;
+    $base = strtolower(preg_replace('/[^a-z0-9]/i', '', $base));
+    $base = substr($base, 0, 20) ?: 'usuario';
+    for ($intento = 0; $intento < 6; $intento++) {
+        $candidato = $base . str_pad((string)random_int(0, 99), 2, '0', STR_PAD_LEFT);
+        $st = db()->prepare("SELECT 1 FROM usuarios WHERE username = ?");
+        $st->execute([$candidato]);
+        if (!$st->fetch()) return $candidato;
+    }
+    return $base . random_int(1000, 9999);
 }
 
 /**
@@ -913,6 +1060,46 @@ function finalizar_entrega_pedido(int $pid, int $repartidorId): array {
     }
 }
 
+/**
+ * Liquidación de un pedido "recoger en tienda" (tipo_entrega = 'recogida'): mismo cierre
+ * que finalizar_entrega_pedido() pero sin repartidor -- el vendedor se queda con el total
+ * menos la comisión de plataforma (no hay tramo de reparto que pagar). Llamada desde
+ * pedidos_tracking.php cuando el comprador confirma su propia recogida con el código que
+ * generó el vendedor (ver vendedor_dashboard.php action=confirmar_recogida).
+ */
+function finalizar_recogida_pedido(int $pid): array {
+    db()->beginTransaction();
+    try {
+        $sel = db()->prepare("SELECT * FROM pedidos WHERE id = ? AND tipo_entrega = 'recogida' FOR UPDATE");
+        $sel->execute([$pid]);
+        $ped = $sel->fetch();
+        if (!$ped) { db()->rollBack(); throw new RuntimeException('Pedido no encontrado'); }
+        if ($ped['estado'] === 'entregado') { db()->rollBack(); throw new RuntimeException('Pedido ya entregado'); }
+
+        $total = (float)$ped['total'];
+        $comision = round($total * COMISION_PLATAFORMA_PCT, 2);
+        $ganancia_vd = round($total - $comision, 2);
+
+        db()->prepare(
+            "UPDATE pedidos SET estado = 'entregado', comision_plataforma = ?, total_repartidor = 0, total_vendedor = ? WHERE id = ?"
+        )->execute([$comision, $ganancia_vd, $pid]);
+
+        db()->prepare("INSERT INTO wallets (usuario_id, saldo) VALUES (?, ?) ON DUPLICATE KEY UPDATE saldo = saldo + VALUES(saldo)")
+            ->execute([(int)$ped['vendedor_id'], $ganancia_vd]);
+        db()->prepare("INSERT INTO wallet_movimientos (usuario_id, tipo, monto, referencia, pedido_id) VALUES (?, 'venta', ?, 'Venta neta (recogida en tienda)', ?)")
+            ->execute([(int)$ped['vendedor_id'], $ganancia_vd, $pid]);
+
+        crear_notificacion((int)$ped['comprador_id'], 'pedido', 'Pedido retirado', '¡Gracias por preferirnos! Califica tu experiencia.', $pid);
+        crear_notificacion((int)$ped['vendedor_id'], 'pedido', 'Venta completada', "Ganaste \$" . number_format($ganancia_vd, 2) . " por el pedido #{$pid}.", $pid);
+
+        db()->commit();
+        return ['comision' => $comision, 'ganancia_repartidor' => 0, 'ganancia_vendedor' => $ganancia_vd];
+    } catch (Throwable $e) {
+        if (db()->inTransaction()) db()->rollBack();
+        throw $e;
+    }
+}
+
 function distancia_km(float $lat1, float $lng1, float $lat2, float $lng2): float {
     $r = 6371;
     $dLat = deg2rad($lat2 - $lat1);
@@ -921,4 +1108,98 @@ function distancia_km(float $lat1, float $lng1, float $lat2, float $lng2): float
          cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
          sin($dLng/2) * sin($dLng/2);
     return $r * 2 * atan2(sqrt($a), sqrt(1 - $a));
+}
+
+// ─── Despacho automático de repartidor (ver DESIGN.md "Flujo logístico") ───
+// El vendedor ya NO elige repartidor a mano: en cuanto marca el pedido como
+// 'preparacion' (ver vendedor_dashboard.php action=preparar_pedido), el sistema
+// ofrece el pedido a UN solo repartidor a la vez -- el más cercano a la tienda
+// que esté en línea, sin una entrega activa y sin una oferta pendiente de OTRO
+// pedido -- con una ventana muy corta para aceptar. Si no contesta a tiempo o
+// rechaza, se apunta en pedido_repartidor_descartes (la misma tabla que ya
+// excluía repartidores del mercado "disponibles") y se ofrece al siguiente. Si
+// se agotan los candidatos cercanos, el pedido simplemente queda con
+// repartidor_id NULL y sin oferta activa -- cae solo al mercado normal de
+// "disponibles" en repartidor_dashboard.php, que ya filtra por eso.
+const DESPACHO_OFERTA_SEGUNDOS = 12;
+
+function ofrecer_siguiente_repartidor(int $pid): void {
+    $st = db()->prepare(
+        "SELECT p.repartidor_id, p.estado,
+                (SELECT t.lat FROM pedido_items i JOIN productos pr ON pr.id = i.producto_id JOIN tiendas t ON t.id = pr.tienda_id WHERE i.pedido_id = p.id LIMIT 1) AS tienda_lat,
+                (SELECT t.lng FROM pedido_items i JOIN productos pr ON pr.id = i.producto_id JOIN tiendas t ON t.id = pr.tienda_id WHERE i.pedido_id = p.id LIMIT 1) AS tienda_lng,
+                p.numero_pedido
+         FROM pedidos p WHERE p.id = ?"
+    );
+    $st->execute([$pid]);
+    $ped = $st->fetch();
+    if (!$ped || $ped['repartidor_id'] || $ped['estado'] !== 'preparacion') return;
+
+    $cand = db()->prepare(
+        "SELECT u.id, u.lat, u.lng FROM usuarios u
+         WHERE u.rol = 'repartidor' AND u.en_linea = 1 AND u.activo = 1
+           AND u.lat IS NOT NULL AND u.lng IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM pedido_repartidor_descartes d WHERE d.pedido_id = ? AND d.repartidor_id = u.id)
+           AND (SELECT COUNT(*) FROM pedidos WHERE repartidor_id = u.id AND estado IN ('preparacion','en_camino')) = 0
+           AND NOT EXISTS (SELECT 1 FROM pedidos o WHERE o.oferta_repartidor_id = u.id AND o.oferta_expira_at > NOW())"
+    );
+    $cand->execute([$pid]);
+    $candidatos = $cand->fetchAll();
+    if (!$candidatos) return;
+
+    if ($ped['tienda_lat'] !== null) {
+        foreach ($candidatos as &$c) {
+            $c['dist'] = distancia_km((float)$ped['tienda_lat'], (float)$ped['tienda_lng'], (float)$c['lat'], (float)$c['lng']);
+        }
+        unset($c);
+        usort($candidatos, fn($a, $b) => $a['dist'] <=> $b['dist']);
+    }
+    $elegido = $candidatos[0];
+
+    db()->prepare("UPDATE pedidos SET oferta_repartidor_id = ?, oferta_expira_at = DATE_ADD(NOW(), INTERVAL ? SECOND) WHERE id = ?")
+        ->execute([$elegido['id'], DESPACHO_OFERTA_SEGUNDOS, $pid]);
+    crear_notificacion((int)$elegido['id'], 'pedido', '¡Nuevo pedido disponible!', "Tienes " . DESPACHO_OFERTA_SEGUNDOS . " segundos para aceptar el pedido #{$ped['numero_pedido']}.", $pid);
+}
+
+/** Barre ofertas de despacho vencidas y las hace avanzar al siguiente candidato.
+ * Se llama al inicio de vendedor_dashboard.php y repartidor_dashboard.php (los
+ * dos que ambas apps consultan seguido) -- sin WebSockets ni cron, cualquier
+ * poll normal de cualquiera de las dos apps termina auto-sanando el despacho. */
+function avanzar_despacho_global(): void {
+    $vencidas = db()->query("SELECT id, oferta_repartidor_id FROM pedidos WHERE oferta_repartidor_id IS NOT NULL AND oferta_expira_at < NOW()")->fetchAll();
+    foreach ($vencidas as $v) {
+        $pid = (int)$v['id'];
+        db()->prepare("INSERT IGNORE INTO pedido_repartidor_descartes (pedido_id, repartidor_id) VALUES (?, ?)")
+            ->execute([$pid, (int)$v['oferta_repartidor_id']]);
+        db()->prepare("UPDATE pedidos SET oferta_repartidor_id = NULL, oferta_expira_at = NULL WHERE id = ?")->execute([$pid]);
+        ofrecer_siguiente_repartidor($pid);
+    }
+}
+
+/** PIN de 6 dígitos, nuevo por cada código (recogida o entrega). */
+function generar_pin(): string {
+    return str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+}
+
+/** 3 intentos fallidos de PIN bloquean ESE código puntual (no el pedido) por 15
+ * minutos y abren un ticket de soporte -- ver PARTE 2.A del flujo logístico. */
+function registrar_intento_pin_fallido(int $pid, string $campo, int $usuarioId, string $etapa): array {
+    $intentosCol = "pin_{$campo}_intentos";
+    $bloqueoCol = "pin_{$campo}_bloqueado_hasta";
+    $st = db()->prepare("SELECT {$intentosCol} AS intentos FROM pedidos WHERE id = ?");
+    $st->execute([$pid]);
+    $intentos = (int)($st->fetch()['intentos'] ?? 0) + 1;
+
+    if ($intentos >= 3) {
+        db()->prepare("UPDATE pedidos SET {$intentosCol} = ?, {$bloqueoCol} = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?")
+            ->execute([$intentos, $pid]);
+        db()->prepare("INSERT INTO soporte_reportes (usuario_id, asunto, descripcion, estado) VALUES (?, ?, ?, 'abierto')")->execute([
+            $usuarioId,
+            'Posible fraude: PIN bloqueado',
+            "Se alcanzaron 3 intentos fallidos del PIN de {$etapa} en el pedido #{$pid}. El código queda bloqueado 15 minutos.",
+        ]);
+        return ['bloqueado' => true, 'intentos' => $intentos];
+    }
+    db()->prepare("UPDATE pedidos SET {$intentosCol} = ? WHERE id = ?")->execute([$intentos, $pid]);
+    return ['bloqueado' => false, 'intentos' => $intentos];
 }

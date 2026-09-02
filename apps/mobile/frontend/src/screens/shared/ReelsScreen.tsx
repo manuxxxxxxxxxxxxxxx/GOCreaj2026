@@ -1,7 +1,8 @@
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useEffect } from "react";
-import { FlatList, Image, Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type ViewToken } from "react-native";
+import { FlatList, Image, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent, type ViewToken } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useEventListener } from "expo";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
 import { useIsFocused, useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
@@ -18,17 +19,19 @@ import {
   SpeakerSimpleHighIcon,
   SpeakerSimpleSlashIcon,
   StorefrontIcon,
+  TrashIcon,
 } from "phosphor-react-native";
 import type { RootStackParamList, TabsParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import { useToast } from "../../context/ToastContext";
-import { productosApi, interaccionesApi, carritoApi, ApiError } from "../../lib/api";
+import { productosApi, interaccionesApi, carritoApi, vendedorApi, ApiError } from "../../lib/api";
 import type { Producto } from "../../lib/types";
 import { money } from "../../lib/format";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
+import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { CommentsSheet } from "../../components/domain/CommentsSheet";
 import { QuestionsSheet } from "../../components/domain/QuestionsSheet";
 
@@ -79,6 +82,12 @@ export function ReelsScreen() {
       .catch(() => setReels([]));
   }, [usuario?.municipio, tiendaFiltro]);
 
+  // Actualiza el contador de comentarios en el momento (sin esto se queda con el valor
+  // que trajo el fetch inicial hasta que se recarga toda la lista de reels).
+  const bumpComentarios = useCallback((productoId: number) => {
+    setReels((prev) => prev && prev.map((r) => (r.id === productoId ? { ...r, comentarios_count: (r.comentarios_count ?? 0) + 1 } : r)));
+  }, []);
+
   // Si venimos de un thumbnail puntual (pestaña Reels de una tienda, o un mensaje de
   // chat), arrancamos el feed directo en ese reel en vez de siempre en el primero.
   useEffect(() => {
@@ -126,6 +135,7 @@ export function ReelsScreen() {
               onToggleMute={() => setMuted((m) => !m)}
               onComentarios={() => setComentariosDe(item)}
               onPreguntar={() => setPreguntarA(item)}
+              onEliminado={() => setReels((r) => (r ?? []).filter((x) => x.id !== item.id))}
             />
           )}
         />
@@ -136,7 +146,9 @@ export function ReelsScreen() {
         </Pressable>
       )}
 
-      {comentariosDe && <CommentsSheet producto={comentariosDe} onClose={() => setComentariosDe(null)} />}
+      {comentariosDe && (
+        <CommentsSheet producto={comentariosDe} onClose={() => setComentariosDe(null)} onComentarioNuevo={() => bumpComentarios(comentariosDe.id)} />
+      )}
       {preguntarA && <QuestionsSheet producto={preguntarA} onClose={() => setPreguntarA(null)} />}
     </View>
   );
@@ -151,6 +163,7 @@ function ReelCard({
   onToggleMute,
   onComentarios,
   onPreguntar,
+  onEliminado,
 }: {
   producto: Producto;
   height: number;
@@ -160,12 +173,30 @@ function ReelCard({
   onToggleMute: () => void;
   onComentarios: () => void;
   onPreguntar: () => void;
+  onEliminado: () => void;
 }) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { usuario } = useAuth();
   const { refrescar, celebrarAgregado } = useCart();
   const toast = useToast();
   const vistaRegistrada = useRef(false);
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
+  const esDueno = usuario?.id === producto.vendedor_id;
+
+  const eliminar = async () => {
+    setEliminando(true);
+    try {
+      await vendedorApi.eliminarProducto(producto.id);
+      toast.show("Reel eliminado", "success");
+      onEliminado();
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo eliminar.", "error");
+    } finally {
+      setEliminando(false);
+      setConfirmandoEliminar(false);
+    }
+  };
 
   const player = useVideoPlayer(producto.video_url ?? "", (p) => {
     p.loop = true;
@@ -173,6 +204,9 @@ function ReelCard({
   });
 
   const [estado, setEstado] = useState({ like: !!producto.yo_like, likes: producto.likes_count ?? 0, guardado: !!producto.yo_guardado, sigo: !!producto.yo_sigo });
+  const [progreso, setProgreso] = useState(0);
+  const [barWidth, setBarWidth] = useState(0);
+  const seekingRef = useRef(false);
 
   useEffect(() => {
     player.muted = muted;
@@ -187,18 +221,49 @@ function ReelCard({
       }
     } else {
       player.pause();
+      // Reinicia al inicio: así cada vez que se vuelve a este reel (scroll de ida y
+      // vuelta) arranca de nuevo en vez de seguir donde quedó pausado.
+      player.currentTime = 0;
+      setProgreso(0);
     }
   }, [active, player, producto.id]);
 
+  useEventListener(player, "timeUpdate", (e) => {
+    if (seekingRef.current || !player.duration) return;
+    setProgreso(e.currentTime / player.duration);
+  });
+
+  const seekAt = (e: GestureResponderEvent) => {
+    if (!player.duration || barWidth === 0) return;
+    const ratio = Math.min(1, Math.max(0, e.nativeEvent.locationX / barWidth));
+    player.currentTime = ratio * player.duration;
+    setProgreso(ratio);
+  };
+
+  // Optimista: cambia el corazón/bandera al toque, antes de que responda el servidor --
+  // sin esto había un salto perceptible entre tocar y ver el cambio. Si la llamada falla,
+  // se revierte al estado anterior.
   const toggleLike = async () => {
     if (!usuario) return;
-    const r = await interaccionesApi.toggleLike(producto.id);
-    setEstado((s) => ({ ...s, like: r.accion === "like", likes: r.contadores.likes }));
+    const previo = estado;
+    setEstado((s) => ({ ...s, like: !s.like, likes: s.likes + (s.like ? -1 : 1) }));
+    try {
+      const r = await interaccionesApi.toggleLike(producto.id);
+      setEstado((s) => ({ ...s, like: r.accion === "like", likes: r.contadores.likes }));
+    } catch {
+      setEstado(previo);
+    }
   };
   const toggleGuardar = async () => {
     if (!usuario) return;
-    const r = await interaccionesApi.toggleGuardar(producto.id);
-    setEstado((s) => ({ ...s, guardado: r.accion === "guardar" }));
+    const previo = estado;
+    setEstado((s) => ({ ...s, guardado: !s.guardado }));
+    try {
+      const r = await interaccionesApi.toggleGuardar(producto.id);
+      setEstado((s) => ({ ...s, guardado: r.accion === "guardar" }));
+    } catch {
+      setEstado(previo);
+    }
   };
   const toggleSeguir = async () => {
     if (!usuario || !producto.tienda_id) return;
@@ -228,6 +293,27 @@ function ReelCard({
 
       <LinearGradient colors={["rgba(0,0,0,0.45)", "transparent"]} style={styles.gradientTop} pointerEvents="none" />
       <LinearGradient colors={["transparent", "rgba(0,0,0,0.75)"]} style={styles.gradientBottom} pointerEvents="none" />
+
+      {!!producto.video_url && (
+        <View
+          onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => true}
+          onResponderGrant={(e) => {
+            seekingRef.current = true;
+            seekAt(e);
+          }}
+          onResponderMove={seekAt}
+          onResponderRelease={() => {
+            seekingRef.current = false;
+          }}
+          style={styles.seekHit}
+        >
+          <View style={styles.seekTrack}>
+            <View style={[styles.seekFill, { width: `${progreso * 100}%` }]} />
+          </View>
+        </View>
+      )}
 
       <Pressable onPress={onToggleMute} accessibilityLabel="Silenciar" style={styles.muteBtn}>
         {muted ? <SpeakerSimpleSlashIcon size={16} color="#fff" /> : <SpeakerSimpleHighIcon size={16} color="#fff" />}
@@ -265,11 +351,23 @@ function ReelCard({
         <ReelAction icon={<HeartIcon size={24} weight="fill" color={estado.like ? "#FF6B6B" : "#fff"} />} label={estado.likes} onPress={toggleLike} />
         <ReelAction icon={<ChatCircleIcon size={24} weight="fill" color="#fff" />} label={producto.comentarios_count} onPress={onComentarios} />
         <ReelAction icon={<ShareNetworkIcon size={24} weight="fill" color="#fff" />} label={producto.compartidos_count} onPress={() => interaccionesApi.compartir(producto.id).catch(() => {})} />
-        <ReelAction icon={<BookmarkSimpleIcon size={24} weight="fill" color="#fff" />} onPress={toggleGuardar} />
+        <ReelAction icon={<BookmarkSimpleIcon size={24} weight="fill" color={estado.guardado ? "#FFD60A" : "#fff"} />} onPress={toggleGuardar} />
+        {esDueno && <ReelAction icon={<TrashIcon size={22} weight="fill" color="#FF6B6B" />} onPress={() => setConfirmandoEliminar(true)} />}
         <Pressable onPress={toggleSeguir} style={[styles.followBtn, { backgroundColor: estado.sigo ? "#38D6FF" : "#fff" }]}>
           <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: estado.sigo ? "#04141C" : "#000" }}>{estado.sigo ? "✓" : "+"}</Text>
         </Pressable>
       </View>
+
+      <ConfirmDialog
+        visible={confirmandoEliminar}
+        title="¿Eliminar este reel?"
+        description="Se quitará de Reels y de tu catálogo. Esta acción no se puede deshacer."
+        confirmLabel="Eliminar"
+        danger
+        loading={eliminando}
+        onConfirm={eliminar}
+        onCancel={() => setConfirmandoEliminar(false)}
+      />
     </View>
   );
 }
@@ -302,6 +400,9 @@ const styles = StyleSheet.create({
   gradientTop: { position: "absolute", top: 0, left: 0, right: 0, height: 130 },
   gradientBottom: { position: "absolute", bottom: 0, left: 0, right: 0, height: 260 },
   muteBtn: { position: "absolute", top: 14, right: 14, width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center" },
+  seekHit: { position: "absolute", left: 0, right: 0, bottom: 0, height: 20, justifyContent: "flex-end" },
+  seekTrack: { height: 3, width: "100%", backgroundColor: "rgba(255,255,255,0.25)" },
+  seekFill: { height: "100%", backgroundColor: "#38D6FF" },
   bottomInfo: { position: "absolute", left: 14, right: 76 },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "#38D6FF", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   askBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: "rgba(255,255,255,0.16)", borderWidth: 1, borderColor: "rgba(255,255,255,0.3)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },

@@ -1,62 +1,320 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   At,
+  Camera,
   CreditCard,
-  DeviceMobile,
   Eye,
   EyeSlash,
   Globe,
-  Key,
-  Laptop,
+  Handshake,
+  Headset,
+  MapPinLine,
   Monitor,
   Moon,
+  PencilSimple,
   Plus,
   Prohibit,
   ShieldCheck,
+  SignOut,
   Sun,
   Trash,
+  Wallet as WalletIcon,
+  X,
 } from "@phosphor-icons/react";
 import { authApi, carritoApi, ApiError } from "../lib/api";
 import type { MetodoPago } from "../lib/types";
-import { formatDateTime, relativeTime } from "../lib/format";
+import { formatDateTime, fileToBase64 } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
 import { Card } from "../components/ui/Card";
 import { Input } from "../components/ui/Input";
+import { PhoneInput } from "../components/ui/PhoneInput";
 import { Button } from "../components/ui/Button";
 import { Avatar } from "../components/ui/Avatar";
+import { BackButton } from "../components/ui/BackButton";
 import { Skeleton } from "../components/ui/Skeleton";
 import { EmptyState } from "../components/ui/EmptyState";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 
 export function ConfiguracionAvanzada() {
-  const { usuario } = useAuth();
+  const { usuario, actualizarUsuarioLocal } = useAuth();
+  const toast = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+
   if (!usuario) return null;
 
+  const subirFoto = async (file: File) => {
+    const b64 = await fileToBase64(file);
+    try {
+      const r = await authApi.actualizarPerfil({ foto_perfil: b64 });
+      actualizarUsuarioLocal(r.usuario);
+      toast.show("Foto actualizada", "success");
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo subir la foto.", "error");
+    }
+  };
+
   return (
-    <div style={{ maxWidth: 640, display: "flex", flexDirection: "column", gap: 20 }}>
-      <div>
-        <h1 style={{ fontSize: 22 }}>Configuración avanzada</h1>
-        <p style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>Cuenta, privacidad, seguridad y preferencias.</p>
+    <div style={{ maxWidth: 1040, margin: "0 auto", display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <BackButton to="/perfil" />
+        <div style={{ position: "relative", flexShrink: 0 }}>
+          <Avatar nombre={usuario.nombre} foto={usuario.foto_perfil} size={64} />
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => e.target.files?.[0] && subirFoto(e.target.files[0])} />
+          <button
+            onClick={() => fileRef.current?.click()}
+            aria-label="Cambiar foto"
+            style={{
+              position: "absolute",
+              bottom: -2,
+              right: -2,
+              width: 22,
+              height: 22,
+              borderRadius: "50%",
+              background: "var(--cyan)",
+              color: "var(--cyan-ink)",
+              border: "2px solid var(--bg-page)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+            }}
+          >
+            <Camera size={11} weight="bold" />
+          </button>
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontSize: 20, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{usuario.nombre}</h1>
+          <p style={{ fontSize: 12.5, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{usuario.email}</p>
+        </div>
       </div>
 
-      <CuentaSection />
-      <PrivacidadSection />
-      <SeguridadSection />
-      <PreferenciasSection />
-      <PagosSection />
+      <AccesosRapidos />
+
+      {/* El idioma va primero dentro de la grilla: es lo primero que se ve al entrar. */}
+      <div className="settings-grid">
+        <PreferenciasSection />
+        <InformacionPersonalSection />
+        <CuentaSection />
+        <PagosSection />
+        <PrivacidadSection />
+        <SeguridadSection />
+        <RolSection />
+        <SoporteSection />
+      </div>
+
+      <ZonaRiesgoSection />
     </div>
   );
 }
 
-function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+// ─── Accesos rápidos, estilo tarjetas de Google Account ────────────────────
+function AccesosRapidos() {
+  const navigate = useNavigate();
+  const items = [
+    { icon: <MapPinLine size={15} />, label: "Direcciones", to: "/direcciones" },
+    { icon: <WalletIcon size={15} />, label: "Billetera", to: "/wallet" },
+    { icon: <ShieldCheck size={15} />, label: "Seguridad", to: "/perfil/seguridad" },
+  ];
   return (
-    <Card>
-      <h2 style={{ fontSize: 14 }}>{title}</h2>
-      {description && <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 3, marginBottom: 14 }}>{description}</p>}
-      <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: description ? 0 : 14 }}>{children}</div>
-    </Card>
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      {items.map((it) => (
+        <button
+          key={it.label}
+          onClick={() => navigate(it.to)}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "8px 14px",
+            borderRadius: "var(--radius-pill)",
+            border: "1px solid var(--border)",
+            background: "var(--surface-1)",
+            color: "var(--text-secondary)",
+            fontSize: 12.5,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          {it.icon} {it.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Section({ id, title, description, children }: { id?: string; title: string; description?: string; children: React.ReactNode }) {
+  return (
+    <div id={id}>
+      <Card>
+        <h2 style={{ fontSize: 14 }}>{title}</h2>
+        {description && <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 3, marginBottom: 14 }}>{description}</p>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: description ? 0 : 14 }}>{children}</div>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Información personal: nombre, email, teléfono ─────────────────────────
+// Nombre y correo comparten un cooldown de 14 días (datos_changed_at) y el correo
+// nunca se aplica directo: requiere confirmar un código de 6 dígitos primero.
+function diasRestantesCooldown(fecha: string | null | undefined): number | null {
+  if (!fecha) return null;
+  const dias = Math.floor((Date.now() - new Date(fecha).getTime()) / 86_400_000);
+  return dias < 14 ? 14 - dias : null;
+}
+
+function InformacionPersonalSection() {
+  const { usuario, actualizarUsuarioLocal } = useAuth();
+  const toast = useToast();
+  const [editando, setEditando] = useState(false);
+  const [nombre, setNombre] = useState(usuario?.nombre ?? "");
+  const [email, setEmail] = useState(usuario?.email ?? "");
+  const [telefono, setTelefono] = useState(usuario?.telefono ?? "");
+  const [guardando, setGuardando] = useState(false);
+  const [codigo, setCodigo] = useState("");
+  const [confirmando, setConfirmando] = useState(false);
+  const [reenviando, setReenviando] = useState(false);
+
+  if (!usuario) return null;
+
+  const cooldown = diasRestantesCooldown(usuario.datos_changed_at);
+  const bloqueadoNombreEmail = cooldown !== null;
+
+  const guardar = async () => {
+    setGuardando(true);
+    try {
+      const r = await authApi.actualizarPerfil({ nombre, email, telefono });
+      actualizarUsuarioLocal(r.usuario);
+      if (r.email_verificacion_enviado) {
+        toast.show(`Te enviamos un código a ${email}. Confírmalo abajo para completar el cambio. (${r.codigo_dev ? `simulado: ${r.codigo_dev}` : "revisa tu correo"})`, "info");
+      } else {
+        toast.show("Perfil actualizado", "success");
+      }
+      setEditando(false);
+    } catch (err) {
+      if (err instanceof ApiError && err.payload?.error === "cooldown_datos") {
+        toast.show(`Solo puedes cambiar tu nombre o correo cada 14 días. Podrás hacerlo de nuevo en ${err.payload.dias_restantes} día(s).`, "error");
+      } else if (err instanceof ApiError && err.payload?.error === "email_en_uso") {
+        toast.show("Ese correo ya está en uso por otra cuenta.", "error");
+      } else {
+        toast.show(err instanceof ApiError ? err.message : "No se pudo actualizar.", "error");
+      }
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const confirmarCodigo = async () => {
+    if (!codigo.trim()) return;
+    setConfirmando(true);
+    try {
+      const r = await authApi.emailVerificar(codigo.trim());
+      actualizarUsuarioLocal(r.usuario);
+      toast.show("Correo confirmado", "success");
+      setCodigo("");
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "Código inválido.", "error");
+    } finally {
+      setConfirmando(false);
+    }
+  };
+
+  const reenviarCodigo = async () => {
+    setReenviando(true);
+    try {
+      const r = await authApi.emailReenviarCodigo();
+      toast.show(`Nuevo código enviado (simulado: ${r.codigo_dev})`, "info");
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo reenviar.", "error");
+    } finally {
+      setReenviando(false);
+    }
+  };
+
+  const cancelarCambioEmail = async () => {
+    try {
+      await authApi.emailCancelar();
+      actualizarUsuarioLocal({ ...usuario, email_pendiente: null });
+      toast.show("Cambio de correo cancelado", "success");
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo cancelar.", "error");
+    }
+  };
+
+  const cancelar = () => {
+    setNombre(usuario.nombre);
+    setEmail(usuario.email ?? "");
+    setTelefono(usuario.telefono ?? "");
+    setEditando(false);
+  };
+
+  return (
+    <Section title="Información personal" description={bloqueadoNombreEmail ? `Nombre y correo se pueden volver a cambiar en ${cooldown} día(s).` : undefined}>
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {!editando && (
+          <button
+            onClick={() => setEditando(true)}
+            style={{ alignSelf: "flex-end", display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", color: "var(--cyan)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", marginBottom: 10 }}
+          >
+            <PencilSimple size={13} weight="bold" /> Editar
+          </button>
+        )}
+
+        {editando ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Input label="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={bloqueadoNombreEmail} hint={bloqueadoNombreEmail ? `Disponible en ${cooldown} día(s)` : undefined} />
+            <Input label="Correo" type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={bloqueadoNombreEmail} hint={bloqueadoNombreEmail ? `Disponible en ${cooldown} día(s)` : "Te enviaremos un código para confirmar el cambio."} />
+            <PhoneInput value={telefono} onChange={setTelefono} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <Button size="sm" onClick={guardar} loading={guardando}>
+                Guardar cambios
+              </Button>
+              <Button size="sm" variant="ghost" onClick={cancelar} disabled={guardando}>
+                <X size={15} /> Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <InfoRow label="Nombre" value={usuario.nombre} />
+            <InfoRow label="Correo" value={usuario.email ?? "Sin registrar"} last={!usuario.email_pendiente} />
+            {!usuario.email_pendiente && <InfoRow label="Teléfono" value={usuario.telefono || "Sin registrar"} last />}
+            {usuario.email_pendiente && (
+              <div style={{ padding: "12px 2px", borderTop: "1px solid var(--border)" }}>
+                <div style={{ fontSize: 12.5, color: "var(--warn)", fontWeight: 600, marginBottom: 8 }}>Confirma tu nuevo correo: {usuario.email_pendiente}</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Input label="Código de 6 dígitos" value={codigo} onChange={(e) => setCodigo(e.target.value)} style={{ flex: 1 }} />
+                  <Button size="sm" onClick={confirmarCodigo} loading={confirmando} style={{ alignSelf: "flex-end" }}>
+                    Confirmar
+                  </Button>
+                </div>
+                <div style={{ display: "flex", gap: 14, marginTop: 8 }}>
+                  <button onClick={reenviarCodigo} disabled={reenviando} style={{ fontSize: 11.5, fontWeight: 700, color: "var(--cyan)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                    Reenviar código
+                  </button>
+                  <button onClick={cancelarCambioEmail} style={{ fontSize: 11.5, fontWeight: 700, color: "var(--danger)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                    Cancelar cambio
+                  </button>
+                </div>
+                <InfoRow label="Teléfono" value={usuario.telefono || "Sin registrar"} last />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+function InfoRow({ label, value, last }: { label: string; value: string; last?: boolean }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "11px 2px", borderBottom: last ? "none" : "1px solid var(--border)" }}>
+      <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>{label}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>{value}</span>
+    </div>
   );
 }
 
@@ -95,19 +353,13 @@ function Switch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
   );
 }
 
-// ─── Cuenta: username + contraseña ─────────────────────────────────────────
+// ─── Cuenta: nombre de usuario (la contraseña vive en Seguridad) ───────────
 function CuentaSection() {
   const { usuario, actualizarUsuarioLocal } = useAuth();
   const toast = useToast();
   const [editUsername, setEditUsername] = useState(false);
   const [username, setUsername] = useState(usuario?.username ?? "");
   const [guardandoUsername, setGuardandoUsername] = useState(false);
-
-  const [editPassword, setEditPassword] = useState(false);
-  const [passwordActual, setPasswordActual] = useState("");
-  const [passwordNueva, setPasswordNueva] = useState("");
-  const [passwordConfirmar, setPasswordConfirmar] = useState("");
-  const [guardandoPassword, setGuardandoPassword] = useState(false);
 
   if (!usuario) return null;
 
@@ -131,24 +383,6 @@ function CuentaSection() {
     }
   };
 
-  const guardarPassword = async () => {
-    if (passwordNueva.length < 6) return toast.show("La nueva contraseña debe tener al menos 6 caracteres.", "warning");
-    if (passwordNueva !== passwordConfirmar) return toast.show("Las contraseñas no coinciden.", "warning");
-    setGuardandoPassword(true);
-    try {
-      await authApi.actualizarPerfil({ password_actual: passwordActual, password_nueva: passwordNueva });
-      toast.show("Contraseña actualizada", "success");
-      setPasswordActual("");
-      setPasswordNueva("");
-      setPasswordConfirmar("");
-      setEditPassword(false);
-    } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : "No se pudo actualizar la contraseña.", "error");
-    } finally {
-      setGuardandoPassword(false);
-    }
-  };
-
   return (
     <Section title="Cuenta">
       <div>
@@ -167,27 +401,6 @@ function CuentaSection() {
           </div>
         )}
       </div>
-
-      {usuario.auth_provider === "local" && (
-        <div>
-          <Row icon={<Key size={16} />} label="Contraseña" value="••••••••" onEdit={() => setEditPassword((v) => !v)} editing={editPassword} />
-          {editPassword && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 10 }}>
-              <Input label="Contraseña actual" type="password" value={passwordActual} onChange={(e) => setPasswordActual(e.target.value)} />
-              <Input label="Contraseña nueva" type="password" value={passwordNueva} onChange={(e) => setPasswordNueva(e.target.value)} />
-              <Input label="Confirmar contraseña nueva" type="password" value={passwordConfirmar} onChange={(e) => setPasswordConfirmar(e.target.value)} />
-              <div style={{ display: "flex", gap: 8 }}>
-                <Button size="sm" onClick={guardarPassword} loading={guardandoPassword}>
-                  Guardar
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setEditPassword(false)} disabled={guardandoPassword}>
-                  Cancelar
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </Section>
   );
 }
@@ -283,137 +496,16 @@ function PrivacidadSection() {
 
 // ─── Seguridad: verificar teléfono + sesiones activas ──────────────────────
 function SeguridadSection() {
-  const { usuario, actualizarUsuarioLocal } = useAuth();
-  const toast = useToast();
-  const [enviandoSms, setEnviandoSms] = useState(false);
-  const [codigoEnviado, setCodigoEnviado] = useState<string | null>(null);
-  const [codigo, setCodigo] = useState("");
-  const [verificando, setVerificando] = useState(false);
-
-  const [sesiones, setSesiones] = useState<{ id: number; user_agent: string; ip: string; created_at: string; last_seen_at: string; es_actual: boolean }[] | null>(null);
-  const [cerrandoOtras, setCerrandoOtras] = useState(false);
-
-  const cargarSesiones = () => authApi.sesionesListar().then((r) => setSesiones(r.sesiones)).catch(() => setSesiones([]));
-  useEffect(() => {
-    cargarSesiones();
-  }, []);
+  const { usuario } = useAuth();
+  const navigate = useNavigate();
 
   if (!usuario) return null;
 
-  const enviarSms = async () => {
-    setEnviandoSms(true);
-    try {
-      const r = await authApi.enviarSms();
-      setCodigoEnviado(r.codigo);
-      toast.show(`Código de verificación: ${r.codigo} (simulado, no hay proveedor SMS real)`, "info");
-    } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : "No se pudo enviar el código.", "error");
-    } finally {
-      setEnviandoSms(false);
-    }
-  };
-
-  const verificar = async () => {
-    if (!codigo.trim()) return;
-    setVerificando(true);
-    try {
-      const r = await authApi.verificarSms(codigo.trim());
-      actualizarUsuarioLocal(r.usuario);
-      toast.show("Teléfono verificado", "success");
-      setCodigoEnviado(null);
-      setCodigo("");
-    } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : "Código inválido.", "error");
-    } finally {
-      setVerificando(false);
-    }
-  };
-
-  const cerrarSesion = async (id: number) => {
-    setSesiones((prev) => prev?.filter((s) => s.id !== id) ?? null);
-    try {
-      await authApi.sesionesCerrar(id);
-    } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : "No se pudo cerrar la sesión.", "error");
-    }
-  };
-
-  const cerrarOtras = async () => {
-    setCerrandoOtras(true);
-    try {
-      await authApi.sesionesCerrarOtras();
-      toast.show("Se cerraron las demás sesiones", "success");
-      cargarSesiones();
-    } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : "No se pudo completar.", "error");
-    } finally {
-      setCerrandoOtras(false);
-    }
-  };
-
   return (
-    <Section title="Seguridad">
-      {usuario.telefono && (
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <DeviceMobile size={16} color="var(--text-muted)" />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600 }}>{usuario.telefono}</div>
-              <div style={{ fontSize: 12, color: usuario.telefono_verificado ? "var(--ok)" : "var(--text-secondary)" }}>
-                {usuario.telefono_verificado ? "Verificado" : "Sin verificar"}
-              </div>
-            </div>
-            {!usuario.telefono_verificado && (
-              <Button size="sm" variant="secondary" onClick={enviarSms} loading={enviandoSms}>
-                Verificar
-              </Button>
-            )}
-          </div>
-          {codigoEnviado && (
-            <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <Input label="Código de 6 dígitos" value={codigo} onChange={(e) => setCodigo(e.target.value)} style={{ flex: 1 }} />
-              <Button size="sm" onClick={verificar} loading={verificando} style={{ alignSelf: "flex-end" }}>
-                Confirmar
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-          <ShieldCheck size={16} color="var(--text-muted)" />
-          <div style={{ fontSize: 13.5, fontWeight: 600, flex: 1 }}>Sesiones activas</div>
-          {!!sesiones?.length && sesiones.length > 1 && (
-            <button onClick={cerrarOtras} disabled={cerrandoOtras} style={{ fontSize: 12, fontWeight: 700, color: "var(--danger)", background: "none", border: "none", cursor: "pointer" }}>
-              Cerrar las demás
-            </button>
-          )}
-        </div>
-        {sesiones === null ? (
-          <Skeleton height={60} />
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {sesiones.map((s) => (
-              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                {/Mobi|Android|iPhone/i.test(s.user_agent) ? <DeviceMobile size={16} color="var(--text-muted)" /> : <Laptop size={16} color="var(--text-muted)" />}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-                    {s.ip}
-                    {s.es_actual && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--ok)", background: "var(--ok-bg)", padding: "1px 6px", borderRadius: "var(--radius-pill)" }}>Esta sesión</span>}
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Activo {relativeTime(s.last_seen_at)}</div>
-                </div>
-                {!s.es_actual && (
-                  <button onClick={() => cerrarSesion(s.id)} aria-label="Cerrar sesión" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)" }}>
-                    <Trash size={15} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+    <Section title="Seguridad" description="Verificación de teléfono, contraseña y sesiones activas.">
+      <Button variant="secondary" fullWidth onClick={() => navigate("/perfil/seguridad")}>
+        <ShieldCheck size={16} /> Ver seguridad
+      </Button>
     </Section>
   );
 }
@@ -616,5 +708,66 @@ function PagosSection() {
         }}
       />
     </Section>
+  );
+}
+
+// ─── Convertirse en socio ────────────────────────────────────────────────
+// El rol activo solo cambia cuando un admin aprueba una solicitud — por eso no
+// hay selector de "cambiar de rol" aquí, solo la puerta de entrada para pedirlo.
+// Vendedores y repartidores ya son socios, así que la sección no aplica para ellos.
+function RolSection() {
+  const { usuario } = useAuth();
+  const navigate = useNavigate();
+
+  if (!usuario || usuario.rol !== "comprador") return null;
+
+  return (
+    <Section title="Convertirse en socio" description="Abre tu tienda o entrega pedidos y gana con SV[Go].">
+      <Button variant="secondary" fullWidth onClick={() => navigate("/convertirse")}>
+        <Handshake size={16} /> Ver opciones
+      </Button>
+    </Section>
+  );
+}
+
+function NavRow({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{ display: "flex", alignItems: "center", gap: 10, background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "10px 12px", cursor: "pointer", textAlign: "left", color: "var(--text-primary)" }}
+    >
+      <span style={{ color: "var(--text-muted)", flexShrink: 0 }}>{icon}</span>
+      <span style={{ flex: 1, fontSize: 13.5, fontWeight: 600 }}>{label}</span>
+    </button>
+  );
+}
+
+// ─── Soporte ─────────────────────────────────────────────────────────────
+function SoporteSection() {
+  const navigate = useNavigate();
+  return (
+    <Section title="Soporte">
+      <NavRow icon={<Headset size={17} />} label="Contactar soporte" onClick={() => navigate("/soporte")} />
+    </Section>
+  );
+}
+
+function ZonaRiesgoSection() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  return (
+    <div style={{ maxWidth: 400, width: "100%", margin: "0 auto", paddingTop: 4 }}>
+      <Button
+        variant="secondary"
+        fullWidth
+        onClick={() => {
+          logout();
+          navigate("/login");
+        }}
+      >
+        <SignOut size={16} /> Cerrar sesión
+      </Button>
+    </div>
   );
 }

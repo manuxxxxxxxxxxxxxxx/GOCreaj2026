@@ -41,8 +41,8 @@ switch ($action) {
         if ($cat)       { $q .= " AND p.categoria = ?"; $params[] = $cat; }
         if ($tiendaId)  { $q .= " AND p.tienda_id = ?"; $params[] = $tiendaId; }
         if ($con_coords) { $q .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL"; }
-        if ($stockMin !== null) { $q .= " AND p.stock >= ?"; $params[] = $stockMin; }
-        $q .= " ORDER BY (p.stock > 0 AND (p.estado_stock IS NULL OR p.estado_stock <> 'agotado')) DESC, p.created_at DESC LIMIT $limit OFFSET $offset";
+        if ($stockMin !== null) { $q .= " AND (p.stock >= ? OR p.stock_ilimitado = 1)"; $params[] = $stockMin; }
+        $q .= " ORDER BY (p.stock_ilimitado = 1 OR (p.stock > 0 AND (p.estado_stock IS NULL OR p.estado_stock <> 'agotado'))) DESC, p.created_at DESC LIMIT $limit OFFSET $offset";
         $st = db()->prepare($q);
         $st->execute($params);
         $rows = $st->fetchAll();
@@ -56,7 +56,7 @@ switch ($action) {
         if ($cat)       { $qc .= " AND p.categoria = ?"; $cparams[] = $cat; }
         if ($tiendaId)  { $qc .= " AND p.tienda_id = ?"; $cparams[] = $tiendaId; }
         if ($con_coords) { $qc .= " AND t.lat IS NOT NULL AND t.lng IS NOT NULL"; }
-        if ($stockMin !== null) { $qc .= " AND p.stock >= ?"; $cparams[] = $stockMin; }
+        if ($stockMin !== null) { $qc .= " AND (p.stock >= ? OR p.stock_ilimitado = 1)"; $cparams[] = $stockMin; }
         $stc = db()->prepare($qc);
         $stc->execute($cparams);
         $total = (int)$stc->fetchColumn();
@@ -214,6 +214,24 @@ switch ($action) {
         jout(['ok' => true, 'productos' => $rows, 'q' => $q_str, 'page' => $page, 'limit' => $limit, 'total' => count($rows)]);
         break;
 
+    // ─── Tiendas que coinciden por nombre (para el buscador del navbar) ──
+    case 'tiendas_buscar':
+        $q_str = trim($_GET['q'] ?? '');
+        $limit = min(20, max(1, (int)($_GET['limit'] ?? 5)));
+        if ($q_str === '') { jout(['ok' => true, 'tiendas' => []]); break; }
+        $like = '%' . $q_str . '%';
+        $st = db()->prepare(
+            "SELECT t.id, t.nombre, t.categoria, t.logo, t.municipio,
+                    t.calificacion_promedio, t.total_resenas
+             FROM tiendas t
+             WHERE t.activo = 1 AND t.nombre LIKE ?
+             ORDER BY t.calificacion_promedio DESC, t.total_resenas DESC
+             LIMIT $limit"
+        );
+        $st->execute([$like]);
+        jout(['ok' => true, 'tiendas' => $st->fetchAll()]);
+        break;
+
     case 'reels':
         $municipio = $_GET['municipio'] ?? null;
         $tiendaIdFiltro = isset($_GET['tienda_id']) ? (int)$_GET['tienda_id'] : null;
@@ -243,10 +261,16 @@ switch ($action) {
         $meDet = current_user();
         $meDetId = $meDet ? (int)$meDet['id'] : 0;
         $st = db()->prepare("SELECT p.*, t.nombre as tienda_nombre, t.municipio, t.vendedor_id,
+              t.calificacion_promedio as tienda_calificacion, t.logo as tienda_logo, t.total_resenas as tienda_total_resenas,
               (SELECT COUNT(*) FROM seguidores_tienda WHERE tienda_id = t.id) as seguidores_count,
-              (SELECT COUNT(*) FROM seguidores_tienda WHERE tienda_id = t.id AND usuario_id = ?) as yo_sigo
+              (SELECT COUNT(*) FROM seguidores_tienda WHERE tienda_id = t.id AND usuario_id = ?) as yo_sigo,
+              (SELECT COUNT(*) FROM video_likes WHERE producto_id = p.id) as likes_count,
+              (SELECT COUNT(*) FROM video_comentarios WHERE producto_id = p.id) as comentarios_count,
+              (SELECT COUNT(*) FROM video_compartidos WHERE producto_id = p.id) as compartidos_count,
+              (SELECT COUNT(*) FROM video_likes WHERE producto_id = p.id AND usuario_id = ?) as yo_like,
+              (SELECT COUNT(*) FROM video_guardados WHERE producto_id = p.id AND usuario_id = ?) as yo_guardado
               FROM productos p JOIN tiendas t ON t.id = p.tienda_id WHERE p.id = ?");
-        $st->execute([$meDetId, $id]);
+        $st->execute([$meDetId, $meDetId, $meDetId, $id]);
         $p = $st->fetch();
         if (!$p) jout(['ok' => false, 'error' => 'No existe'], 404);
         $rowsTmp = [$p];

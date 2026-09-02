@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/conexion.php';
+require_once __DIR__ . '/mailer.php';
+require_once __DIR__ . '/whatsapp.php';
 
 $action = $_GET['action'] ?? 'login';
 $data = jread();
@@ -20,6 +22,9 @@ switch ($action) {
             jout(['ok' => false, 'error' => 'Credenciales invalidas'], 401);
         }
 
+        // NOTA: la verificación de correo obligatoria antes de entrar está deshabilitada por
+        // el momento (ver 'register') -- el correo sin confirmar ya no bloquea el login, solo
+        // queda pendiente de forma opcional (ver 'registro_verificar_email').
         if (!(int)$u['activo']) {
             jout(['ok' => false, 'error' => 'cuenta_suspendida', 'mensaje' => 'Tu cuenta ha sido suspendida. Contacta al soporte si crees que es un error.'], 403);
         }
@@ -33,24 +38,80 @@ switch ($action) {
         $email = $data['email'] ?? null;
         $tel   = $data['telefono'] ?? null;
         if (!$email && !$tel) jout(['ok' => false, 'error' => 'Email o telefono requerido'], 400);
-        
+
         $check = db()->prepare("SELECT id FROM usuarios WHERE email = ? OR telefono = ?");
         $check->execute([$email, $tel]);
         if ($check->fetch()) jout(['ok' => false, 'error' => 'Usuario ya existe'], 409);
-        
+
         $hash = password_hash($data['password'], PASSWORD_BCRYPT);
         $username = !empty($data['username']) ? strtolower(preg_replace('/[^a-z0-9_]/i', '', $data['username'])) : null;
+
+        // NOTA: la verificación de correo obligatoria está deshabilitada por el momento -- la
+        // cuenta entra activa de inmediato (auto-login) sin esperar a que se confirme el
+        // código. Si hay correo igual se genera y se manda el código, y email_verificado queda
+        // en 0, para poder retomar el flujo de confirmación opcional más adelante (ver
+        // 'registro_verificar_email').
+        $codigo = $email ? str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT) : null;
+
         try {
-            $st = db()->prepare("INSERT INTO usuarios (nombre, username, email, telefono, password_hash, auth_provider, rol, municipio, activo) VALUES (?, ?, ?, ?, ?, 'local', 'comprador', ?, 1)");
-            $st->execute([$data['nombre'], $username, $email, $tel, $hash, $data['municipio'] ?? null]);
+            $st = db()->prepare(
+                "INSERT INTO usuarios (nombre, username, email, telefono, password_hash, auth_provider, rol, municipio, activo, email_verificado, email_verificacion_code, email_verificacion_exp)
+                 VALUES (?, ?, ?, ?, ?, 'local', 'comprador', ?, 1, ?, ?, ?)"
+            );
+            $st->execute([
+                $data['nombre'], $username, $email, $tel, $hash, $data['municipio'] ?? null,
+                $email ? 0 : 1,
+                $codigo,
+                $codigo ? date('Y-m-d H:i:s', time() + 1800) : null,
+            ]);
         } catch (PDOException $e) {
             if ($e->getCode() === '23000')
                 jout(['ok' => false, 'error' => 'El usuario o email ya existe'], 409);
             throw $e;
         }
         $uid = (int)db()->lastInsertId();
+
+        if ($email) enviar_email_verificacion_registro($email, $data['nombre'], $codigo);
+
         $u = db()->query("SELECT id,nombre,username,username_changed_at,email,telefono,telefono_verificado,rol,foto_perfil,municipio FROM usuarios WHERE id = $uid")->fetch();
-        jout(['ok' => true, 'usuario' => $u, 'token' => gen_token($uid)]);
+        $usernameSugerido = $username ? null : generar_username_sugerido($data['nombre']);
+        jout(['ok' => true, 'usuario' => $u, 'token' => gen_token($uid), 'es_nuevo' => true, 'username_sugerido' => $usernameSugerido]);
+        break;
+
+    // Confirma el código enviado al registrarse por formulario y activa la cuenta (auto-login).
+    case 'registro_verificar_email':
+        require_fields($data, ['email', 'codigo']);
+        $st = db()->prepare(
+            "SELECT id, nombre, username, email_verificacion_code,
+                    (email_verificacion_exp IS NOT NULL AND email_verificacion_exp > NOW()) AS vigente
+             FROM usuarios WHERE email = ? AND auth_provider = 'local' AND email_verificado = 0 LIMIT 1"
+        );
+        $st->execute([$data['email']]);
+        $u = $st->fetch();
+        if (!$u) jout(['ok' => false, 'error' => 'Nada pendiente de verificar para ese correo'], 400);
+        if (!$u['email_verificacion_code'] || $u['email_verificacion_code'] !== $data['codigo']) {
+            jout(['ok' => false, 'error' => 'Código inválido'], 400);
+        }
+        if (!$u['vigente']) jout(['ok' => false, 'error' => 'Código expirado'], 400);
+
+        db()->prepare("UPDATE usuarios SET activo = 1, email_verificado = 1, email_verificacion_code = NULL, email_verificacion_exp = NULL WHERE id = ?")
+            ->execute([$u['id']]);
+        $usuario = db()->query("SELECT id,nombre,username,username_changed_at,email,telefono,telefono_verificado,rol,foto_perfil,municipio FROM usuarios WHERE id = " . (int)$u['id'])->fetch();
+        $usernameSugerido = $u['username'] ? null : generar_username_sugerido($u['nombre']);
+        jout(['ok' => true, 'usuario' => $usuario, 'token' => gen_token((int)$u['id']), 'es_nuevo' => true, 'username_sugerido' => $usernameSugerido]);
+        break;
+
+    case 'registro_reenviar_email':
+        require_fields($data, ['email']);
+        $st = db()->prepare("SELECT id, nombre FROM usuarios WHERE email = ? AND auth_provider = 'local' AND email_verificado = 0 LIMIT 1");
+        $st->execute([$data['email']]);
+        $u = $st->fetch();
+        if (!$u) jout(['ok' => false, 'error' => 'Nada pendiente de verificar para ese correo'], 400);
+        $codigo = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        db()->prepare("UPDATE usuarios SET email_verificacion_code = ?, email_verificacion_exp = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE id = ?")
+            ->execute([$codigo, $u['id']]);
+        $enviado = enviar_email_verificacion_registro($data['email'], $u['nombre'], $codigo);
+        jout(['ok' => true, 'email_enviado' => $enviado, 'codigo_dev' => $enviado ? null : $codigo]);
         break;
 
     case 'social':
@@ -77,14 +138,17 @@ switch ($action) {
         $st = db()->prepare("SELECT * FROM usuarios WHERE (auth_provider = ? AND provider_uid = ?) OR email = ? LIMIT 1");
         $st->execute([$prov, $providerUid, $email]);
         $u = $st->fetch();
+        $esNuevo = false;
         if (!$u) {
             $ins = db()->prepare("INSERT INTO usuarios (nombre, email, auth_provider, provider_uid, rol) VALUES (?, ?, ?, ?, 'comprador')");
             $ins->execute([$nombre, $email, $prov, $providerUid]);
             $uid = (int)db()->lastInsertId();
             $u = db()->query("SELECT * FROM usuarios WHERE id = $uid")->fetch();
+            $esNuevo = true;
         }
         unset($u['password_hash']);
-        jout(['ok' => true, 'usuario' => $u, 'token' => gen_token((int)$u['id'])]);
+        $usernameSugerido = (!$u['username'] && $esNuevo) ? generar_username_sugerido($nombre) : null;
+        jout(['ok' => true, 'usuario' => $u, 'token' => gen_token((int)$u['id']), 'es_nuevo' => $esNuevo, 'username_sugerido' => $usernameSugerido]);
         break;
 
     case 'telefono_sms':
@@ -155,6 +219,45 @@ switch ($action) {
                 jout(['ok' => false, 'error' => 'Contraseña actual incorrecta'], 401);
         }
 
+        // Cooldown compartido para nombre/correo (14 días) -- "información personal" no se
+        // edita a la ligera. El username tiene su propio cooldown independiente (abajo).
+        $rowDatos = db()->query("SELECT nombre, email, datos_changed_at FROM usuarios WHERE id = " . (int)$u['id'])->fetch();
+        $diasRestantesDatos = null;
+        if ($rowDatos['datos_changed_at'] !== null) {
+            $stDiasD = db()->prepare("SELECT TIMESTAMPDIFF(DAY, ?, NOW())");
+            $stDiasD->execute([$rowDatos['datos_changed_at']]);
+            $diasPasadosD = (int)$stDiasD->fetchColumn();
+            if ($diasPasadosD < 14) $diasRestantesDatos = 14 - $diasPasadosD;
+        }
+
+        $cambiarNombre = !empty($data['nombre']) && $data['nombre'] !== $rowDatos['nombre'];
+        if ($cambiarNombre && $diasRestantesDatos !== null) {
+            jout(['ok' => false, 'error' => 'cooldown_datos', 'dias_restantes' => $diasRestantesDatos], 429);
+        }
+
+        // El correo nunca se aplica directo: se manda un código de verificación al nuevo
+        // correo (columna `email_pendiente`) y solo se confirma vía la acción `email_verificar`.
+        $emailVerificacionEnviada = false;
+        $codigoEmailDev = null;
+        if (!empty($data['email']) && $data['email'] !== $rowDatos['email']) {
+            if ($diasRestantesDatos !== null) {
+                jout(['ok' => false, 'error' => 'cooldown_datos', 'dias_restantes' => $diasRestantesDatos], 429);
+            }
+            if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+                jout(['ok' => false, 'error' => 'Correo inválido'], 400);
+            }
+            $chkEmail = db()->prepare("SELECT id FROM usuarios WHERE email = ? AND id != ?");
+            $chkEmail->execute([$data['email'], $u['id']]);
+            if ($chkEmail->fetch()) jout(['ok' => false, 'error' => 'email_en_uso', 'mensaje' => 'Ese correo ya está en uso por otra cuenta.'], 409);
+
+            $codigoEmailDev = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            db()->prepare("UPDATE usuarios SET email_pendiente = ?, email_verificacion_code = ?, email_verificacion_exp = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE id = ?")
+                ->execute([$data['email'], $codigoEmailDev, $u['id']]);
+            $emailVerificacionEnviada = true;
+            // NOTA: no hay proveedor de correo real configurado en este entorno; el código
+            // se devuelve en la respuesta (mismo patrón que el SMS simulado) para poder probarlo.
+        }
+
         // Username cooldown (14 días), permitido si username_changed_at IS NULL (primer cambio)
         $cambiarUsername = false;
         $newUsername     = null;
@@ -181,9 +284,15 @@ switch ($action) {
 
         $newHash = !empty($data['password_nueva']) ? password_hash($data['password_nueva'], PASSWORD_BCRYPT) : null;
 
-        // Build dynamic UPDATE
-        $sets   = "nombre = COALESCE(?, nombre), email = COALESCE(?, email), telefono = COALESCE(?, telefono), foto_perfil = COALESCE(?, foto_perfil), password_hash = COALESCE(?, password_hash)";
-        $params = [$data['nombre'] ?? null, $data['email'] ?? null, $data['telefono'] ?? null, $foto, $newHash];
+        // Build dynamic UPDATE -- nombre y correo NO van aquí como COALESCE directo:
+        // nombre solo si de verdad cambió (para no pisar datos_changed_at sin necesidad),
+        // correo nunca (queda pendiente de confirmación arriba).
+        $sets   = "telefono = COALESCE(?, telefono), foto_perfil = COALESCE(?, foto_perfil), password_hash = COALESCE(?, password_hash)";
+        $params = [$data['telefono'] ?? null, $foto, $newHash];
+        if ($cambiarNombre) {
+            $sets    .= ", nombre = ?, datos_changed_at = NOW()";
+            $params[] = $data['nombre'];
+        }
         if ($cambiarUsername) {
             $sets    .= ", username = ?, username_changed_at = NOW()";
             $params[] = $newUsername;
@@ -198,8 +307,60 @@ switch ($action) {
                 jout(['ok' => false, 'error' => 'username_taken'], 409);
             throw $e;
         }
-        $updated = db()->query("SELECT id,nombre,username,username_changed_at,email,telefono,rol,foto_perfil,municipio,lat,lng,auth_provider FROM usuarios WHERE id = " . (int)$u['id'])->fetch();
+        $updated = db()->query("SELECT id,nombre,username,username_changed_at,datos_changed_at,email,email_pendiente,telefono,telefono_verificado,rol,foto_perfil,municipio,lat,lng,auth_provider FROM usuarios WHERE id = " . (int)$u['id'])->fetch();
+        jout(['ok' => true, 'usuario' => $updated, 'email_verificacion_enviado' => $emailVerificacionEnviada, 'codigo_dev' => $codigoEmailDev]);
+        break;
+
+    // Confirma el correo pendiente (email_pendiente) con el código de 6 dígitos enviado
+    // al iniciar el cambio en `actualizar_perfil`. Solo aquí se aplica de verdad `email`.
+    case 'email_verificar':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        require_fields($data, ['codigo']);
+        // La vigencia se evalúa DENTRO de MySQL (no con strtotime()+time() en PHP) porque el
+        // reloj/zona horaria del proceso PHP puede no coincidir con el de MySQL -- comparar
+        // ambos relojes por separado puede marcar un código recién emitido como "expirado".
+        $rowE = db()->query(
+            "SELECT email_pendiente, email_verificacion_code,
+                    (email_verificacion_exp IS NOT NULL AND email_verificacion_exp > NOW()) AS vigente
+             FROM usuarios WHERE id = " . (int)$u['id']
+        )->fetch();
+        if (!$rowE['email_pendiente'] || !$rowE['email_verificacion_code']) {
+            jout(['ok' => false, 'error' => 'Sin cambio de correo pendiente'], 400);
+        }
+        if ($rowE['email_verificacion_code'] !== $data['codigo']) {
+            jout(['ok' => false, 'error' => 'Código inválido'], 400);
+        }
+        if (!$rowE['vigente']) {
+            jout(['ok' => false, 'error' => 'Código expirado'], 400);
+        }
+        $chkE = db()->prepare("SELECT id FROM usuarios WHERE email = ? AND id != ?");
+        $chkE->execute([$rowE['email_pendiente'], $u['id']]);
+        if ($chkE->fetch()) jout(['ok' => false, 'error' => 'email_en_uso', 'mensaje' => 'Ese correo ya está en uso por otra cuenta.'], 409);
+
+        db()->prepare("UPDATE usuarios SET email = ?, email_pendiente = NULL, email_verificacion_code = NULL, email_verificacion_exp = NULL, datos_changed_at = NOW() WHERE id = ?")
+            ->execute([$rowE['email_pendiente'], $u['id']]);
+        $updated = db()->query("SELECT id,nombre,username,username_changed_at,datos_changed_at,email,telefono,telefono_verificado,rol,foto_perfil,municipio,lat,lng,auth_provider FROM usuarios WHERE id = " . (int)$u['id'])->fetch();
         jout(['ok' => true, 'usuario' => $updated]);
+        break;
+
+    case 'email_reenviar_codigo':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        $rowP = db()->query("SELECT email_pendiente FROM usuarios WHERE id = " . (int)$u['id'])->fetch();
+        if (!$rowP['email_pendiente']) jout(['ok' => false, 'error' => 'Sin cambio de correo pendiente'], 400);
+        $codigo = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        db()->prepare("UPDATE usuarios SET email_verificacion_code = ?, email_verificacion_exp = DATE_ADD(NOW(), INTERVAL 30 MINUTE) WHERE id = ?")
+            ->execute([$codigo, $u['id']]);
+        jout(['ok' => true, 'codigo_dev' => $codigo, 'email' => $rowP['email_pendiente']]);
+        break;
+
+    case 'email_cancelar':
+        $u = current_user();
+        if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
+        db()->prepare("UPDATE usuarios SET email_pendiente = NULL, email_verificacion_code = NULL, email_verificacion_exp = NULL WHERE id = ?")
+            ->execute([$u['id']]);
+        jout(['ok' => true]);
         break;
 
     // ─── Roles habilitados en la cuenta: 'comprador' siempre + cualquier solicitud aprobada ───
@@ -224,6 +385,11 @@ switch ($action) {
         if (!in_array($rolNuevo, ['comprador', 'vendedor', 'repartidor'], true)) {
             jout(['ok' => false, 'error' => 'Rol inválido'], 400);
         }
+        // Un vendedor o repartidor ya activo no tiene por qué cambiar de rol: solo
+        // un comprador puede activar uno de sus roles aprobados (vendedor/repartidor).
+        if ($u['rol'] !== 'comprador') {
+            jout(['ok' => false, 'error' => 'no_permitido', 'mensaje' => 'Tu cuenta ya tiene un rol activo y no puede cambiarlo.'], 403);
+        }
         if ($rolNuevo !== 'comprador') {
             $chk = db()->prepare("SELECT 1 FROM solicitudes_rol WHERE usuario_id = ? AND rol_solicitado = ? AND estado = 'aprobado' LIMIT 1");
             $chk->execute([$u['id'], $rolNuevo]);
@@ -236,20 +402,49 @@ switch ($action) {
         jout(['ok' => true, 'usuario' => $updated]);
         break;
 
+    // Manda el código de verificación de teléfono por WhatsApp (vía Twilio, ver whatsapp.php).
+    // Si viene `telefono` en el body (ej. onboarding, número nuevo aún no guardado) se
+    // guarda de una vez y el teléfono queda sin verificar hasta confirmar el código.
     case 'enviar_sms':
         $u = current_user();
         if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
-        $tel = $u['telefono'] ?? $data['telefono'] ?? null;
+        $telNuevo = !empty($data['telefono']) ? preg_replace('/\D/', '', (string)$data['telefono']) : null;
+        $tel = $telNuevo ?: $u['telefono'];
         if (!$tel) jout(['ok' => false, 'error' => 'Sin numero de telefono'], 400);
+
         $codigo = str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        db()->prepare("UPDATE usuarios SET sms_code = ? WHERE id = ?")->execute([$codigo, $u['id']]);
-        jout(['ok' => true, 'codigo' => $codigo, 'telefono' => $tel]);
+        if ($telNuevo && $telNuevo !== $u['telefono']) {
+            $chkTel = db()->prepare("SELECT id FROM usuarios WHERE telefono = ? AND id != ?");
+            $chkTel->execute([$telNuevo, $u['id']]);
+            if ($chkTel->fetch()) jout(['ok' => false, 'error' => 'Ese teléfono ya está en uso por otra cuenta.'], 409);
+            db()->prepare("UPDATE usuarios SET telefono = ?, telefono_verificado = 0, sms_code = ?, sms_code_exp = DATE_ADD(NOW(), INTERVAL 10 MINUTE) WHERE id = ?")
+                ->execute([$telNuevo, $codigo, $u['id']]);
+        } else {
+            db()->prepare("UPDATE usuarios SET sms_code = ?, sms_code_exp = DATE_ADD(NOW(), INTERVAL 10 MINUTE) WHERE id = ?")
+                ->execute([$codigo, $u['id']]);
+        }
+
+        $enviado = enviar_whatsapp_codigo($tel, $codigo);
+        // NOTA: si Twilio no está configurado (o el envío falla), el código se devuelve en la
+        // respuesta para poder seguir probando el flujo sin credenciales reales.
+        jout(['ok' => true, 'enviado' => $enviado, 'codigo' => $enviado ? null : $codigo, 'telefono' => $tel]);
         break;
 
     case 'verificar_sms':
         $u = current_user();
         if (!$u) jout(['ok' => false, 'error' => 'No autenticado'], 401);
-        db()->prepare("UPDATE usuarios SET telefono_verificado = 1, sms_code = NULL WHERE id = ?")->execute([$u['id']]);
+        require_fields($data, ['codigo']);
+        $st = db()->prepare(
+            "SELECT sms_code, (sms_code_exp IS NOT NULL AND sms_code_exp > NOW()) AS vigente
+             FROM usuarios WHERE id = ?"
+        );
+        $st->execute([$u['id']]);
+        $row = $st->fetch();
+        if (!$row['sms_code']) jout(['ok' => false, 'error' => 'No hay un código pendiente. Pide uno nuevo.'], 400);
+        if ($row['sms_code'] !== $data['codigo']) jout(['ok' => false, 'error' => 'Código inválido'], 400);
+        if (!$row['vigente']) jout(['ok' => false, 'error' => 'Código expirado'], 400);
+
+        db()->prepare("UPDATE usuarios SET telefono_verificado = 1, sms_code = NULL, sms_code_exp = NULL WHERE id = ?")->execute([$u['id']]);
         $updated = db()->query("SELECT id,nombre,username,username_changed_at,email,telefono,telefono_verificado,rol,foto_perfil,municipio,lat,lng,auth_provider FROM usuarios WHERE id = " . (int)$u['id'])->fetch();
         jout(['ok' => true, 'usuario' => $updated]);
         break;
@@ -273,13 +468,18 @@ switch ($action) {
     case 'recuperar_confirmar':
         require_fields($data, ['identificador', 'codigo', 'password_nueva']);
         $id = trim($data['identificador']);
-        $st = db()->prepare("SELECT id, reset_password_code, reset_password_exp FROM usuarios WHERE (username = ? OR email = ? OR telefono = ?) LIMIT 1");
+        // Vigencia evaluada en MySQL -- ver nota en 'email_verificar' sobre por qué
+        // strtotime()+time() en PHP no es confiable aquí (reloj/zona horaria distintos).
+        $st = db()->prepare(
+            "SELECT id, reset_password_code, (reset_password_exp IS NOT NULL AND reset_password_exp > NOW()) AS vigente
+             FROM usuarios WHERE (username = ? OR email = ? OR telefono = ?) LIMIT 1"
+        );
         $st->execute([$id, $id, $id]);
         $u = $st->fetch();
         if (!$u || !$u['reset_password_code'] || $u['reset_password_code'] !== $data['codigo']) {
             jout(['ok' => false, 'error' => 'Código inválido'], 400);
         }
-        if (!$u['reset_password_exp'] || strtotime($u['reset_password_exp']) < time()) {
+        if (!$u['vigente']) {
             jout(['ok' => false, 'error' => 'Código expirado'], 400);
         }
         if (strlen($data['password_nueva']) < 6) jout(['ok' => false, 'error' => 'La contraseña debe tener al menos 6 caracteres'], 400);

@@ -73,6 +73,42 @@ interface Props {
   radius?: string;
   /** Shows the Google-Maps-style layer picker (Mapa/Satélite/Terreno + Bicicleta). */
   layersControl?: boolean;
+  /** Cuando se pasa, un clic/tap en el mapa reporta las coordenadas (para elegir una ubicación). */
+  onMapClick?: (coords: { lat: number; lng: number }) => void;
+  /** Cuando se pasa, recuerda en localStorage el último centro/zoom/capa que el usuario dejó
+   * en este mapa (por moveend real, no por los `center`/`zoom` que mande el padre) y los
+   * restaura la próxima vez que se monte -- incluso tras un reload completo. Un cambio de
+   * filtro arriba (nuevos `markers`) ya no le pisa la posición manual del usuario. */
+  persistKey?: string;
+}
+
+interface SavedMapView {
+  lng: number;
+  lat: number;
+  zoom: number;
+  baseLayer: BaseLayer;
+}
+
+function readSavedView(persistKey: string | undefined): SavedMapView | null {
+  if (!persistKey) return null;
+  try {
+    const raw = localStorage.getItem(`mapview:${persistKey}`);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (typeof v.lng !== "number" || typeof v.lat !== "number" || typeof v.zoom !== "number") return null;
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+function writeSavedView(persistKey: string | undefined, view: SavedMapView) {
+  if (!persistKey) return;
+  try {
+    localStorage.setItem(`mapview:${persistKey}`, JSON.stringify(view));
+  } catch {
+    // localStorage lleno o bloqueado (modo privado) -- la persistencia simplemente no aplica
+  }
 }
 
 const PIN_YELLOW = "#eab308";
@@ -167,7 +203,7 @@ function hasPopupContent(m: MapMarkerData): boolean {
   return m.banner !== undefined || m.rating !== undefined || !!m.subtitle;
 }
 
-export function MapView({ markers, route, height = 320, fitToMarkers = true, zoom = 13, center, className, style, radius = "var(--radius-lg)", layersControl }: Props) {
+export function MapView({ markers, route, height = 320, fitToMarkers = true, zoom = 13, center, className, style, radius = "var(--radius-lg)", layersControl, onMapClick, persistKey }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<Map<string | number, maplibregl.Marker>>(new Map());
@@ -176,13 +212,18 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
   const animRef = useRef<Map<string | number, number>>(new Map());
   const lastFitIdsRef = useRef<string>("");
   const routeRef = useRef<MapRouteData | null | undefined>(route);
+  const onMapClickRef = useRef(onMapClick);
   const { resolvedTheme } = useTheme();
   const [loaded, setLoaded] = useState(false);
   const [errored, setErrored] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
-  const [baseLayer, setBaseLayer] = useState<BaseLayer>("default");
+  const [baseLayer, setBaseLayer] = useState<BaseLayer>(() => readSavedView(persistKey)?.baseLayer ?? "default");
   const [pickerOpen, setPickerOpen] = useState(false);
   const baseLayerRef = useRef(baseLayer);
+  // true apenas se restaura una vista guardada, o en cuanto el usuario mueve el mapa a
+  // mano -- en cualquiera de los dos casos, un fitToMarkers disparado por un cambio de
+  // `markers` (nuevo filtro arriba) debe dejar de pisar esa posición.
+  const userMovedRef = useRef(!!readSavedView(persistKey));
   // The mount effect below already sets the correct initial style when it
   // constructs the map. Without this guard, the theme/base-layer effect
   // ALSO fires on that same initial mount (effects run for every dependency
@@ -196,6 +237,9 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
   useEffect(() => {
     routeRef.current = route;
   }, [route]);
+  useEffect(() => {
+    onMapClickRef.current = onMapClick;
+  }, [onMapClick]);
   useEffect(() => {
     baseLayerRef.current = baseLayer;
   }, [baseLayer]);
@@ -247,15 +291,34 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
       const styleValue = await resolveStyle(resolvedTheme, baseLayerRef.current);
       if (cancelled || !containerRef.current) return;
 
-      const initialCenter: [number, number] = center ?? (markers[0] ? [markers[0].lng, markers[0].lat] : DEFAULT_CENTER);
+      const saved = readSavedView(persistKey);
+      const initialCenter: [number, number] = saved ? [saved.lng, saved.lat] : center ?? (markers[0] ? [markers[0].lng, markers[0].lat] : DEFAULT_CENTER);
+      const initialZoom = saved?.zoom ?? zoom;
       const map = new maplibregl.Map({
         container: containerRef.current,
         style: styleValue,
         center: initialCenter,
-        zoom,
+        zoom: initialZoom,
         attributionControl: false,
       });
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+
+      if (onMapClickRef.current) {
+        map.getCanvas().style.cursor = "crosshair";
+        map.on("click", (e) => onMapClickRef.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng }));
+      }
+
+      if (persistKey) {
+        // `originalEvent` solo existe en moves iniciados por el usuario (drag, pellizco,
+        // scroll-zoom) -- los que dispara este mismo componente (panTo/fitBounds/setStyle)
+        // no lo traen, así que esto no se dispara en bucle contra sus propias llamadas.
+        map.on("moveend", (e) => {
+          if (!("originalEvent" in e) || !e.originalEvent) return;
+          userMovedRef.current = true;
+          const c = map.getCenter();
+          writeSavedView(persistKey, { lng: c.lng, lat: c.lat, zoom: map.getZoom(), baseLayer: baseLayerRef.current });
+        });
+      }
 
       timeoutId = window.setTimeout(() => setErrored(true), 12000);
       map.on("load", () => {
@@ -298,7 +361,12 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
       animRef.current.clear();
       markersRef.current.forEach((m) => m.remove());
       markersRef.current.clear();
-      pinRootsRef.current.forEach((root) => root.unmount());
+      // Deferred: unmounting a marker's React root synchronously here can race
+      // with an ancestor (e.g. a Sheet) unmounting this whole map in the same
+      // commit, which React rejects ("Attempted to synchronously unmount a
+      // root while React was already rendering").
+      const rootsToUnmount = Array.from(pinRootsRef.current.values());
+      setTimeout(() => rootsToUnmount.forEach((root) => root.unmount()), 0);
       pinRootsRef.current.clear();
       popupsRef.current.clear();
       mapRef.current?.remove();
@@ -334,6 +402,29 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
     if (map.isStyleLoaded()) ensureRouteLayer(map);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [route]);
+
+  // Guarda la capa elegida a mano en el picker (Mapa/Satélite/Terreno) -- separado del
+  // efecto de arriba porque ese también corre al alternar tema claro/oscuro, y un cambio
+  // de tema no cuenta como "el usuario ya personalizó esta vista".
+  const skipFirstBaseLayerPersistRef = useRef(true);
+  useEffect(() => {
+    if (skipFirstBaseLayerPersistRef.current) {
+      skipFirstBaseLayerPersistRef.current = false;
+      return;
+    }
+    if (!persistKey) return;
+    // El mapa se construye async (hay un `await` antes de fijar mapRef.current) -- si este
+    // efecto llega a disparar antes de que termine (p. ej. el doble-invocado de efectos que
+    // hace StrictMode en desarrollo), no hay centro/zoom real que guardar todavía. Sin este
+    // guard se escribían las coordenadas de repuesto (DEFAULT_CENTER) pisando una posición
+    // ya guardada en un intento anterior.
+    const map = mapRef.current;
+    if (!map) return;
+    userMovedRef.current = true;
+    const c = map.getCenter();
+    writeSavedView(persistKey, { lng: c.lng, lat: c.lat, zoom: map.getZoom(), baseLayer });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseLayer]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -432,7 +523,9 @@ export function MapView({ markers, route, height = 320, fitToMarkers = true, zoo
       }
     });
 
-    if (!fitToMarkers || markers.length === 0) return;
+    // Una vez el usuario movió el mapa a mano (o se restauró una vista guardada), un
+    // cambio de filtro arriba (nuevos `markers`) ya no le pisa esa posición manual.
+    if (!fitToMarkers || markers.length === 0 || userMovedRef.current) return;
     // Only re-fit the camera when the *set* of markers changes (added/removed),
     // not on every live position update -- otherwise a moving courier marker
     // would fight the smooth interpolation above by re-centering every poll.

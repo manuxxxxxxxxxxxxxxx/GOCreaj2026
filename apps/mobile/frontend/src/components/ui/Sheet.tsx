@@ -1,8 +1,9 @@
 import { useEffect } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
 import { XIcon } from "phosphor-react-native";
 import { useTheme } from "../../theme/ThemeContext";
 import { radius } from "../../theme/tokens";
@@ -35,6 +36,13 @@ export function Sheet({ visible, onClose, title, children }: Props) {
   };
 
   const pan = Gesture.Pan()
+    // Sin esto, cualquier arrastre horizontal dentro del sheet (p. ej. deslizar dentro
+    // del buscador de categoría/zona) igual quedaba "atrapado" por este gesto -- no
+    // movía el sheet (solo reacciona a translationY), pero sí se robaba el toque. Con
+    // failOffsetX el gesto se cancela apenas el arrastre es más horizontal que vertical,
+    // soltando el toque para que el contenido de abajo lo reciba con normalidad.
+    .activeOffsetY(10)
+    .failOffsetX([-15, 15])
     .onUpdate((e) => {
       if (e.translationY > 0) translateY.value = e.translationY;
     })
@@ -52,7 +60,9 @@ export function Sheet({ visible, onClose, title, children }: Props) {
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={close} statusBarTranslucent>
       <View style={StyleSheet.absoluteFill}>
-        <Animated.View style={[StyleSheet.absoluteFill, scrimStyle, { backgroundColor: "rgba(4,8,16,0.55)" }]}>
+        <Animated.View style={[StyleSheet.absoluteFill, scrimStyle]}>
+          <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(4,8,16,0.35)" }]} />
           <Pressable style={StyleSheet.absoluteFill} onPress={close} />
         </Animated.View>
         <GestureDetector gesture={pan}>
@@ -60,23 +70,30 @@ export function Sheet({ visible, onClose, title, children }: Props) {
             style={[
               sheetStyle,
               styles.sheet,
-              { backgroundColor: tokens.surface1, paddingBottom: insets.bottom + 16, maxHeight: winHeight * 0.88, position: "absolute", left: 0, right: 0, bottom: 0 },
+              { backgroundColor: tokens.surface1, maxHeight: winHeight * 0.88, position: "absolute", left: 0, right: 0, bottom: 0 },
             ]}
           >
-            <View style={styles.handleWrap}>
-              <View style={[styles.handle, { backgroundColor: tokens.borderStrong }]} />
-            </View>
-            {title && (
-              <View style={styles.header}>
-                <Text style={[styles.title, { color: tokens.textPrimary }]}>{title}</Text>
-                <Pressable onPress={close} accessibilityLabel="Cerrar" style={[styles.closeBtn, { backgroundColor: tokens.surface2, borderColor: tokens.border }]}>
-                  <XIcon size={16} color={tokens.textPrimary} />
-                </Pressable>
+            {/* En iOS el teclado no reacomoda nada solo -- sin esto, un input al fondo del
+                sheet (p. ej. el de comentarios) quedaba tapado por el teclado apenas se
+                enfocaba. "padding" hace crecer este contenedor hacia arriba (el sheet sigue
+                anclado abajo) exactamente lo que el teclado ocupa, así el input y lo que se
+                está escribiendo quedan siempre visibles encima de él. */}
+            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ paddingBottom: insets.bottom + 16 }}>
+              <View style={styles.handleWrap}>
+                <View style={[styles.handle, { backgroundColor: tokens.borderStrong }]} />
               </View>
-            )}
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              {children}
-            </ScrollView>
+              {title && (
+                <View style={styles.header}>
+                  <Text style={[styles.title, { color: tokens.textPrimary }]}>{title}</Text>
+                  <Pressable onPress={close} accessibilityLabel="Cerrar" style={[styles.closeBtn, { backgroundColor: tokens.surface2, borderColor: tokens.border }]}>
+                    <XIcon size={16} color={tokens.textPrimary} />
+                  </Pressable>
+                </View>
+              )}
+              <ScrollView style={styles.content} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                {children}
+              </ScrollView>
+            </KeyboardAvoidingView>
           </Animated.View>
         </GestureDetector>
       </View>

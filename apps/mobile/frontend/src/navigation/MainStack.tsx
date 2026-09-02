@@ -20,7 +20,18 @@ import { VendedorTiendaScreen } from "../screens/vendedor/VendedorTiendaScreen";
 import { VendedorResenasScreen } from "../screens/vendedor/VendedorResenasScreen";
 import { RepartidorPerfilScreen } from "../screens/repartidor/RepartidorPerfilScreen";
 import { ConfiguracionAvanzadaScreen } from "../screens/shared/ConfiguracionAvanzadaScreen";
+import { SeguridadScreen } from "../screens/shared/SeguridadScreen";
 import { MiColeccionScreen } from "../screens/shared/MiColeccionScreen";
+import { AdminUsuariosScreen } from "../screens/admin/AdminUsuariosScreen";
+import { AdminPedidosScreen } from "../screens/admin/AdminPedidosScreen";
+import { AdminProductosScreen } from "../screens/admin/AdminProductosScreen";
+import { AdminArbolScreen } from "../screens/admin/AdminArbolScreen";
+import { AdminRepartidoresScreen } from "../screens/admin/AdminRepartidoresScreen";
+import { AdminCoberturaScreen } from "../screens/admin/AdminCoberturaScreen";
+import { AdminCuponesScreen } from "../screens/admin/AdminCuponesScreen";
+import { AdminFinanzasScreen } from "../screens/admin/AdminFinanzasScreen";
+import { AdminSoporteScreen } from "../screens/admin/AdminSoporteScreen";
+import { AdminSolicitudesScreen } from "../screens/admin/AdminSolicitudesScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -47,7 +58,18 @@ export function MainStack() {
       <Stack.Screen name="VendedorResenas" component={VendedorResenasScreen} />
       <Stack.Screen name="RepartidorPerfil" component={RepartidorPerfilScreen} />
       <Stack.Screen name="Configuracion" component={ConfiguracionAvanzadaScreen} />
+      <Stack.Screen name="Seguridad" component={SeguridadScreen} />
       <Stack.Screen name="MiColeccion" component={MiColeccionScreen} />
+      <Stack.Screen name="AdminUsuarios" component={AdminUsuariosScreen} />
+      <Stack.Screen name="AdminPedidos" component={AdminPedidosScreen} />
+      <Stack.Screen name="AdminProductos" component={AdminProductosScreen} />
+      <Stack.Screen name="AdminArbol" component={AdminArbolScreen} />
+      <Stack.Screen name="AdminRepartidores" component={AdminRepartidoresScreen} />
+      <Stack.Screen name="AdminCobertura" component={AdminCoberturaScreen} />
+      <Stack.Screen name="AdminCupones" component={AdminCuponesScreen} />
+      <Stack.Screen name="AdminFinanzas" component={AdminFinanzasScreen} />
+      <Stack.Screen name="AdminSoporte" component={AdminSoporteScreen} />
+      <Stack.Screen name="AdminSolicitudes" component={AdminSolicitudesScreen} />
     </Stack.Navigator>
   );
 }

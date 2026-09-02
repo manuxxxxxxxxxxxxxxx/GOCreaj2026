@@ -4,9 +4,9 @@ import { Bell, Package, ChatCircleDots, Megaphone, Gear, Trash } from "@phosphor
 import { notificacionesApi } from "../lib/api";
 import type { Notificacion } from "../lib/types";
 import { relativeTime } from "../lib/format";
-import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
+import { BackButton } from "../components/ui/BackButton";
 
 const ICONS: Record<Notificacion["tipo"], typeof Package> = {
   pedido: Package,
@@ -23,12 +23,21 @@ export function Notifications() {
     notificacionesApi.listar().then((r) => setItems(r.notificaciones)).catch(() => setItems([]));
   };
 
-  useEffect(cargar, []);
+  useEffect(() => {
+    // Cargamos primero (para poder seguir mostrando cuáles llegaron sin leer durante
+    // esta visita) y marcamos todas leídas en el servidor sin volver a pedir la lista,
+    // así el usuario alcanza a ver el resaltado de "nueva" antes de que desaparezca.
+    notificacionesApi
+      .listar()
+      .then((r) => {
+        setItems(r.notificaciones);
+        if (r.notificaciones.some((n) => !n.leida)) notificacionesApi.marcarTodasLeidas().catch(() => {});
+      })
+      .catch(() => setItems([]));
+  }, []);
 
   const marcarLeida = async (n: Notificacion) => {
-    if (!n.leida) await notificacionesApi.marcarLeida(n.id);
     if (n.tipo === "pedido" && n.referencia_id) navigate(`/pedidos/${n.referencia_id}`);
-    cargar();
   };
 
   const eliminar = async (id: number) => {
@@ -37,12 +46,10 @@ export function Notifications() {
   };
 
   return (
-    <div style={{ maxWidth: 560, display: "flex", flexDirection: "column", gap: 18 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <BackButton />
         <h1 style={{ fontSize: 22 }}>Notificaciones</h1>
-        <Button size="sm" variant="secondary" onClick={() => notificacionesApi.marcarTodasLeidas().then(cargar)}>
-          Marcar todas leídas
-        </Button>
       </div>
 
       {items === null ? (

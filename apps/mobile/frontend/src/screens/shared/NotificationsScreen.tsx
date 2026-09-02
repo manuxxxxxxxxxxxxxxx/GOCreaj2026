@@ -9,7 +9,6 @@ import { useTheme } from "../../theme/ThemeContext";
 import { notificacionesApi } from "../../lib/api";
 import type { Notificacion } from "../../lib/types";
 import { relativeTime } from "../../lib/format";
-import { Button } from "../../components/ui/Button";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { AnimatedListItem } from "../../components/ui/Motion";
@@ -27,12 +26,21 @@ export function NotificationsScreen({ navigation }: Props) {
     notificacionesApi.listar().then((r) => setItems(r.notificaciones)).catch(() => setItems([]));
   };
 
-  useEffect(cargar, []);
+  useEffect(() => {
+    // Cargamos primero (para poder seguir mostrando cuáles llegaron sin leer durante
+    // esta visita) y marcamos todas leídas en el servidor sin volver a pedir la lista,
+    // así el usuario alcanza a ver el resaltado de "nueva" antes de que desaparezca.
+    notificacionesApi
+      .listar()
+      .then((r) => {
+        setItems(r.notificaciones);
+        if (r.notificaciones.some((n) => !n.leida)) notificacionesApi.marcarTodasLeidas().catch(() => {});
+      })
+      .catch(() => setItems([]));
+  }, []);
 
-  const marcar = async (n: Notificacion) => {
-    if (!n.leida) await notificacionesApi.marcarLeida(n.id);
+  const marcar = (n: Notificacion) => {
     if (n.tipo === "pedido" && n.referencia_id) navigation.navigate("OrderDetail", { id: n.referencia_id });
-    cargar();
   };
 
   return (
@@ -42,9 +50,6 @@ export function NotificationsScreen({ navigation }: Props) {
           <CaretLeftIcon size={16} color={tokens.textPrimary} />
         </Pressable>
         <Text style={{ flex: 1, fontSize: 18, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>Notificaciones</Text>
-        <Button size="sm" variant="secondary" onPress={() => notificacionesApi.marcarTodasLeidas().then(cargar)}>
-          Leídas
-        </Button>
       </View>
 
       {items === null ? (

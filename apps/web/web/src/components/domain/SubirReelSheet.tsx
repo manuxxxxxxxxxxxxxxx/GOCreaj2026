@@ -3,9 +3,10 @@ import { Hash, PencilSimple, Trash, VideoCamera } from "@phosphor-icons/react";
 import { Sheet } from "../ui/Sheet";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
+import { PriceInput } from "../ui/PriceInput";
 import { vendedorApi, ApiError } from "../../lib/api";
 import { fileToBase64 } from "../../lib/format";
-import { CATEGORIAS, CATEGORIA_LABEL, categoriaColor, categoriaIcon } from "../../lib/categoryIcons";
+import { CategoryPicker } from "./CategoryPicker";
 import { useToast } from "../../context/ToastContext";
 
 interface Props {
@@ -21,7 +22,7 @@ export function SubirReelSheet({ onClose, onPublicado }: Props) {
   const [video, setVideo] = useState<{ file: File; preview: string } | null>(null);
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
-  const [precio, setPrecio] = useState("");
+  const [precio, setPrecio] = useState(0);
   const [stock, setStock] = useState("0");
   const [categoria, setCategoria] = useState("comida");
   const [hashtags, setHashtags] = useState("");
@@ -45,7 +46,7 @@ export function SubirReelSheet({ onClose, onPublicado }: Props) {
         tienda_id: tiendaId,
         nombre,
         descripcion,
-        precio: Number(precio),
+        precio,
         stock: Number(stock),
         categoria,
         video: videoBase64,
@@ -127,7 +128,9 @@ export function SubirReelSheet({ onClose, onPublicado }: Props) {
             />
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            <Input label="Precio" type="number" value={precio} onChange={(e) => setPrecio(e.target.value)} style={{ flex: 1 }} />
+            <div style={{ flex: 1 }}>
+              <PriceInput label="Precio" value={precio} onChange={setPrecio} />
+            </div>
             <Input label="Stock" type="number" value={stock} onChange={(e) => setStock(e.target.value)} style={{ flex: 1 }} />
           </div>
         </div>
@@ -135,35 +138,8 @@ export function SubirReelSheet({ onClose, onPublicado }: Props) {
 
       <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid var(--border)" }}>
         <SectionLabel>Categoría</SectionLabel>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>
-          {CATEGORIAS.map((c) => {
-            const active = categoria === c;
-            const color = categoriaColor(c);
-            const Icon = categoriaIcon(c);
-            return (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setCategoria(c)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "7px 12px",
-                  borderRadius: "var(--radius-pill)",
-                  border: `1px solid ${active ? color : "var(--border)"}`,
-                  background: active ? `color-mix(in srgb, ${color} 16%, var(--surface-1))` : "var(--surface-1)",
-                  color: active ? color : "var(--text-secondary)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                }}
-              >
-                <Icon size={13} weight={active ? "fill" : "regular"} />
-                {CATEGORIA_LABEL[c]}
-              </button>
-            );
-          })}
+        <div style={{ marginBottom: 20 }}>
+          <CategoryPicker value={categoria} onChange={setCategoria} />
         </div>
 
         <SectionLabel>Hashtags</SectionLabel>

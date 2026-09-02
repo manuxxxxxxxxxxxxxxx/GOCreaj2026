@@ -64,6 +64,7 @@ switch ($action) {
             'compradores' => (int)db()->query("SELECT COUNT(*) FROM usuarios WHERE rol='comprador'")->fetchColumn(),
             'vendedores' => (int)db()->query("SELECT COUNT(*) FROM usuarios WHERE rol='vendedor'")->fetchColumn(),
             'repartidores' => (int)db()->query("SELECT COUNT(*) FROM usuarios WHERE rol='repartidor'")->fetchColumn(),
+            'admins' => (int)db()->query("SELECT COUNT(*) FROM usuarios WHERE rol='admin'")->fetchColumn(),
             'pedidos' => (int)db()->query("SELECT COUNT(*) FROM pedidos")->fetchColumn(),
             'pedidos_hoy' => (int)db()->query("SELECT COUNT(*) FROM pedidos WHERE DATE(created_at) = CURDATE()")->fetchColumn(),
             'ingresos_total' => (float)db()->query("SELECT COALESCE(SUM(total),0) FROM pedidos WHERE estado = 'entregado'")->fetchColumn(),
@@ -202,7 +203,7 @@ switch ($action) {
 
     case 'responder_soporte':
         require_fields($data, ['reporte_id','respuesta','estado']);
-        $st = db()->prepare("UPDATE soporte_reportes SET respuesta_admin = ?, estado = ? WHERE id = ?");
+        $st = db()->prepare("UPDATE soporte_reportes SET respuesta_admin = ?, estado = ?, resuelto_at = NOW() WHERE id = ?");
         $st->execute([$data['respuesta'], $data['estado'], $data['reporte_id']]);
         jout(['ok' => true]);
         break;
@@ -211,7 +212,10 @@ switch ($action) {
         $actividad = [];
         $pedidos = db()->query("SELECT id, numero_pedido, total, estado, created_at FROM pedidos ORDER BY created_at DESC LIMIT 10")->fetchAll();
         foreach ($pedidos as $p) {
-            $actividad[] = ['tipo' => 'pedido', 'descripcion' => "Pedido #{$p['numero_pedido']} por \${$p['total']} — {$p['estado']}", 'fecha' => $p['created_at']];
+            // Pedidos de antes de que existiera numero_pedido lo traen NULL/vacío -- sin este
+            // fallback salía "Pedido # por $X" con un "#" colgado y sin nada después.
+            $numero = $p['numero_pedido'] !== null && $p['numero_pedido'] !== '' ? $p['numero_pedido'] : $p['id'];
+            $actividad[] = ['tipo' => 'pedido', 'descripcion' => "Pedido #{$numero} por \${$p['total']} — {$p['estado']}", 'fecha' => $p['created_at']];
         }
         $usuarios = db()->query("SELECT id, nombre, rol, created_at FROM usuarios ORDER BY created_at DESC LIMIT 5")->fetchAll();
         foreach ($usuarios as $u) {

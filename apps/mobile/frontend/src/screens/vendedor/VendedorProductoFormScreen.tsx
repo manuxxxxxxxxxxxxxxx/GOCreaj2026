@@ -1,18 +1,22 @@
 import { useEffect, useState } from "react";
-import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import * as ImagePicker from "expo-image-picker";
-import { XIcon } from "phosphor-react-native";
+import { InfinityIcon, XIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
 import { vendedorApi, ApiError } from "../../lib/api";
 import type { Producto } from "../../lib/types";
 import { CategoryPicker } from "../../components/domain/CategoryPicker";
+import { MultiImagePicker } from "../../components/domain/MultiImagePicker";
+import { PriceInput } from "../../components/domain/PriceInput";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Skeleton } from "../../components/ui/Skeleton";
+import { WebFormContainer } from "../../components/ui/WebFormContainer";
+
+const WIDE_BREAKPOINT = 860;
 
 type Props = NativeStackScreenProps<RootStackParamList, "VendedorProductoForm">;
 
@@ -20,18 +24,20 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const { width } = useWindowDimensions();
+  const ancha = Platform.OS === "web" && width >= WIDE_BREAKPOINT;
   const productoId = route.params?.id;
   const [producto, setProducto] = useState<Producto | null | undefined>(productoId ? undefined : null);
   const [tiendaId, setTiendaId] = useState<number | null>(null);
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
-  const [precio, setPrecio] = useState("");
-  const [precioOferta, setPrecioOferta] = useState("");
+  const [precio, setPrecio] = useState(0);
+  const [precioOferta, setPrecioOferta] = useState(0);
+  const [stockIlimitado, setStockIlimitado] = useState(false);
   const [stock, setStock] = useState("0");
   const [categoria, setCategoria] = useState("comida");
-  const [imagen, setImagen] = useState<string | null>(null);
+  const [imagenes, setImagenes] = useState<string[]>([]);
   const [activo, setActivo] = useState(true);
-  const [esReel, setEsReel] = useState(false);
   const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
@@ -43,26 +49,21 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
         if (p) {
           setNombre(p.nombre);
           setDescripcion(p.descripcion ?? "");
-          setPrecio(String(p.precio));
-          setPrecioOferta(p.precio_oferta ? String(p.precio_oferta) : "");
+          setPrecio(p.precio);
+          setPrecioOferta(p.precio_oferta ?? 0);
+          setStockIlimitado(!!p.stock_ilimitado);
           setStock(String(p.stock));
           setCategoria(p.categoria);
-          setImagen(p.imagen);
+          setImagenes(p.imagenes && p.imagenes.length ? p.imagenes : p.imagen ? [p.imagen] : []);
           setActivo(p.activo !== 0);
         }
       });
     }
   }, [productoId]);
 
-  const subirImagen = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.7, base64: true });
-    if (res.canceled || !res.assets[0].base64) return;
-    const mime = res.assets[0].mimeType ?? "image/jpeg";
-    setImagen(`data:${mime};base64,${res.assets[0].base64}`);
-  };
-
   const guardar = async () => {
     if (!nombre.trim() || !precio) return toast.show("Nombre y precio son obligatorios.", "warning");
+    if (imagenes.length === 0) return toast.show("Agrega al menos una foto.", "warning");
     setGuardando(true);
     try {
       if (producto) {
@@ -70,18 +71,31 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
           producto_id: producto.id,
           nombre,
           descripcion,
-          precio: Number(precio),
-          precio_oferta: precioOferta ? Number(precioOferta) : undefined,
+          precio,
+          precio_oferta: precioOferta || undefined,
           quitar_oferta: !precioOferta,
-          stock: Number(stock),
+          stock_ilimitado: stockIlimitado,
+          stock: stockIlimitado ? 0 : Number(stock),
           categoria,
           activo: activo ? 1 : 0,
-          imagen: imagen && imagen.startsWith("data:") ? imagen : undefined,
+          // Siempre se manda la galería completa (URLs existentes + fotos nuevas en base64)
+          // -- así una foto que el vendedor quitó de la lista también se quita al guardar.
+          imagenes,
         });
         toast.show("Producto actualizado", "success");
       } else {
         if (!tiendaId) return toast.show("Primero crea tu tienda.", "warning");
-        await vendedorApi.crearProducto({ tienda_id: tiendaId, nombre, descripcion, precio: Number(precio), precio_oferta: precioOferta ? Number(precioOferta) : undefined, stock: Number(stock), categoria, imagen: imagen ?? undefined, es_reel: esReel });
+        await vendedorApi.crearProducto({
+          tienda_id: tiendaId,
+          nombre,
+          descripcion,
+          precio,
+          precio_oferta: precioOferta || undefined,
+          stock_ilimitado: stockIlimitado,
+          stock: stockIlimitado ? 0 : Number(stock),
+          categoria,
+          imagenes,
+        });
         toast.show("Producto creado", "success");
       }
       navigation.goBack();
@@ -109,43 +123,61 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
         </Pressable>
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 60 }}>
-        <Pressable onPress={subirImagen} style={[styles.imagePicker, { backgroundColor: tokens.surface2, borderColor: tokens.borderStrong }]}>
-          {imagen ? <Image source={{ uri: imagen }} style={StyleSheet.absoluteFill} /> : <Text style={{ fontSize: 12.5, color: tokens.textMuted }}>Subir foto del producto</Text>}
-        </Pressable>
-        <Input label="Nombre" value={nombre} onChangeText={setNombre} />
-        <Input label="Descripción" value={descripcion} onChangeText={setDescripcion} multiline />
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          <Input label="Precio" value={precio} onChangeText={setPrecio} keyboardType="decimal-pad" style={{ flex: 1 }} />
-          <Input label="Precio oferta" value={precioOferta} onChangeText={setPrecioOferta} keyboardType="decimal-pad" style={{ flex: 1 }} />
-        </View>
-        <Input label="Stock" value={stock} onChangeText={setStock} keyboardType="number-pad" />
-        <View>
-          <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary, marginBottom: 8 }}>Categoría</Text>
-          <CategoryPicker value={categoria} onChange={setCategoria} />
-        </View>
-        {producto && (
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-            <Text style={{ fontSize: 13, color: tokens.textSecondary }}>Producto visible en la tienda</Text>
-            <Switch value={activo} onValueChange={setActivo} trackColor={{ true: tokens.cyan, false: tokens.border }} />
-          </View>
-        )}
-        {!producto && (
-          <View>
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-              <Text style={{ fontSize: 13, color: tokens.textSecondary }}>Publicar también como Reel</Text>
-              <Switch value={esReel} onValueChange={setEsReel} trackColor={{ true: tokens.cyan, false: tokens.border }} />
+      <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
+        <WebFormContainer maxWidth={960} style={{ padding: 20, gap: 14 }}>
+          <View style={ancha ? { flexDirection: "row", gap: 24 } : { gap: 14 }}>
+            <View style={ancha ? { width: 260 } : undefined}>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary, marginBottom: 8 }}>Fotos (hasta 10)</Text>
+              <MultiImagePicker imagenes={imagenes} onChange={setImagenes} />
             </View>
-            {esReel && (
-              <Text style={{ fontSize: 11.5, color: tokens.textMuted, marginTop: 6 }}>
-                Se mostrará en Reels usando la foto de arriba (todavía no se sube un video aparte).
-              </Text>
-            )}
+            <View style={{ flex: 1, gap: 14 }}>
+              <Input label="Nombre" value={nombre} onChangeText={setNombre} />
+              <Input label="Descripción" value={descripcion} onChangeText={setDescripcion} multiline />
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                <View style={{ flex: 1 }}>
+                  <PriceInput label="Precio" value={precio} onChange={setPrecio} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <PriceInput label="Precio oferta" value={precioOferta} onChange={setPrecioOferta} />
+                </View>
+              </View>
+            </View>
           </View>
-        )}
-        <Button size="lg" onPress={guardar} loading={guardando}>
-          {producto ? "Guardar cambios" : "Crear producto"}
-        </Button>
+
+          <View>
+            <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary, marginBottom: 8 }}>Inventario</Text>
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <Pressable
+                onPress={() => setStockIlimitado(false)}
+                style={[styles.stockOpcion, { borderColor: !stockIlimitado ? tokens.cyan : tokens.border, backgroundColor: !stockIlimitado ? tokens.cyanBg : tokens.surface1 }]}
+              >
+                <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: !stockIlimitado ? tokens.cyan : tokens.textSecondary }}>Cantidad limitada</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setStockIlimitado(true)}
+                style={[styles.stockOpcion, { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, borderColor: stockIlimitado ? tokens.cyan : tokens.border, backgroundColor: stockIlimitado ? tokens.cyanBg : tokens.surface1 }]}
+              >
+                <InfinityIcon size={14} color={stockIlimitado ? tokens.cyan : tokens.textSecondary} />
+                <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: stockIlimitado ? tokens.cyan : tokens.textSecondary }}>Stock ilimitado</Text>
+              </Pressable>
+            </View>
+            {!stockIlimitado && <Input label="Cantidad disponible" value={stock} onChangeText={setStock} keyboardType="number-pad" style={{ marginTop: 10 }} />}
+          </View>
+
+          <View>
+            <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary, marginBottom: 8 }}>Categoría</Text>
+            <CategoryPicker value={categoria} onChange={setCategoria} />
+          </View>
+          {producto && (
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <Text style={{ fontSize: 13, color: tokens.textSecondary }}>Producto visible en la tienda</Text>
+              <Switch value={activo} onValueChange={setActivo} trackColor={{ true: tokens.cyan, false: tokens.border }} />
+            </View>
+          )}
+          <Button size="lg" onPress={guardar} loading={guardando}>
+            {producto ? "Guardar cambios" : "Crear producto"}
+          </Button>
+        </WebFormContainer>
       </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -155,5 +187,5 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14 },
   closeBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  imagePicker: { height: 140, borderRadius: 14, borderWidth: 1, borderStyle: "dashed", alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  stockOpcion: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, alignItems: "center" },
 });

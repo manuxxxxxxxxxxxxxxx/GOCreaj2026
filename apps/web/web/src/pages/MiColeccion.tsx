@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { BookmarkSimple, CaretLeft, Heart } from "@phosphor-icons/react";
+import { useParams } from "react-router-dom";
+import { BookmarkSimple, Heart } from "@phosphor-icons/react";
 import { interaccionesApi } from "../lib/api";
 import type { Producto } from "../lib/types";
 import { Button } from "../components/ui/Button";
 import { EmptyState } from "../components/ui/EmptyState";
 import { Skeleton } from "../components/ui/Skeleton";
+import { BackButton } from "../components/ui/BackButton";
 import { ProductGrid } from "../components/domain/ProductGrid";
 
 const LIMIT = 30;
@@ -17,7 +18,6 @@ const TIPOS = {
 
 export function MiColeccion() {
   const { tipo } = useParams<{ tipo: "likes" | "guardados" }>();
-  const navigate = useNavigate();
   const cfg = tipo ? TIPOS[tipo] : null;
 
   const [productos, setProductos] = useState<Producto[] | null>(null);
@@ -49,15 +49,9 @@ export function MiColeccion() {
   if (!cfg) return null;
 
   return (
-    <div style={{ maxWidth: 640, display: "flex", flexDirection: "column", gap: 16 }}>
+    <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <button
-          onClick={() => navigate(-1)}
-          aria-label="Volver"
-          style={{ width: 34, height: 34, borderRadius: "50%", background: "var(--surface-2)", border: "1px solid var(--border)", color: "var(--text-secondary)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
-        >
-          <CaretLeft size={16} />
-        </button>
+        <BackButton />
         <h1 style={{ fontSize: 20 }}>
           {cfg.titulo} {total > 0 && `(${total})`}
         </h1>

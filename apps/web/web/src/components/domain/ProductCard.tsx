@@ -1,20 +1,22 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Star } from "@phosphor-icons/react";
+import { Heart, Plus, Star } from "@phosphor-icons/react";
 import type { Producto } from "../../lib/types";
 import { money } from "../../lib/format";
 import { useAuth } from "../../context/AuthContext";
 import { useCart } from "../../context/CartContext";
 import { useToast } from "../../context/ToastContext";
-import { carritoApi, ApiError } from "../../lib/api";
+import { carritoApi, interaccionesApi, ApiError } from "../../lib/api";
 import { triggerFly } from "../../lib/cartFly";
 
 interface Props {
   producto: Producto;
   variant?: "large" | "medium" | "small";
+  /** Shows a floating wishlist heart in the top-right corner (store-profile grids). */
+  showWishlist?: boolean;
 }
 
-export function ProductCard({ producto, variant = "medium" }: Props) {
+export function ProductCard({ producto, variant = "medium", showWishlist }: Props) {
   const navigate = useNavigate();
   const { usuario } = useAuth();
   const { refrescar, celebrarAgregado } = useCart();
@@ -22,6 +24,19 @@ export function ProductCard({ producto, variant = "medium" }: Props) {
   const addBtnRef = useRef<HTMLButtonElement>(null);
   const [pressed, setPressed] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [guardado, setGuardado] = useState(!!producto.yo_guardado);
+
+  const toggleGuardar = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!usuario) return navigate("/login");
+    setGuardado((g) => !g);
+    try {
+      const r = await interaccionesApi.toggleGuardar(producto.id);
+      setGuardado(r.accion === "guardar");
+    } catch {
+      setGuardado((g) => !g);
+    }
+  };
 
   const agotado = producto.estado_stock === "agotado" || producto.stock <= 0;
   const enOferta = !!producto.precio_oferta && producto.precio_oferta > 0;
@@ -108,6 +123,34 @@ export function ProductCard({ producto, variant = "medium" }: Props) {
           >
             AGOTADO
           </span>
+        )}
+        {showWishlist && (
+          <button
+            aria-label={guardado ? "Quitar de guardados" : "Guardar en mi lista"}
+            aria-pressed={guardado}
+            onClick={toggleGuardar}
+            style={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              background: "rgba(8,11,20,0.45)",
+              border: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              backdropFilter: "blur(4px)",
+              transition: "transform var(--dur-fast) var(--ease-spring)",
+            }}
+            onPointerDown={(e) => (e.currentTarget.style.transform = "scale(0.85)")}
+            onPointerUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+            onPointerLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+          >
+            <Heart size={14} weight={guardado ? "fill" : "regular"} color={guardado ? "var(--coral)" : "#fff"} />
+          </button>
         )}
         {!agotado && (
           <button

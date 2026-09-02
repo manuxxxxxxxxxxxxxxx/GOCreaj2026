@@ -17,6 +17,9 @@ export const productosApi = {
   buscar: (params: { q?: string; municipio?: string; departamento?: string; categoria?: string; tienda_id?: number; page?: number; limit?: number; con_coordenadas?: boolean }) =>
     get<{ ok: true; productos: Producto[]; q: string; page: number; limit: number; total: number }>("productos", "buscar", params),
 
+  buscarTiendas: (params: { q: string; limit?: number }) =>
+    get<{ ok: true; tiendas: Tienda[] }>("productos", "tiendas_buscar", params),
+
   reels: (params: { municipio?: string; tienda_id?: number } = {}) => get<{ ok: true; reels: Producto[] }>("productos", "reels", params),
 
   detalle: (id: number) => get<{ ok: true; producto: Producto }>("productos", "detalle", { id }),
