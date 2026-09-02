@@ -9,20 +9,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit();
 }
 
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'svgo_db');
-define('DB_USER', 'root');
-define('DB_PASS', '');
+// Todos los valores sensibles se leen de variables de entorno, con el valor de
+// desarrollo local (XAMPP) como fallback -- así en local no hay que configurar nada,
+// y en producción (Railway, etc.) se inyectan las variables reales sin tocar código.
+define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+define('DB_NAME', getenv('DB_NAME') ?: 'svgo_db');
+define('DB_USER', getenv('DB_USER') ?: 'root');
+define('DB_PASS', getenv('DB_PASS') ?: '');
 define('UPLOAD_BASE', __DIR__ . '/uploads/');
-// Clave de firma de tokens de sesión. En producción esto debe venir de una variable de entorno,
-// no vivir en el código fuente.
-define('AUTH_SECRET', 'svgo_2026_9f3a7c1e4b8d5601a2f9c4e7b3d8016fa5c2e9b7d4f1a806');
+// Path público bajo el cual cuelga este backend (usado para armar/reescribir URLs de
+// /uploads/, ver current_origin()/rewrite_upload_urls()/upload_url() más abajo). En XAMPP
+// es "/GOCreaj2026/apps/mobile/backend" porque el proyecto vive en una subcarpeta de
+// htdocs; en un contenedor (Docker/Railway) el backend corre en la raíz del dominio, así
+// que ahí UPLOAD_URL_PATH debe ser "" (vacío) vía variable de entorno.
+define('UPLOAD_URL_PATH', getenv('UPLOAD_URL_PATH') !== false ? getenv('UPLOAD_URL_PATH') : '/GOCreaj2026/apps/mobile/backend');
+// Clave de firma de tokens de sesión.
+define('AUTH_SECRET', getenv('AUTH_SECRET') ?: 'svgo_2026_9f3a7c1e4b8d5601a2f9c4e7b3d8016fa5c2e9b7d4f1a806');
 define('AUTH_TTL_SECONDS', 60 * 60 * 24 * 30); // 30 días
 // Client ID(s) de OAuth de Google Cloud Console que esta API acepta como "aud" válido
 // en el ID token (ver GOOGLE_AUTH_SETUP.md). Puede llevar varios separados por coma
 // (ej. el mismo Web Client ID que usan mobile y web, más los de builds iOS/Android
 // de producción si se generan). Vacío = login con Google desactivado en el backend.
-define('GOOGLE_CLIENT_IDS', '195559019978-sqfadh1srban3akat11eiko3hpciq6pv.apps.googleusercontent.com');
+define('GOOGLE_CLIENT_IDS', getenv('GOOGLE_CLIENT_IDS') ?: '195559019978-sqfadh1srban3akat11eiko3hpciq6pv.apps.googleusercontent.com');
 
 // ─── Correo saliente (verificación de registro) vía SMTP de Gmail ───
 // Rellena estos dos valores con tu cuenta: SMTP_USER es el correo de Gmail que
@@ -32,11 +40,11 @@ define('GOOGLE_CLIENT_IDS', '195559019978-sqfadh1srban3akat11eiko3hpciq6pv.apps.
 // Mientras estos dos campos queden vacíos, el sistema cae automáticamente a modo
 // simulado: el código de verificación se devuelve en la respuesta (codigo_dev) en
 // vez de enviarse de verdad, para poder seguir probando sin credenciales reales.
-define('SMTP_HOST', 'smtp.gmail.com');
-define('SMTP_PORT', 587);
-define('SMTP_USER', 'rirreada@gmail.com');
-define('SMTP_PASS', 'zvyicptetyjtouap');
-define('SMTP_FROM_NAME', 'SV[Go]');
+define('SMTP_HOST', getenv('SMTP_HOST') ?: 'smtp.gmail.com');
+define('SMTP_PORT', (int)(getenv('SMTP_PORT') ?: 587));
+define('SMTP_USER', getenv('SMTP_USER') ?: '');
+define('SMTP_PASS', getenv('SMTP_PASS') ?: '');
+define('SMTP_FROM_NAME', getenv('SMTP_FROM_NAME') ?: 'SV[Go]');
 
 // ─── WhatsApp saliente (verificación de teléfono) vía Meta WhatsApp Cloud API ───
 // Se configura en developers.facebook.com (app de tipo "Business" → producto WhatsApp):
@@ -47,9 +55,9 @@ define('SMTP_FROM_NAME', 'SV[Go]');
 // "Authentication" ya aprobada por Meta (se crea en WhatsApp Manager > Message Templates;
 // la aprobación suele tardar minutos, son gratis de crear).
 // Igual que el correo: si quedan vacíos, cae a modo simulado (código en la respuesta).
-define('WHATSAPP_PHONE_NUMBER_ID', '');
-define('WHATSAPP_ACCESS_TOKEN', '');
-define('WHATSAPP_TEMPLATE_NAME', 'verificacion_codigo');
+define('WHATSAPP_PHONE_NUMBER_ID', getenv('WHATSAPP_PHONE_NUMBER_ID') ?: '');
+define('WHATSAPP_ACCESS_TOKEN', getenv('WHATSAPP_ACCESS_TOKEN') ?: '');
+define('WHATSAPP_TEMPLATE_NAME', getenv('WHATSAPP_TEMPLATE_NAME') ?: 'verificacion_codigo');
 
 /**
  * Espejo de CATEGORIAS en apps/mobile/frontend/src/lib/categoryIcons.tsx — mantener sincronizado
@@ -670,7 +678,7 @@ function rewrite_upload_urls($data) {
         }
         return $data;
     }
-    if (is_string($data) && preg_match('#^https?://[^/]+(/GOCreaj2026/apps/mobile/backend/uploads/.*)$#', $data, $m)) {
+    if (is_string($data) && preg_match('#^https?://[^/]+(' . preg_quote(UPLOAD_URL_PATH, '#') . '/uploads/.*)$#', $data, $m)) {
         return current_origin() . $m[1];
     }
     return $data;
@@ -757,7 +765,7 @@ function generar_username_sugerido(string $nombre): string {
  * (teléfono en Expo Go) o un dominio real en producción.
  */
 function upload_url(): string {
-    return current_origin() . "/GOCreaj2026/apps/mobile/backend/uploads/";
+    return current_origin() . UPLOAD_URL_PATH . "/uploads/";
 }
 
 function save_base64_image(string $b64, string $subdir, string $prefix): ?string {
