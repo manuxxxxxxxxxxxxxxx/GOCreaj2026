@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
+import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { XIcon } from "phosphor-react-native";
@@ -25,8 +25,10 @@ export function Sheet({ visible, onClose, title, children }: Props) {
   useEffect(() => {
     if (visible) {
       translateY.value = winHeight;
-      translateY.value = withSpring(0, { damping: 18, stiffness: 190 });
-      scrimOpacity.value = withTiming(1, { duration: 220 });
+      // Ease-out en vez de spring -- un spring con este damping/stiffness rebotaba
+      // pasado el punto final antes de asentarse, lo que se sentía "brusco" al abrir.
+      translateY.value = withTiming(0, { duration: 280, easing: Easing.out(Easing.cubic) });
+      scrimOpacity.value = withTiming(1, { duration: 240 });
     }
   }, [visible]);
 
@@ -50,7 +52,7 @@ export function Sheet({ visible, onClose, title, children }: Props) {
       if (e.translationY > 90 || e.velocityY > 800) {
         runOnJS(close)();
       } else {
-        translateY.value = withTiming(0, { duration: 180 });
+        translateY.value = withTiming(0, { duration: 220, easing: Easing.out(Easing.cubic) });
       }
     });
 

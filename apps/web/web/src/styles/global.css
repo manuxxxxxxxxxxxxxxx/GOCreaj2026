@@ -238,6 +238,85 @@ input[type="search"]::-ms-clear {
   transform: translateY(-2px);
 }
 
+/* Shared by Explorar/Reels/Chat: each owns the full viewport below the fixed
+   TopNav (a map, a video feed, a message thread) instead of scrolling with
+   the page. On mobile the bottom edge has to clear the fixed tab bar too, or
+   its lowest controls (composer, filters) render underneath it. */
+.fixed-below-topnav {
+  position: fixed;
+  top: 68px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+@media (max-width: 767px) {
+  .fixed-below-topnav {
+    bottom: calc(58px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Shared content padding for the Admin/Vendedor/Repartidor dashboard shells
+   (each wraps its <Outlet> in this same "24px 28px 60px" block). */
+.dashboard-content {
+  padding: 24px 28px 60px;
+}
+@media (max-width: 767px) {
+  .dashboard-content {
+    padding: 16px 16px 40px;
+  }
+}
+
+/* Shared dashboard patterns (Admin/Vendedor/Repartidor resumen screens): a row
+   of 3-4 KPI cards, and a "big chart + side list" two-column section. Both are
+   plain CSS grids with no responsive fallback in the original design, so on a
+   narrow screen the cards either overflow the viewport or shrink unreadably
+   small instead of reflowing. */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+@media (max-width: 767px) {
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.dashboard-two-col {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 900px) {
+  .dashboard-two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Same idea as .dashboard-two-col but for panels meant to be equal width
+   (e.g. two side-by-side report cards) instead of a "chart + list" split. */
+.dashboard-two-col-even {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 700px) {
+  .dashboard-two-col-even {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kpi-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+@media (max-width: 640px) {
+  .kpi-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .tabular {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;

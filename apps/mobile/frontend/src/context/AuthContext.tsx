@@ -44,6 +44,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void cargarSesion();
   }, [cargarSesion]);
 
+  // Un admin puede aprobar la solicitud de rol (vendedor/repartidor) del usuario en
+  // cualquier momento -- sin este poll, un comprador con la app abierta no vería
+  // desbloquearse el menú de vendedor/repartidor hasta recargar la app a mano.
+  useEffect(() => {
+    if (!usuario || usuario.rol !== "comprador") return;
+    const id = setInterval(async () => {
+      try {
+        const res = await authApi.me();
+        if (res.usuario.rol !== "comprador") setUsuario(res.usuario);
+      } catch {
+        // chequeo de fondo -- un error de red pasajero no debe afectar la sesión
+      }
+    }, 20000);
+    return () => clearInterval(id);
+  }, [usuario?.id, usuario?.rol]);
+
   const login = useCallback(async (identificador: string, password: string) => {
     const res = await authApi.login(identificador, password);
     await persistToken(res.token);

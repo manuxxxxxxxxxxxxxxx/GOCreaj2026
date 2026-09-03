@@ -31,7 +31,7 @@ export function VendedorResumen() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 20 }}>Resumen de la tienda</h1>
           <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 2 }}>{formatDate(new Date().toISOString())}</p>
@@ -41,14 +41,14 @@ export function VendedorResumen() {
         </Button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+      <div className="kpi-grid">
         <Kpi label="Ventas hoy" value={money(ventasHoy)} tone="cyan" />
         <Kpi label="Pedidos hoy" value={String(pedidosHoy.length)} tone="ok" />
         <Kpi label="En curso" value={String(activos.length)} tone="warn" />
         <Kpi label="Producto top" value={productoTop?.nombre ?? "—"} small />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: 16 }}>
+      <div className="dashboard-two-col">
         <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16 }}>
             <TrendUp size={16} color="var(--cyan)" />

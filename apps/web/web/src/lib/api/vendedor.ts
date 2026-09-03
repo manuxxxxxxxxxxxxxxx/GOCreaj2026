@@ -31,6 +31,8 @@ export const vendedorApi = {
     descripcion?: string;
     precio: number;
     precio_oferta?: number;
+    oferta_tipo?: "monto" | "porcentaje";
+    oferta_valor?: number;
     stock?: number;
     stock_ilimitado?: boolean;
     imagen?: string;

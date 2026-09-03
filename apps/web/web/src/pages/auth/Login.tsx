@@ -28,8 +28,12 @@ export function Login() {
     }
     setLoading(true);
     try {
-      await login(identificador.trim(), password);
-      navigate(from, { replace: true });
+      const res = await login(identificador.trim(), password);
+      // Un admin siempre entra por el resumen, nunca por un "from" que haya quedado
+      // pegado de un intento anterior de ver una ruta protegida (ej. /soporte, si
+      // justo se le venció la sesión mientras tenía abierto un ticket) -- si de
+      // verdad quiere ir a otra sección del panel, la navega él mismo ya adentro.
+      navigate(res.usuario.rol === "admin" ? "/admin" : from, { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo iniciar sesión.");
     } finally {

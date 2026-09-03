@@ -4,8 +4,6 @@ import {
   At,
   Camera,
   CreditCard,
-  Eye,
-  EyeSlash,
   Globe,
   Handshake,
   Headset,
@@ -14,7 +12,6 @@ import {
   Moon,
   PencilSimple,
   Plus,
-  Prohibit,
   ShieldCheck,
   SignOut,
   Sun,
@@ -24,7 +21,7 @@ import {
 } from "@phosphor-icons/react";
 import { authApi, carritoApi, ApiError } from "../lib/api";
 import type { MetodoPago } from "../lib/types";
-import { formatDateTime, fileToBase64 } from "../lib/format";
+import { fileToBase64 } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useToast } from "../context/ToastContext";
@@ -99,7 +96,6 @@ export function ConfiguracionAvanzada() {
         <InformacionPersonalSection />
         <CuentaSection />
         <PagosSection />
-        <PrivacidadSection />
         <SeguridadSection />
         <RolSection />
         <SoporteSection />
@@ -318,40 +314,6 @@ function InfoRow({ label, value, last }: { label: string; value: string; last?: 
   );
 }
 
-function Switch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
-  return (
-    <button
-      role="switch"
-      aria-checked={on}
-      onClick={onToggle}
-      style={{
-        width: 42,
-        height: 24,
-        borderRadius: "var(--radius-pill)",
-        background: on ? "var(--cyan)" : "var(--surface-3)",
-        border: "none",
-        position: "relative",
-        cursor: "pointer",
-        flexShrink: 0,
-        transition: "background var(--dur-base)",
-      }}
-    >
-      <span
-        style={{
-          position: "absolute",
-          top: 3,
-          left: on ? 21 : 3,
-          width: 18,
-          height: 18,
-          borderRadius: "50%",
-          background: "#fff",
-          boxShadow: "var(--shadow-sm)",
-          transition: "left var(--dur-base) var(--ease-out)",
-        }}
-      />
-    </button>
-  );
-}
 
 // ─── Cuenta: nombre de usuario (la contraseña vive en Seguridad) ───────────
 function CuentaSection() {
@@ -417,80 +379,6 @@ function Row({ icon, label, value, onEdit, editing }: { icon: React.ReactNode; l
         {editing ? "Cerrar" : "Editar"}
       </button>
     </div>
-  );
-}
-
-// ─── Privacidad: perfil público + bloqueados ───────────────────────────────
-function PrivacidadSection() {
-  const { usuario, actualizarUsuarioLocal } = useAuth();
-  const toast = useToast();
-  const [bloqueados, setBloqueados] = useState<{ id: number; bloqueado_id: number; created_at: string; nombre: string; username: string | null; foto_perfil: string | null }[] | null>(null);
-
-  useEffect(() => {
-    authApi.usuariosBloqueados().then((r) => setBloqueados(r.bloqueados)).catch(() => setBloqueados([]));
-  }, []);
-
-  if (!usuario) return null;
-
-  const togglePublico = async () => {
-    const nuevo = !usuario.perfil_publico;
-    actualizarUsuarioLocal({ ...usuario, perfil_publico: nuevo ? 1 : 0 });
-    try {
-      await authApi.actualizarVisibilidad(nuevo);
-    } catch (err) {
-      actualizarUsuarioLocal(usuario);
-      toast.show(err instanceof ApiError ? err.message : "No se pudo actualizar.", "error");
-    }
-  };
-
-  const desbloquear = async (bloqueadoId: number) => {
-    setBloqueados((prev) => prev?.filter((b) => b.bloqueado_id !== bloqueadoId) ?? null);
-    try {
-      await authApi.desbloquearUsuario(bloqueadoId);
-      toast.show("Usuario desbloqueado", "success");
-    } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : "No se pudo desbloquear.", "error");
-    }
-  };
-
-  return (
-    <Section title="Privacidad">
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {usuario.perfil_publico ? <Eye size={16} color="var(--text-muted)" /> : <EyeSlash size={16} color="var(--text-muted)" />}
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13.5, fontWeight: 600 }}>Perfil público</div>
-          <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>Otros usuarios pueden ver tu perfil y reseñas.</div>
-        </div>
-        <Switch on={!!usuario.perfil_publico} onToggle={togglePublico} />
-      </div>
-
-      <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: bloqueados?.length ? 10 : 0 }}>
-          <Prohibit size={16} color="var(--text-muted)" />
-          <div style={{ fontSize: 13.5, fontWeight: 600 }}>Usuarios bloqueados {bloqueados ? `(${bloqueados.length})` : ""}</div>
-        </div>
-        {bloqueados === null ? (
-          <Skeleton height={40} />
-        ) : bloqueados.length === 0 ? (
-          <p style={{ fontSize: 12, color: "var(--text-muted)", paddingLeft: 26 }}>No has bloqueado a nadie.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {bloqueados.map((b) => (
-              <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <Avatar nombre={b.nombre} foto={b.foto_perfil} size={30} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.nombre}</div>
-                  <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Bloqueado el {formatDateTime(b.created_at)}</div>
-                </div>
-                <button onClick={() => desbloquear(b.bloqueado_id)} style={{ fontSize: 12, fontWeight: 700, color: "var(--cyan)", background: "none", border: "none", cursor: "pointer" }}>
-                  Desbloquear
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </Section>
   );
 }
 

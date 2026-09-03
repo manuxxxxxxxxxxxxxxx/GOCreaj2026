@@ -10,6 +10,13 @@ export function money(value: number | string): string {
   return currencyFmt.format(Number.isFinite(n) ? n : 0);
 }
 
+/** DUI salvadoreño: 8 dígitos + 1 verificador, se escribe/muestra como "########-#".
+ * Sin esto el campo aceptaba cualquier cantidad de caracteres sin límite. */
+export function formatDui(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 9);
+  return digits.length > 8 ? `${digits.slice(0, 8)}-${digits.slice(8)}` : digits;
+}
+
 export function formatDate(iso: string): string {
   return dateFmt.format(new Date(iso.replace(" ", "T")));
 }

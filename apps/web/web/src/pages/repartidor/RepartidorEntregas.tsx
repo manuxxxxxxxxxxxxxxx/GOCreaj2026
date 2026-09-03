@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Bicycle, CheckCircle, MapPin, Money, NavigationArrow, Package, Phone, QrCode, Storefront } from "@phosphor-icons/react";
+import { Bicycle, CheckCircle, MapPin, Money, NavigationArrow, Phone, QrCode, Storefront, XCircle } from "@phosphor-icons/react";
 import { useNavigate } from "react-router-dom";
 import { repartidorApi, pedidosApi, ApiError } from "../../lib/api";
 import type { Pedido } from "../../lib/types";
-import { money, numeroPedido } from "../../lib/format";
+import { money } from "../../lib/format";
 import { useToast } from "../../context/ToastContext";
 import { StatusPill } from "../../components/ui/StatusPill";
 import { Button } from "../../components/ui/Button";
@@ -31,12 +31,27 @@ export function RepartidorEntregas() {
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null);
   const [recogiendoDe, setRecogiendoDe] = useState<Pedido | null>(null);
   const [entregaQr, setEntregaQr] = useState<{ pedido: Pedido; token: string; pin: string } | null>(null);
+  const [graciaSeg, setGraciaSeg] = useState<number | null>(null);
+  const [soltando, setSoltando] = useState(false);
   const toast = useToast();
   const watchIdRef = useRef<number | null>(null);
 
   const cargar = () => {
-    repartidorApi.misEntregas().then((r) => setPedidos(r.pedidos)).catch(() => setPedidos([]));
+    repartidorApi.misEntregas().then((r) => {
+      setPedidos(r.pedidos);
+      const activoAhora = r.pedidos.find((p) => !["entregado", "cancelado", "rechazado_repartidor"].includes(p.estado));
+      setGraciaSeg(activoAhora && !activoAhora.confirmado_repartidor_recogida ? (activoAhora.gracia_cancelar_seg ?? 0) : null);
+    }).catch(() => setPedidos([]));
   };
+
+  // Cuenta regresiva local entre cada refetch (cada 6s) -- así el número baja cada
+  // segundo en vez de saltar de 6 en 6, aunque el valor real de verdad siempre viene del
+  // servidor (ver REPARTIDOR_GRACIA_CANCELAR_SEG, calculado con el reloj de MySQL).
+  useEffect(() => {
+    if (graciaSeg === null || graciaSeg <= 0) return;
+    const t = window.setInterval(() => setGraciaSeg((s) => (s === null ? null : Math.max(0, s - 1))), 1000);
+    return () => window.clearInterval(t);
+  }, [graciaSeg === null]);
 
   useEffect(() => {
     cargar();
@@ -45,7 +60,6 @@ export function RepartidorEntregas() {
   }, []);
 
   const activo = pedidos?.find((p) => !["entregado", "cancelado", "rechazado_repartidor"].includes(p.estado)) ?? null;
-  const historial = pedidos?.filter((p) => ["entregado", "cancelado", "rechazado_repartidor"].includes(p.estado)) ?? [];
 
   // GPS en vivo mientras hay una entrega activa (Single Order Lock ⇒ máx. 1).
   useEffect(() => {
@@ -86,6 +100,20 @@ export function RepartidorEntregas() {
     }
   };
 
+  const soltarPedido = async (p: Pedido) => {
+    if (!window.confirm("¿Soltar este pedido? Se buscará otro repartidor y no quedarás responsable de él.")) return;
+    setSoltando(true);
+    try {
+      await repartidorApi.cancelarAsignacion(p.id);
+      toast.show("Soltaste el pedido.", "info");
+      cargar();
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo soltar el pedido.", "error");
+    } finally {
+      setSoltando(false);
+    }
+  };
+
   const completarManual = async (p: Pedido) => {
     try {
       const r = await repartidorApi.completar(p.id);
@@ -106,10 +134,7 @@ export function RepartidorEntregas() {
 
   if (!activo) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-        <EmptyState icon={<Bicycle size={26} />} title="Sin entrega activa" description="Acepta un pedido disponible para empezar." actionLabel="Ver pedidos disponibles" onAction={() => navigate("/repartidor")} />
-        {historial.length > 0 && <Historial pedidos={historial} />}
-      </div>
+      <EmptyState icon={<Bicycle size={26} />} title="Sin entrega activa" description="Acepta un pedido disponible para empezar." actionLabel="Ver pedidos disponibles" onAction={() => navigate("/repartidor")} />
     );
   }
 
@@ -163,6 +188,12 @@ export function RepartidorEntregas() {
           </div>
         )}
 
+        {activo.estado === "preparacion" && !activo.confirmado_repartidor_recogida && graciaSeg === 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 12px", borderRadius: "var(--radius-sm)", background: "var(--surface-2)", color: "var(--text-muted)", fontSize: 12, fontWeight: 600, marginBottom: 12 }}>
+            Ya pasaron los 3 minutos: ahora eres responsable de este pedido.
+          </div>
+        )}
+
         {activo.metodo_pago === "efectivo" && (
           <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderRadius: "var(--radius-sm)", background: "var(--warn-bg)", color: "var(--warn-ink)", fontSize: 13, fontWeight: 700, marginBottom: 12 }}>
             <Money size={16} weight="bold" />
@@ -199,6 +230,18 @@ export function RepartidorEntregas() {
             </Button>
           )}
         </div>
+
+        {/* Ventana de gracia: soltar sin quedar responsable solo dentro de los primeros
+            3 minutos y antes de confirmar la recogida (ver REPARTIDOR_GRACIA_CANCELAR_SEG). */}
+        {!activo.confirmado_repartidor_recogida && !!graciaSeg && graciaSeg > 0 && (
+          <button
+            onClick={() => soltarPedido(activo)}
+            disabled={soltando}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", marginTop: 10, padding: "9px 0", background: "none", border: "1px dashed var(--border-strong)", borderRadius: "var(--radius-sm)", color: "var(--text-secondary)", fontSize: 12.5, fontWeight: 700, cursor: soltando ? "default" : "pointer" }}
+          >
+            <XCircle size={14} /> Soltar pedido <span className="tabular">({Math.floor(graciaSeg / 60)}:{String(graciaSeg % 60).padStart(2, "0")})</span>
+          </button>
+        )}
       </Card>
 
       {recogiendoDe && (
@@ -218,26 +261,7 @@ export function RepartidorEntregas() {
         </Sheet>
       )}
 
-      {historial.length > 0 && <Historial pedidos={historial} />}
     </motion.div>
-  );
-}
-
-function Historial({ pedidos }: { pedidos: Pedido[] }) {
-  return (
-    <section>
-      <h2 style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10, textTransform: "uppercase" }}>Historial reciente</h2>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {pedidos.slice(0, 8).map((p) => (
-          <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: 12, borderRadius: "var(--radius-sm)", background: "var(--surface-1)", border: "1px solid var(--border)" }}>
-            <span style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
-              <Package size={14} color="var(--text-muted)" /> #{numeroPedido(p)} · {p.tienda_nombre}
-            </span>
-            <StatusPill estado={p.estado} />
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 

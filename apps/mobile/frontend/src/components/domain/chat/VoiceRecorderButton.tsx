@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { Easing, FadeIn, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 import * as FileSystem from "expo-file-system/legacy";
-import { MicrophoneIcon, PauseIcon, PaperPlaneTiltIcon, PlayIcon, TrashIcon } from "phosphor-react-native";
+import { MicrophoneIcon, PaperPlaneTiltIcon, TrashIcon } from "phosphor-react-native";
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -92,13 +92,12 @@ export function VoiceRecorderButton({ disabled, onSend }: Props) {
     } catch {
       /* no crítico */
     } finally {
+      // Sin esto la sesión de audio se queda en modo "grabación" -- en iOS eso puede
+      // silenciar o bloquear la reproducción de CUALQUIER audio después (el propio o el
+      // de otros mensajes), no solo cancelar esta nota.
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
       setActivo(false);
     }
-  };
-
-  const togglePausa = () => {
-    if (state.isRecording) recorder.pause();
-    else recorder.record();
   };
 
   const enviar = async () => {
@@ -111,9 +110,13 @@ export function VoiceRecorderButton({ disabled, onSend }: Props) {
       const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
       await onSend(`data:audio/m4a;base64,${base64}`, duracion);
       await FileSystem.deleteAsync(uri, { idempotent: true });
-    } catch {
-      toast.show("No se pudo enviar la nota de voz.", "error");
+    } catch (err) {
+      toast.show(err instanceof Error && err.message === "Sin grabación" ? "La grabación no se guardó bien, intenta de nuevo." : "No se pudo enviar la nota de voz.", "error");
     } finally {
+      // Mismo motivo que en cancelar(): libera la sesión de audio de vuelta a modo
+      // reproducción -- si no, el audio recién enviado (y cualquier otro después) puede
+      // sonar mudo hasta reabrir la app.
+      await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
       setActivo(false);
       setEnviando(false);
     }
@@ -158,10 +161,6 @@ export function VoiceRecorderButton({ disabled, onSend }: Props) {
           />
         ))}
       </View>
-
-      <Pressable onPress={togglePausa} accessibilityLabel={state.isRecording ? "Pausar" : "Reanudar"} style={[styles.roundBtn, { backgroundColor: tokens.surface2, borderColor: tokens.border, borderWidth: 1 }]}>
-        {state.isRecording ? <PauseIcon size={14} weight="fill" color={tokens.textPrimary} /> : <PlayIcon size={14} weight="fill" color={tokens.textPrimary} />}
-      </Pressable>
 
       <Pressable onPress={enviar} disabled={enviando} accessibilityLabel="Enviar nota de voz" style={[styles.sendBtn, { backgroundColor: tokens.cyan, opacity: enviando ? 0.6 : 1 }]}>
         {enviando ? <ActivityIndicator size="small" color={tokens.cyanInk} /> : <PaperPlaneTiltIcon size={16} weight="fill" color={tokens.cyanInk} />}

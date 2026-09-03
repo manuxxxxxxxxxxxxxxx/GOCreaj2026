@@ -295,8 +295,9 @@ export function Explorar() {
   }
 
   return (
-    <div style={{ position: "fixed", top: 68, left: 0, right: 0, bottom: 0, display: "flex", overflow: "hidden" }}>
+    <div className="fixed-below-topnav explorar-shell" style={{ display: "flex", overflow: "hidden" }}>
       <div
+        className="explorar-rail"
         style={{
           width: 420,
           flexShrink: 0,
@@ -424,7 +425,7 @@ export function Explorar() {
         </div>
 
         {vista === "mapa" && (
-          <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px 14px" }}>
+          <div className="explorar-rail-list" style={{ flex: 1, overflowY: "auto", padding: "10px 14px 14px" }}>
             {cargando || tiendas === null ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -467,6 +468,27 @@ export function Explorar() {
           </div>
         )}
       </div>
+
+      <style>{`
+        @media (max-width: 767px) {
+          /* Desktop: rail fija de 420px a la izquierda + mapa/grilla llenando el
+             resto en fila. En móvil no cabe una fila -- se apilan: filtros arriba
+             (alto natural) y el mapa o la grilla abajo, llenando lo que queda. */
+          .explorar-shell {
+            flex-direction: column;
+          }
+          .explorar-rail {
+            width: 100% !important;
+            flex-shrink: 1 !important;
+          }
+          /* La lista compacta junto al mapa solo tiene sentido en la rail fija de
+             escritorio -- apilada duplicaría la grilla de "Lista" y le quitaría
+             toda la altura al mapa. */
+          .explorar-rail-list {
+            display: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

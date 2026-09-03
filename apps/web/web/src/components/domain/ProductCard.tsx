@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Heart, Plus, Star } from "@phosphor-icons/react";
+import { Heart, Pencil, Plus, Star } from "@phosphor-icons/react";
 import type { Producto } from "../../lib/types";
 import { money } from "../../lib/format";
 import { useAuth } from "../../context/AuthContext";
@@ -14,9 +14,11 @@ interface Props {
   variant?: "large" | "medium" | "small";
   /** Shows a floating wishlist heart in the top-right corner (store-profile grids). */
   showWishlist?: boolean;
+  /** El dueño de la tienda ve un lápiz para editar el producto en vez de agregarlo al carrito. */
+  isOwner?: boolean;
 }
 
-export function ProductCard({ producto, variant = "medium", showWishlist }: Props) {
+export function ProductCard({ producto, variant = "medium", showWishlist, isOwner }: Props) {
   const navigate = useNavigate();
   const { usuario } = useAuth();
   const { refrescar, celebrarAgregado } = useCart();
@@ -38,11 +40,19 @@ export function ProductCard({ producto, variant = "medium", showWishlist }: Prop
     }
   };
 
-  const agotado = producto.estado_stock === "agotado" || producto.stock <= 0;
+  // Stock ilimitado nunca se muestra como agotado -- el backend guarda `stock = 0` para esos
+  // productos (no hay cantidad real que llevar), así que sin este guard cualquier producto sin
+  // control de inventario aparecía "AGOTADO" por error.
+  const agotado = !producto.stock_ilimitado && (producto.estado_stock === "agotado" || producto.stock <= 0);
   const enOferta = !!producto.precio_oferta && producto.precio_oferta > 0;
   const height = variant === "large" ? 220 : variant === "medium" ? 170 : 150;
 
   const abrir = () => navigate(producto.es_reel ? `/reels?tienda=${producto.tienda_id}&producto=${producto.id}` : `/producto/${producto.id}`);
+
+  const editar = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigate(`/vendedor/productos?editar=${producto.id}`);
+  };
 
   const agregar = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -152,11 +162,10 @@ export function ProductCard({ producto, variant = "medium", showWishlist }: Prop
             <Heart size={14} weight={guardado ? "fill" : "regular"} color={guardado ? "var(--coral)" : "#fff"} />
           </button>
         )}
-        {!agotado && (
+        {isOwner ? (
           <button
-            ref={addBtnRef}
-            aria-label={`Agregar ${producto.nombre} al carrito`}
-            onClick={agregar}
+            aria-label={`Editar ${producto.nombre}`}
+            onClick={editar}
             style={{
               position: "absolute",
               right: 8,
@@ -172,12 +181,38 @@ export function ProductCard({ producto, variant = "medium", showWishlist }: Prop
               justifyContent: "center",
               cursor: "pointer",
               boxShadow: "var(--glow-cyan-sm), var(--shadow-md)",
-              transform: adding ? "scale(1.25)" : "scale(1)",
-              transition: "transform 0.24s var(--ease-spring)",
             }}
           >
-            <Plus size={16} weight="bold" />
+            <Pencil size={14} weight="bold" />
           </button>
+        ) : (
+          !agotado && (
+            <button
+              ref={addBtnRef}
+              aria-label={`Agregar ${producto.nombre} al carrito`}
+              onClick={agregar}
+              style={{
+                position: "absolute",
+                right: 8,
+                bottom: 8,
+                width: 30,
+                height: 30,
+                borderRadius: "50%",
+                background: "var(--cyan)",
+                color: "var(--cyan-ink)",
+                border: "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                boxShadow: "var(--glow-cyan-sm), var(--shadow-md)",
+                transform: adding ? "scale(1.25)" : "scale(1)",
+                transition: "transform 0.24s var(--ease-spring)",
+              }}
+            >
+              <Plus size={16} weight="bold" />
+            </button>
+          )
         )}
       </div>
       <div style={{ padding: "10px 12px" }}>
@@ -190,7 +225,8 @@ export function ProductCard({ producto, variant = "medium", showWishlist }: Prop
             {money(enOferta ? producto.precio_oferta! : producto.precio)}
           </span>
           {enOferta && (
-            <span className="tabular" style={{ fontSize: 11, color: "var(--text-muted)", textDecoration: "line-through" }}>
+            // Mismo tamaño que el precio activo -- solo se diferencia por el tachado y el color apagado.
+            <span className="tabular" style={{ fontSize: 13.5, color: "var(--text-muted)", textDecoration: "line-through" }}>
               {money(producto.precio)}
             </span>
           )}

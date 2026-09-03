@@ -9,6 +9,10 @@ export const repartidorApi = {
 
   aceptar: (pedido_id: number) => post<{ ok: true }>("repartidor_dashboard", "aceptar", { pedido_id }),
 
+  /** Soltar un pedido recién aceptado sin quedar responsable de él -- solo dentro de los
+   * primeros 3 minutos y antes de confirmar la recogida en tienda (ver DESIGN.md). */
+  cancelarAsignacion: (pedido_id: number) => post<{ ok: true }>("repartidor_dashboard", "cancelar_asignacion", { pedido_id }),
+
   // Oferta individual y exclusiva del despacho automático (ver DESIGN.md "Flujo logístico"):
   // el vendedor ya no elige repartidor a mano, el sistema ofrece a uno a la vez con un timer
   // corto. Pollear cada ~2s mientras se está en línea para que la oferta "aparezca" al toque.
@@ -16,7 +20,7 @@ export const repartidorApi = {
     get<{
       ok: true;
       oferta:
-        | (Pick<Pedido, "id" | "numero_pedido" | "total"> & {
+        | (Pick<Pedido, "id" | "numero_pedido" | "total" | "items"> & {
             ganancia_repartidor: number;
             segundos_restantes: number;
             municipio_entrega: string | null;
@@ -42,15 +46,18 @@ export const repartidorApi = {
 
   rechazar: (pedido_id: number) => post<{ ok: true }>("repartidor_dashboard", "rechazar", { pedido_id }),
 
-  misEntregas: () => get<{ ok: true; pedidos: Pedido[] }>("repartidor_dashboard", "mis_entregas"),
+  misEntregas: () => get<{ ok: true; pedidos: (Pedido & { ganancia_repartidor: number })[] }>("repartidor_dashboard", "mis_entregas"),
 
   avanzarEstado: (data: { pedido_id: number; lat?: number; lng?: number }) =>
     post<{ ok: true; progreso_repartidor: string }>("repartidor_dashboard", "avanzar_estado", data),
 
-  completar: (pedido_id: number) =>
-    post<{ ok: true; comision: number; ganancia_repartidor: number; ganancia_vendedor: number }>("repartidor_dashboard", "completar", { pedido_id }),
-
   toggleEnLinea: (en_linea: boolean) => post<{ ok: true; en_linea: boolean }>("repartidor_dashboard", "toggle_en_linea", { en_linea }),
+
+  /** Guarda municipio + lat/lng del repartidor (capturados con GPS + geocodificación
+   * inversa, ver RepartidorDisponiblesScreen.tsx) para que 'disponibles' y el despacho
+   * automático solo le ofrezcan pedidos de tiendas en su propia zona. */
+  actualizarZona: (data: { municipio: string; lat: number; lng: number }) =>
+    post<{ ok: true }>("repartidor_dashboard", "actualizar_zona", data),
 
   wallet: () =>
     get<{ ok: true; saldo: number; movimientos: WalletMovimiento[]; stats: { hoy: number; semana: number; entregas_hoy: number } }>(
@@ -61,7 +68,17 @@ export const repartidorApi = {
   miPerfil: () =>
     get<{
       ok: true;
-      perfil: { id: number; nombre: string; foto_perfil: string | null; descripcion: string | null; telefono: string; repartidor_calificacion_promedio: number; repartidor_total_resenas: number; entregas_completadas: number };
+      perfil: {
+        id: number;
+        nombre: string;
+        foto_perfil: string | null;
+        descripcion: string | null;
+        telefono: string;
+        municipio: string | null;
+        repartidor_calificacion_promedio: number;
+        repartidor_total_resenas: number;
+        entregas_completadas: number;
+      };
     }>("repartidor_dashboard", "mi_perfil"),
 
   actualizarPerfil: (data: { descripcion?: string; foto_perfil?: string }) =>

@@ -20,7 +20,7 @@ export function AdminFinanzas() {
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <h1 style={{ fontSize: 20 }}>Finanzas</h1>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+      <div className="kpi-grid-3">
         <Kpi label="Ventas totales" value={money(m.ventas_totales)} tone="cyan" />
         <Kpi label="Comisión de la plataforma" value={money(m.comision_plataforma)} tone="ok" />
         <Kpi label="Retiros pendientes" value={money(m.retiros_pendientes)} tone="warn" />
@@ -38,7 +38,7 @@ export function AdminFinanzas() {
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div className="dashboard-two-col-even">
         <div style={{ background: "var(--surface-1)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", padding: 20 }}>
           <h2 style={{ fontSize: 13.5, marginBottom: 12 }}>Pedidos por estado</h2>
           {m.por_estado.map((e) => (

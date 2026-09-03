@@ -83,6 +83,30 @@ switch ($action) {
             db()->prepare("INSERT INTO video_comentarios (usuario_id, producto_id, comentario) VALUES (?, ?, ?)")
                ->execute([$user['id'], $pid, $data['comentario']]);
         }
+
+        // Notifica a quien le comentaron: al dueño del reel (si no se está comentando a
+        // sí mismo), y si es una respuesta, también a quien escribió el comentario padre
+        // (sin duplicar si es la misma persona que el dueño del reel).
+        $extracto = mb_substr(trim((string)$data['comentario']), 0, 80);
+        $yaNotificado = [(int)$user['id']];
+        $st = db()->prepare("SELECT t.vendedor_id FROM productos p JOIN tiendas t ON t.id = p.tienda_id WHERE p.id = ?");
+        $st->execute([$pid]);
+        if ($duenoId = $st->fetchColumn()) {
+            $duenoId = (int)$duenoId;
+            if (!in_array($duenoId, $yaNotificado, true)) {
+                crear_notificacion($duenoId, 'interaccion', 'Nuevo comentario en tu reel', "{$user['nombre']}: \"{$extracto}\"", $pid);
+                $yaNotificado[] = $duenoId;
+            }
+        }
+        if ($parent) {
+            $stp = db()->prepare("SELECT usuario_id FROM video_comentarios WHERE id = ?");
+            $stp->execute([$parent]);
+            $autorPadre = (int)$stp->fetchColumn();
+            if ($autorPadre && !in_array($autorPadre, $yaNotificado, true)) {
+                crear_notificacion($autorPadre, 'interaccion', 'Te respondieron un comentario', "{$user['nombre']}: \"{$extracto}\"", $pid);
+            }
+        }
+
         jout(['ok' => true, 'contadores' => contadores($pid)]);
         break;
 
@@ -115,6 +139,14 @@ switch ($action) {
                 db()->prepare("INSERT INTO comentarios_likes (comentario_id, usuario_id) VALUES (?, ?)")
                     ->execute([$cid, $user['id']]);
                 db()->prepare("UPDATE video_comentarios SET likes_count = likes_count + 1 WHERE id = ?")->execute([$cid]);
+                // Notifica al autor del comentario (no a uno mismo si se da like a su propio comentario).
+                $stc = db()->prepare("SELECT usuario_id, producto_id FROM video_comentarios WHERE id = ?");
+                $stc->execute([$cid]);
+                if ($com = $stc->fetch()) {
+                    if ((int)$com['usuario_id'] !== (int)$user['id']) {
+                        crear_notificacion((int)$com['usuario_id'], 'interaccion', 'Le gustó tu comentario', "A {$user['nombre']} le gustó tu comentario", (int)$com['producto_id']);
+                    }
+                }
             } else {
                 db()->prepare("DELETE FROM comentarios_likes WHERE comentario_id = ? AND usuario_id = ?")
                     ->execute([$cid, $user['id']]);
@@ -181,6 +213,30 @@ switch ($action) {
         $st = db()->prepare("SELECT p.*, t.nombre as tienda_nombre, c.canal, c.created_at as compartido_at FROM video_compartidos c JOIN productos p ON p.id = c.producto_id JOIN tiendas t ON t.id = p.tienda_id WHERE c.usuario_id = ? ORDER BY c.created_at DESC");
         $st->execute([$user['id']]);
         jout(['ok' => true, 'productos' => $st->fetchAll()]);
+        break;
+
+    // ─── Reportes de moderación (punto 6): reels y productos normales reutilizan
+    // productos_reportes (ya leída por admin_dashboard.php en reportes_reel); tiendas y
+    // comentarios usan la tabla genérica "reportes" nueva. ───
+    case 'reportar_producto':
+        require_fields($data, ['producto_id', 'motivo']);
+        db()->prepare("INSERT INTO productos_reportes (producto_id, usuario_id, motivo) VALUES (?, ?, ?)")
+            ->execute([(int)$data['producto_id'], $user['id'], mb_substr(trim($data['motivo']), 0, 160)]);
+        jout(['ok' => true]);
+        break;
+
+    case 'reportar_tienda':
+        require_fields($data, ['tienda_id', 'motivo']);
+        db()->prepare("INSERT INTO reportes (tipo, entidad_id, usuario_id, motivo, detalle) VALUES ('tienda', ?, ?, ?, ?)")
+            ->execute([(int)$data['tienda_id'], $user['id'], mb_substr(trim($data['motivo']), 0, 160), $data['detalle'] ?? null]);
+        jout(['ok' => true]);
+        break;
+
+    case 'reportar_comentario':
+        require_fields($data, ['comentario_id', 'motivo']);
+        db()->prepare("INSERT INTO reportes (tipo, entidad_id, usuario_id, motivo, detalle) VALUES ('comentario', ?, ?, ?, ?)")
+            ->execute([(int)$data['comentario_id'], $user['id'], mb_substr(trim($data['motivo']), 0, 160), $data['detalle'] ?? null]);
+        jout(['ok' => true]);
         break;
 
     default:

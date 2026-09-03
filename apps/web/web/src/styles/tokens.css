@@ -75,8 +75,15 @@
 
   --z-topbar: 40;
   --z-sidebar: 30;
+  --z-bottombar: 35;
   --z-sheet: 100;
   --z-toast: 1000;
+
+  /* App-shell breakpoint: below this, the site swaps its desktop chrome
+     (top pill nav, wide search bar, sidebar panels) for the mobile app-style
+     shell (bottom tab bar, drawer sidebars). Kept as one shared number so
+     every component's media query agrees on where "mobile" starts. */
+  --bp-mobile: 768px;
 
   --bg-page-image: none;
 

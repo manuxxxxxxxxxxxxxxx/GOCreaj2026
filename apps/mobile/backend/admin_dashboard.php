@@ -590,6 +590,65 @@ switch ($action) {
         jout(['ok' => true]);
         break;
 
+    // ─────────── MODERACIÓN GENÉRICA: tiendas, comentarios y chats reportados ───────────
+    // (reels y productos siguen usando reportes_reel / productos_reportes de arriba)
+    case 'reportes_generales':
+        $tipo = $_GET['tipo'] ?? '';
+        $sql = "SELECT r.id, r.tipo, r.entidad_id, r.motivo, r.detalle, r.estado, r.created_at, u.nombre AS usuario_nombre
+                FROM reportes r JOIN usuarios u ON u.id = r.usuario_id";
+        $params = [];
+        if (in_array($tipo, ['tienda', 'comentario', 'chat'], true)) {
+            $sql .= " WHERE r.tipo = ?";
+            $params[] = $tipo;
+        }
+        $sql .= " ORDER BY (r.estado = 'pendiente') DESC, r.created_at DESC LIMIT 200";
+        $st = db()->prepare($sql);
+        $st->execute($params);
+        $reportes = $st->fetchAll();
+
+        // Cada tipo apunta a una entidad distinta -- se resuelve el nombre/objetivo a mostrar
+        // por separado en vez de un JOIN condicional gigante (el volumen de reportes es bajo).
+        foreach ($reportes as &$r) {
+            $eid = (int)$r['entidad_id'];
+            if ($r['tipo'] === 'tienda') {
+                $st2 = db()->prepare("SELECT nombre FROM tiendas WHERE id = ?");
+                $st2->execute([$eid]);
+                $r['objetivo'] = $st2->fetchColumn() ?: "Tienda #{$eid}";
+            } elseif ($r['tipo'] === 'comentario') {
+                $st2 = db()->prepare("SELECT c.comentario, c.producto_id, p.nombre AS producto_nombre FROM video_comentarios c LEFT JOIN productos p ON p.id = c.producto_id WHERE c.id = ?");
+                $st2->execute([$eid]);
+                $c = $st2->fetch();
+                $r['objetivo'] = $c ? "\"{$c['comentario']}\" en {$c['producto_nombre']}" : "Comentario #{$eid}";
+                $r['producto_id'] = $c['producto_id'] ?? null;
+            } else { // chat
+                $st2 = db()->prepare("SELECT nombre FROM usuarios WHERE id = ?");
+                $st2->execute([$eid]);
+                $r['objetivo'] = "Chat con " . ($st2->fetchColumn() ?: "usuario #{$eid}");
+            }
+        }
+        unset($r);
+        jout(['ok' => true, 'reportes' => $reportes]);
+        break;
+
+    case 'resolver_reporte_general':
+        require_fields($data, ['id', 'estado']);
+        $estado = in_array($data['estado'], ['resuelto', 'descartado'], true) ? $data['estado'] : 'descartado';
+        db()->prepare("UPDATE reportes SET estado = ?, resuelto_por = ?, resuelto_at = NOW() WHERE id = ?")
+            ->execute([$estado, $user['id'], (int)$data['id']]);
+        jout(['ok' => true]);
+        break;
+
+    // Borra un comentario reportado (y sus respuestas directas) -- para cuando el admin
+    // decide que el reporte de un comentario tenía razón.
+    case 'eliminar_comentario_reel':
+        require_fields($data, ['comentario_id']);
+        $cid = (int)$data['comentario_id'];
+        db()->prepare("DELETE FROM video_comentarios WHERE id = ? OR parent_id = ?")->execute([$cid, $cid]);
+        db()->prepare("UPDATE reportes SET estado = 'resuelto', resuelto_por = ?, resuelto_at = NOW() WHERE tipo = 'comentario' AND entidad_id = ? AND estado = 'pendiente'")
+            ->execute([$user['id'], $cid]);
+        jout(['ok' => true]);
+        break;
+
     default:
         jout(['ok' => false, 'error' => 'Accion invalida'], 400);
 }

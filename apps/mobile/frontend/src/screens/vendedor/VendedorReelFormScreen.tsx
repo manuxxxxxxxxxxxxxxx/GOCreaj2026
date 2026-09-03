@@ -1,19 +1,40 @@
 import { useEffect, useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import * as ImagePicker from "expo-image-picker";
 import * as FileSystem from "expo-file-system/legacy";
+import * as VideoThumbnails from "expo-video-thumbnails";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { HashIcon, VideoCameraIcon, PencilSimpleIcon, TrashIcon, XIcon } from "phosphor-react-native";
+import { CheckIcon, HashIcon, VideoCameraIcon, PencilSimpleIcon, TrashIcon, XIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
 import { vendedorApi, ApiError } from "../../lib/api";
+import { formatHashtags } from "../../lib/format";
 import { CategoryPicker } from "../../components/domain/CategoryPicker";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { WebFormContainer } from "../../components/ui/WebFormContainer";
+
+const NUM_FRAMES = 3;
+
+/** Extrae NUM_FRAMES miniaturas del video (a 25/50/75% de su duración) para que el
+ * vendedor elija cuál usar como portada del reel, en vez de forzar siempre el primer
+ * cuadro (que suele salir en negro o a medio encuadrar). */
+async function extraerFrames(uri: string, duracionMs: number): Promise<string[]> {
+  const frames: string[] = [];
+  for (let i = 1; i <= NUM_FRAMES; i++) {
+    try {
+      const { uri: thumbUri } = await VideoThumbnails.getThumbnailAsync(uri, { time: duracionMs * (i / (NUM_FRAMES + 1)) });
+      const b64 = await FileSystem.readAsStringAsync(thumbUri, { encoding: "base64" });
+      frames.push(`data:image/jpeg;base64,${b64}`);
+    } catch {
+      // Si un cuadro específico falla (video corrupto en ese punto), seguimos con los demás.
+    }
+  }
+  return frames;
+}
 
 const MAX_VIDEO_MB = 80;
 const MAX_VIDEO_SECONDS = 90;
@@ -34,10 +55,12 @@ export function VendedorReelFormScreen({ navigation }: Props) {
   const ancha = Platform.OS === "web" && width >= WIDE_BREAKPOINT;
   const [tiendaId, setTiendaId] = useState<number | null>(null);
   const [videoUri, setVideoUri] = useState<string | null>(null);
+  const [frames, setFrames] = useState<string[] | null>(null);
+  const [frameElegido, setFrameElegido] = useState(0);
+  const [extrayendo, setExtrayendo] = useState(false);
   const [nombre, setNombre] = useState("");
   const [descripcion, setDescripcion] = useState("");
   const [precio, setPrecio] = useState("");
-  const [stock, setStock] = useState("0");
   const [categoria, setCategoria] = useState("comida");
   const [hashtags, setHashtags] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -66,6 +89,16 @@ export function VendedorReelFormScreen({ navigation }: Props) {
       return toast.show(`El video pesa más de ${MAX_VIDEO_MB}MB — elige uno más liviano o recórtalo.`, "warning");
     }
     setVideoUri(asset.uri);
+    setFrames(null);
+    setFrameElegido(0);
+    setExtrayendo(true);
+    try {
+      const duracionMs = asset.duration ?? 3000;
+      const extraidos = await extraerFrames(asset.uri, duracionMs);
+      setFrames(extraidos.length > 0 ? extraidos : null);
+    } finally {
+      setExtrayendo(false);
+    }
   };
 
   const publicar = async () => {
@@ -83,7 +116,8 @@ export function VendedorReelFormScreen({ navigation }: Props) {
           nombre,
           descripcion,
           precio: Number(precio),
-          stock: Number(stock),
+          stock_ilimitado: true,
+          imagen: frames?.[frameElegido],
           categoria,
           es_reel: true,
           hashtags: hashtags.trim() || undefined,
@@ -139,17 +173,37 @@ export function VendedorReelFormScreen({ navigation }: Props) {
             <SectionLabel>Producto</SectionLabel>
             <Input label="Nombre" value={nombre} onChangeText={setNombre} />
             <Input label="Precio" value={precio} onChangeText={setPrecio} keyboardType="decimal-pad" />
-            {ancha && <Input label="Stock" value={stock} onChangeText={setStock} keyboardType="number-pad" />}
           </View>
         </View>
 
-        <View style={ancha ? { flexDirection: "row", gap: 14, marginTop: 20 } : undefined}>
-          <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border, marginTop: ancha ? 0 : 20 }, ancha && { flex: 1 }]}>
+        {videoUri && (
+          <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border, marginTop: 14 }]}>
+            <SectionLabel>Portada del reel</SectionLabel>
+            {extrayendo ? (
+              <Text style={{ fontSize: 12.5, color: tokens.textMuted }}>Generando opciones de portada…</Text>
+            ) : frames && frames.length > 0 ? (
+              <View style={{ flexDirection: "row", gap: 10 }}>
+                {frames.map((f, i) => (
+                  <Pressable key={i} onPress={() => setFrameElegido(i)} accessibilityLabel={`Usar cuadro ${i + 1} como portada`} style={[styles.framePick, { borderColor: frameElegido === i ? tokens.cyan : tokens.border }]}>
+                    <Image source={{ uri: f }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                    {frameElegido === i && (
+                      <View style={[styles.frameCheck, { backgroundColor: tokens.cyan }]}>
+                        <CheckIcon size={11} weight="bold" color={tokens.cyanInk} />
+                      </View>
+                    )}
+                  </Pressable>
+                ))}
+              </View>
+            ) : (
+              <Text style={{ fontSize: 12.5, color: tokens.textMuted }}>No se pudieron generar miniaturas del video -- se usará el primer cuadro.</Text>
+            )}
+          </View>
+        )}
+
+        <View style={ancha ? { flexDirection: "row", gap: 14, marginTop: 14 } : undefined}>
+          <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border, marginTop: ancha ? 0 : 14 }, ancha && { flex: 1 }]}>
             <SectionLabel>Detalles</SectionLabel>
-            <View style={{ gap: 14 }}>
-              <Input label="Descripción" value={descripcion} onChangeText={setDescripcion} multiline />
-              {!ancha && <Input label="Stock" value={stock} onChangeText={setStock} keyboardType="number-pad" />}
-            </View>
+            <Input label="Descripción" value={descripcion} onChangeText={setDescripcion} multiline />
           </View>
 
           <View style={[styles.card, { backgroundColor: tokens.surface1, borderColor: tokens.border, marginTop: ancha ? 0 : 14 }, ancha && { flex: 1 }]}>
@@ -163,11 +217,11 @@ export function VendedorReelFormScreen({ navigation }: Props) {
           <Input
             label="Etiquetas"
             value={hashtags}
-            onChangeText={setHashtags}
-            placeholder="comida salvador oferta"
+            onChangeText={(t) => setHashtags(formatHashtags(t))}
+            placeholder="carro nuevo"
             icon={<HashIcon size={16} color={tokens.textMuted} />}
             autoCapitalize="none"
-            hint="Sepáralos con espacios — se muestran como #comida #salvador #oferta"
+            hint="Escribe y separa con espacios -- cada palabra se convierte en #hashtag automáticamente"
           />
         </View>
 
@@ -197,6 +251,8 @@ const styles = StyleSheet.create({
   videoBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
   removeBtn: { position: "absolute", top: 6, right: 6, width: 24, height: 24, borderRadius: 12, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" },
   card: { borderRadius: 16, borderWidth: 1, padding: 16 },
+  framePick: { width: 64, height: 112, borderRadius: 10, borderWidth: 2, overflow: "hidden", backgroundColor: "#000" },
+  frameCheck: { position: "absolute", top: 4, right: 4, width: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center" },
   progressTrack: { height: 6, borderRadius: 3, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3 },
 });

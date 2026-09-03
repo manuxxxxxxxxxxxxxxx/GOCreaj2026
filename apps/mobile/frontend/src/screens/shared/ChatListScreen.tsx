@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChatCircleDotsIcon, MagnifyingGlassIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
@@ -21,8 +22,17 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "archivados", label: "Archivados" },
 ];
 
-export function ChatListScreen() {
+/**
+ * Se usa en dos contextos distintos: como tab (comprador -- ahí ya vive debajo del
+ * <TopBar/> fijo de TabsShell.tsx, que ya reserva el espacio del status bar) y como
+ * pantalla de Stack empujada directo (vendedor/repartidor/admin, que no tienen tab de
+ * Chat y llegan acá por el ícono de TopBar -- MainStack.tsx tiene `headerShown: false`
+ * global, así que sin esto el buscador quedaba pegado contra el reloj/batería del
+ * teléfono). `standalone` lo pasa MainStack.tsx solo para esa segunda ruta.
+ */
+export function ChatListScreen({ standalone }: { standalone?: boolean } = {}) {
   const { tokens } = useTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [tab, setTab] = useState<Tab>("todos");
   const [q, setQ] = useState("");
@@ -42,7 +52,7 @@ export function ChatListScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <View style={styles.header}>
+      <View style={[styles.header, standalone && { paddingTop: insets.top + 12 }]}>
         <View style={[styles.searchBox, { borderColor: tokens.border, backgroundColor: tokens.surface1 }]}>
           <MagnifyingGlassIcon size={15} color={tokens.textMuted} />
           <TextInput value={q} onChangeText={setQ} placeholder="Buscar conversación" placeholderTextColor={tokens.textMuted} style={{ flex: 1, fontSize: 13, color: tokens.textPrimary }} />
@@ -71,7 +81,7 @@ export function ChatListScreen() {
           renderItem={({ item, index }) => (
             <AnimatedListItem index={index}>
               <Pressable onPress={() => navigation.navigate("ChatThread", { otroId: item.id })} style={[styles.row, { borderBottomColor: tokens.border }]}>
-                <Avatar nombre={item.nombre} foto={item.foto_perfil} size={44} online={!!item.en_linea} />
+                <Avatar nombre={item.nombre} foto={item.foto_perfil ?? item.tienda_logo} size={44} online={!!item.en_linea} rol={item.rol} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                     <Text numberOfLines={1} style={{ fontFamily: "Inter_700Bold", fontSize: 13.5, color: tokens.textPrimary, flex: 1 }}>{item.nombre}</Text>

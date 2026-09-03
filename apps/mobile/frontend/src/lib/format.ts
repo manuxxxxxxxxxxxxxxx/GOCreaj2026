@@ -10,6 +10,28 @@ export function money(value: number | string): string {
   return currencyFmt.format(Number.isFinite(n) ? n : 0);
 }
 
+/** DUI salvadoreño: 8 dígitos + 1 verificador, se escribe/muestra como "########-#".
+ * Sin esto el campo aceptaba cualquier cantidad de caracteres sin límite. */
+export function formatDui(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 9);
+  return digits.length > 8 ? `${digits.slice(0, 8)}-${digits.slice(8)}` : digits;
+}
+
+/** Convierte texto libre en hashtags mientras se escribe: cada palabra separada por
+ * espacio se prefija con "#" (o se conserva "#carro-nuevo" si el usuario unió dos
+ * palabras con guion) -- así nunca se guardan etiquetas sin el "#". */
+export function formatHashtags(raw: string): string {
+  const terminaEnEspacio = /\s$/.test(raw);
+  const tags = raw
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => t.replace(/#/g, "").replace(/[^\p{L}\p{N}_-]/gu, ""))
+    .filter(Boolean)
+    .map((t) => `#${t}`);
+  return tags.join(" ") + (terminaEnEspacio && tags.length ? " " : "");
+}
+
 export function formatDate(iso: string): string {
   return dateFmt.format(new Date(iso.replace(" ", "T")));
 }

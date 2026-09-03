@@ -3,11 +3,11 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { BellIcon, PackageIcon, ShoppingCartIcon } from "phosphor-react-native";
+import { BellIcon, ChatCircleDotsIcon, PackageIcon, ShoppingCartIcon } from "phosphor-react-native";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { useTheme } from "../theme/ThemeContext";
-import { pedidosApi, notificacionesApi } from "../lib/api";
+import { pedidosApi, notificacionesApi, chatApi } from "../lib/api";
 import { IconButton } from "../components/ui/IconButton";
 import { setCartTarget } from "../lib/cartFly";
 import type { RootStackParamList } from "./types";
@@ -20,6 +20,7 @@ export function TopBar() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [hayPedidoActivo, setHayPedidoActivo] = useState(false);
   const [noLeidas, setNoLeidas] = useState(0);
+  const [chatsNoLeidos, setChatsNoLeidos] = useState(0);
   const cartRef = useRef<View>(null);
 
   const registerCartTarget = () => {
@@ -54,6 +55,21 @@ export function TopBar() {
     return () => clearInterval(t);
   }, [usuario]);
 
+  // El chat de vendedor/repartidor ya no vive en su propio tab (ver tabConfig.ts) --
+  // este ícono es ahora su única entrada dentro del panel, igual que Notificaciones/Pedidos.
+  useEffect(() => {
+    if (!usuario || (usuario.rol !== "vendedor" && usuario.rol !== "repartidor")) return;
+    const check = () => {
+      chatApi
+        .unreadTotal()
+        .then((r) => setChatsNoLeidos(r.total))
+        .catch(() => {});
+    };
+    check();
+    const t = setInterval(check, 15000);
+    return () => clearInterval(t);
+  }, [usuario]);
+
   const hora = new Date().getHours();
   const saludo = hora < 12 ? "Buenos días" : hora < 19 ? "Buenas tardes" : "Buenas noches";
 
@@ -68,6 +84,9 @@ export function TopBar() {
         />
       </View>
       <View style={styles.icons}>
+        {(usuario?.rol === "vendedor" || usuario?.rol === "repartidor") && (
+          <IconButton icon={<ChatCircleDotsIcon size={18} color={tokens.textPrimary} weight="regular" />} label="Chat" badge={chatsNoLeidos} onPress={() => navigation.navigate("ChatList")} />
+        )}
         <IconButton icon={<BellIcon size={18} color={tokens.textPrimary} weight="regular" />} label="Notificaciones" badge={noLeidas} onPress={() => navigation.navigate("Notifications")} />
         <IconButton icon={<PackageIcon size={18} color={tokens.textPrimary} weight="regular" />} label="Pedidos" pulse={hayPedidoActivo} onPress={() => navigation.navigate("Orders")} />
         {usuario?.rol === "comprador" && (

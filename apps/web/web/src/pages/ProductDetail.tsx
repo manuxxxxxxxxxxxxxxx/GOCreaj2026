@@ -6,6 +6,7 @@ import {
   CaretLeft,
   ChatCircle,
   Check,
+  Flag,
   Heart,
   Minus,
   Plus,
@@ -16,6 +17,7 @@ import {
   Timer,
 } from "@phosphor-icons/react";
 import { productosApi, carritoApi, interaccionesApi, chatApi, ApiError } from "../lib/api";
+import { ReportSheet } from "../components/domain/ReportSheet";
 import type { Producto } from "../lib/types";
 import { money } from "../lib/format";
 import { categoriaColor, categoriaIcon, CATEGORIA_LABEL, type Categoria } from "../lib/categoryIcons";
@@ -32,7 +34,7 @@ export function ProductDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { usuario } = useAuth();
-  const { refrescar, celebrarAgregado } = useCart();
+  const { items: itemsCarrito, refrescar, celebrarAgregado } = useCart();
   const toast = useToast();
   const [producto, setProducto] = useState<Producto | null | undefined>(undefined);
   const [relacionados, setRelacionados] = useState<Producto[] | null>(null);
@@ -40,6 +42,7 @@ export function ProductDetail() {
   const [cantidad, setCantidad] = useState(1);
   const [agregando, setAgregando] = useState(false);
   const [comprando, setComprando] = useState(false);
+  const [reportando, setReportando] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -99,13 +102,23 @@ export function ProductDetail() {
     );
   }
 
-  const agotado = producto.estado_stock === "agotado" || producto.stock <= 0;
+  // Stock ilimitado nunca se muestra como agotado -- ver misma nota en ProductCard.tsx.
+  const agotado = !producto.stock_ilimitado && (producto.estado_stock === "agotado" || producto.stock <= 0);
   const enOferta = !!producto.precio_oferta && producto.precio_oferta > 0;
   const precio = enOferta ? producto.precio_oferta! : producto.precio;
   const catColor = categoriaColor(producto.categoria);
   const CatIcon = categoriaIcon(producto.categoria);
   const catLabel = CATEGORIA_LABEL[producto.categoria as Categoria] ?? producto.categoria;
   const hashtags = producto.hashtags?.split(/\s+/).filter(Boolean) ?? [];
+  // Un vendedor no se contacta ni le da like a sus propios productos.
+  const esPropio = !!usuario && usuario.rol === "vendedor" && producto.vendedor_id === usuario.id;
+
+  // Cuántas unidades de ESTE producto ya están en el carrito -- el tope del stepper de abajo
+  // debe descontarlas, si no el backend rechaza "agregar" al llegar al máximo mostrado (ej.
+  // con 1 ya en el carrito y stock=5, el stepper dejaba subir hasta 5 pero el backend solo
+  // aceptaba hasta 4 nuevas unidades: máximo → rechazado, máximo-1 → aceptado).
+  const yaEnCarrito = itemsCarrito.find((it) => it.producto_id === producto.id)?.cantidad ?? 0;
+  const disponibleParaAgregar = producto.stock_ilimitado ? 99 : Math.max(0, producto.stock - yaEnCarrito);
 
   const requireComprador = () => {
     if (!usuario) {
@@ -281,7 +294,8 @@ export function ProductDetail() {
             </span>
             {enOferta && (
               <>
-                <span className="tabular" style={{ fontSize: 16, color: "var(--text-muted)", textDecoration: "line-through" }}>
+                {/* Mismo tamaño que el precio activo -- solo se diferencia por el tachado y el color apagado. */}
+                <span className="tabular" style={{ fontSize: 28, color: "var(--text-muted)", textDecoration: "line-through" }}>
                   {money(producto.precio)}
                 </span>
                 <span style={{ fontSize: 11.5, fontWeight: 800, color: "var(--danger-ink)", background: "var(--danger-bg)", padding: "2px 8px", borderRadius: "var(--radius-pill)" }}>
@@ -329,22 +343,34 @@ export function ProductDetail() {
                     {cantidad}
                   </span>
                   <button
-                    onClick={() => setCantidad((c) => Math.min(producto.stock_ilimitado ? 99 : producto.stock, c + 1))}
-                    style={{ width: 38, height: 38, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-primary)" }}
+                    onClick={() => setCantidad((c) => Math.min(Math.max(1, disponibleParaAgregar), c + 1))}
+                    disabled={disponibleParaAgregar <= 0 || cantidad >= disponibleParaAgregar}
+                    style={{ width: 38, height: 38, background: "none", border: "none", cursor: disponibleParaAgregar <= 0 || cantidad >= disponibleParaAgregar ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-primary)", opacity: disponibleParaAgregar <= 0 || cantidad >= disponibleParaAgregar ? 0.4 : 1 }}
                     aria-label="Sumar cantidad"
                   >
                     <Plus size={14} weight="bold" />
                   </button>
                 </div>
+                {yaEnCarrito > 0 && (
+                  <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
+                    Ya tienes {yaEnCarrito} en tu carrito
+                  </span>
+                )}
               </div>
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Button onClick={comprarAhora} loading={comprando} size="lg" hero style={{ flex: "1 1 200px" }}>
-                  Comprar ahora · {money(precio * cantidad)}
-                </Button>
-                <Button onClick={agregarCarrito} loading={agregando} variant="secondary" size="lg" style={{ flex: "1 1 160px" }}>
-                  <ShoppingCartSimple size={17} weight="bold" /> Agregar
-                </Button>
-              </div>
+              {disponibleParaAgregar <= 0 ? (
+                <div style={{ padding: "10px 12px", borderRadius: "var(--radius-sm)", background: "var(--warn-bg)", color: "var(--warn-ink)", fontSize: 12.5, fontWeight: 700 }}>
+                  Ya tienes todo el stock disponible de este producto en tu carrito.
+                </div>
+              ) : (
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <Button onClick={comprarAhora} loading={comprando} size="lg" hero style={{ flex: "1 1 200px" }}>
+                    Comprar ahora · {money(precio * cantidad)}
+                  </Button>
+                  <Button onClick={agregarCarrito} loading={agregando} variant="secondary" size="lg" style={{ flex: "1 1 160px" }}>
+                    <ShoppingCartSimple size={17} weight="bold" /> Agregar
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ padding: "14px 16px", borderRadius: "var(--radius-md)", background: "var(--surface-1)", border: "1px solid var(--border)", fontSize: 13, color: "var(--text-secondary)" }}>
@@ -353,9 +379,11 @@ export function ProductDetail() {
           )}
 
           <div style={{ display: "flex", gap: 10, marginTop: 2 }}>
-            <IconButton icon={<Heart size={18} weight={producto.yo_like ? "fill" : "regular"} color={producto.yo_like ? "var(--coral)" : undefined} />} label="Me gusta" active={!!producto.yo_like} badge={producto.likes_count} onClick={toggleLike} />
+            {!esPropio && (
+              <IconButton icon={<Heart size={18} weight={producto.yo_like ? "fill" : "regular"} color={producto.yo_like ? "var(--coral)" : undefined} />} label="Me gusta" active={!!producto.yo_like} badge={producto.likes_count} onClick={toggleLike} />
+            )}
             <IconButton icon={<BookmarkSimple size={18} weight={producto.yo_guardado ? "fill" : "regular"} color={producto.yo_guardado ? "var(--warn)" : undefined} />} label="Guardar" active={!!producto.yo_guardado} onClick={toggleGuardar} />
-            <IconButton icon={<ChatCircle size={18} />} label="Preguntar a la tienda" onClick={preguntar} />
+            {!esPropio && <IconButton icon={<ChatCircle size={18} />} label="Preguntar a la tienda" onClick={preguntar} />}
             <IconButton
               icon={<ShareNetwork size={18} />}
               label="Compartir"
@@ -365,9 +393,12 @@ export function ProductDetail() {
                 toast.show("Enlace copiado", "success");
               }}
             />
+            {!esPropio && <IconButton icon={<Flag size={18} />} label="Reportar" onClick={() => setReportando(true)} />}
           </div>
         </div>
       </div>
+
+      {reportando && <ReportSheet tipo="producto" entidadId={producto.id} entidadNombre={producto.nombre} onClose={() => setReportando(false)} />}
 
       {!!relacionados?.length && (
         <div style={{ marginTop: 48 }}>

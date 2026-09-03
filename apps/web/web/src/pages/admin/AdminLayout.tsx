@@ -35,7 +35,7 @@ export function AdminLayout() {
         },
       ]}
     >
-      <div style={{ padding: "24px 28px 60px" }}>
+      <div className="dashboard-content">
         <Outlet />
       </div>
     </SidebarLayout>

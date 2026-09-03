@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Image, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { ArrowRightIcon, ShoppingCartIcon, StorefrontIcon, TagIcon, TrashIcon, TrashSimpleIcon, WarningCircleIcon, XIcon } from "phosphor-react-native";
+import { ArrowRightIcon, CaretLeftIcon, ShoppingCartIcon, StorefrontIcon, TagIcon, TrashIcon, TrashSimpleIcon, WarningCircleIcon, XIcon } from "phosphor-react-native";
 import { Pressable } from "react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
@@ -79,23 +79,23 @@ export function CartScreen({ navigation }: Props) {
     return acc;
   }, {});
   const tiendas = Object.entries(porTienda);
-  const hayAgotados = items.some((it) => it.estado_stock === "agotado" || it.stock <= 0);
+  const hayAgotados = items.some((it) => !it.stock_ilimitado && (it.estado_stock === "agotado" || it.stock <= 0));
   const totalFinal = Math.max(0, total - (cupon?.descuento ?? 0));
 
   return (
-    <View style={{ flex: 1, paddingTop: insets.top }}>
+    <View style={{ flex: 1, paddingTop: insets.top, backgroundColor: tokens.bg }}>
       <View style={styles.header}>
-        <Text style={{ fontSize: 18, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>Tu carrito</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
-          {items.length > 0 && (
-            <Pressable onPress={() => setConfirmandoVaciar(true)} hitSlop={8}>
-              <TrashSimpleIcon size={18} color={tokens.danger} />
-            </Pressable>
-          )}
-          <Pressable onPress={navigation.goBack} style={[styles.closeBtn, { backgroundColor: tokens.surface2, borderColor: tokens.border }]}>
-            <XIcon size={16} color={tokens.textPrimary} />
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+          <Pressable onPress={navigation.goBack} style={[styles.backBtn, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
+            <CaretLeftIcon size={16} color={tokens.textPrimary} />
           </Pressable>
+          <Text style={{ fontSize: 18, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>Tu carrito</Text>
         </View>
+        {items.length > 0 && (
+          <Pressable onPress={() => setConfirmandoVaciar(true)} hitSlop={8}>
+            <TrashSimpleIcon size={18} color={tokens.danger} />
+          </Pressable>
+        )}
       </View>
 
       {cargando && items.length === 0 ? (
@@ -121,35 +121,37 @@ export function CartScreen({ navigation }: Props) {
                   </View>
 
                   {tiendaItems.map((it, idx) => {
-                    const agotado = it.estado_stock === "agotado" || it.stock <= 0;
+                    const agotado = !it.stock_ilimitado && (it.estado_stock === "agotado" || it.stock <= 0);
                     const enOferta = !!it.precio_oferta && it.precio_oferta > 0 && it.precio_oferta < it.precio;
-                    const stockBajo = !agotado && it.stock <= STOCK_BAJO;
+                    const stockBajo = !agotado && !it.stock_ilimitado && it.stock <= STOCK_BAJO;
                     return (
                       <AnimatedListItem
                         key={it.id}
                         index={idx}
                         style={[styles.item, { backgroundColor: tokens.surface1, borderColor: agotado ? tokens.danger : tokens.border, opacity: agotado ? 0.7 : 1 }]}
                       >
-                        <View style={[styles.thumb, { backgroundColor: tokens.surface2 }]}>{it.imagen && <Image source={{ uri: it.imagen }} style={StyleSheet.absoluteFill} />}</View>
-                        <View style={{ flex: 1 }}>
-                          <Text numberOfLines={1} style={{ fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13.5, color: tokens.textPrimary }}>{it.nombre}</Text>
-                          <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 2 }}>
-                            <Text style={{ fontFamily: "IBMPlexMono_500Medium", fontSize: 12, color: enOferta ? tokens.danger : tokens.textSecondary, fontWeight: enOferta ? "700" : "400" }}>
-                              {money(it.precio_efectivo)} c/u
-                            </Text>
-                            {enOferta && (
-                              <Text style={{ fontFamily: "IBMPlexMono_500Medium", fontSize: 11, color: tokens.textMuted, textDecorationLine: "line-through" }}>{money(it.precio)}</Text>
-                            )}
-                          </View>
-                          {agotado ? (
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
-                              <WarningCircleIcon size={11} weight="bold" color={tokens.danger} />
-                              <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: tokens.danger }}>Sin stock — elimínalo</Text>
+                        <Pressable onPress={() => navigation.navigate("ProductDetail", { id: it.producto_id })} style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                          <View style={[styles.thumb, { backgroundColor: tokens.surface2 }]}>{it.imagen && <Image source={{ uri: it.imagen }} style={StyleSheet.absoluteFill} />}</View>
+                          <View style={{ flex: 1 }}>
+                            <Text numberOfLines={1} style={{ fontFamily: "SpaceGrotesk_600SemiBold", fontSize: 13.5, color: tokens.textPrimary }}>{it.nombre}</Text>
+                            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6, marginTop: 2 }}>
+                              <Text style={{ fontFamily: "IBMPlexMono_500Medium", fontSize: 12, color: enOferta ? tokens.danger : tokens.textSecondary, fontWeight: enOferta ? "700" : "400" }}>
+                                {money(it.precio_efectivo)} c/u
+                              </Text>
+                              {enOferta && (
+                                <Text style={{ fontFamily: "IBMPlexMono_500Medium", fontSize: 11, color: tokens.textMuted, textDecorationLine: "line-through" }}>{money(it.precio)}</Text>
+                              )}
                             </View>
-                          ) : stockBajo ? (
-                            <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: tokens.warn, marginTop: 2 }}>¡Solo quedan {it.stock}!</Text>
-                          ) : null}
-                        </View>
+                            {agotado ? (
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                                <WarningCircleIcon size={11} weight="bold" color={tokens.danger} />
+                                <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: tokens.danger }}>Sin stock — elimínalo</Text>
+                              </View>
+                            ) : stockBajo ? (
+                              <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: tokens.warn, marginTop: 2 }}>¡Solo quedan {it.stock}!</Text>
+                            ) : null}
+                          </View>
+                        </Pressable>
                         <View style={[styles.stepper, { borderColor: tokens.border }]}>
                           {it.cantidad <= 1 ? (
                             <Pressable onPress={() => carritoApi.eliminar(it.id).then(refrescar)} style={styles.stepBtn}>
@@ -161,7 +163,7 @@ export function CartScreen({ navigation }: Props) {
                             </Pressable>
                           )}
                           <Text style={{ width: 20, textAlign: "center", fontFamily: "IBMPlexMono_500Medium", color: tokens.textPrimary, fontSize: 12 }}>{it.cantidad}</Text>
-                          <Pressable onPress={() => cambiarCantidad(it.id, 1, it.cantidad)} disabled={agotado || it.cantidad >= it.stock} style={[styles.stepBtn, (agotado || it.cantidad >= it.stock) && { opacity: 0.35 }]}>
+                          <Pressable onPress={() => cambiarCantidad(it.id, 1, it.cantidad)} disabled={agotado || (!it.stock_ilimitado && it.cantidad >= it.stock)} style={[styles.stepBtn, (agotado || (!it.stock_ilimitado && it.cantidad >= it.stock)) && { opacity: 0.35 }]}>
                             <Text style={{ color: tokens.textPrimary }}>+</Text>
                           </Pressable>
                         </View>
@@ -244,7 +246,7 @@ function Row({ label, value, tokens, tone, muted }: { label: string; value: stri
 
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14 },
-  closeBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  backBtn: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   item: { flexDirection: "row", alignItems: "center", padding: 12, borderRadius: 14, borderWidth: 1 },
   thumb: { width: 44, height: 44, borderRadius: 10, overflow: "hidden", marginRight: 10, flexShrink: 0 },
   stepper: { flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: 8 },

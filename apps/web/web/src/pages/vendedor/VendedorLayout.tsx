@@ -1,5 +1,5 @@
 import { Outlet } from "react-router-dom";
-import { ChatCircleDots, Gauge, Package, Star, Storefront, Wallet as WalletIcon } from "@phosphor-icons/react";
+import { Gauge, Package, Star, Storefront, Wallet as WalletIcon } from "@phosphor-icons/react";
 import { SidebarLayout } from "../../components/layout/SidebarLayout";
 
 export function VendedorLayout() {
@@ -21,12 +21,11 @@ export function VendedorLayout() {
           items: [
             { to: "/vendedor/tienda", label: "Mi tienda", icon: Storefront },
             { to: "/vendedor/wallet", label: "Billetera", icon: WalletIcon },
-            { to: "/chat", label: "Chat", icon: ChatCircleDots },
           ],
         },
       ]}
     >
-      <div style={{ padding: "24px 28px 60px" }}>
+      <div className="dashboard-content">
         <Outlet />
       </div>
     </SidebarLayout>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View, type DimensionValue, type StyleProp, type ViewStyle } from "react-native";
 import WebView, { type WebViewMessageEvent } from "react-native-webview";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { DeviceMobileIcon, MapTrifoldIcon, MountainsIcon, PlanetIcon, StackIcon } from "phosphor-react-native";
+import { CrosshairIcon, DeviceMobileIcon, MapTrifoldIcon, MountainsIcon, PlanetIcon, StackIcon } from "phosphor-react-native";
 import type { Coordinate } from "../../lib/mapcn/types";
 import { useTheme } from "../../theme/ThemeContext";
 import type { ThemeTokens } from "../../theme/tokens";
@@ -32,6 +32,9 @@ export interface WebMapMarker {
    * (mirrors the web version's Phosphor-icon pins -- the WebView here is
    * plain HTML/JS, not React, so a glyph is used instead of a component). */
   category?: string;
+  /** Emoji explícito para el pin (p. ej. 🛵/🏬/🧑) -- tiene prioridad sobre `category`,
+   * para roles de marcador (repartidor/tienda/destino) que no son categorías de producto. */
+  emoji?: string;
 }
 
 export interface WebMapRoute {
@@ -56,6 +59,10 @@ interface Props {
   height?: DimensionValue;
   /** Shows the Google-Maps-style layer picker (Predeterminado/Satélite/Terreno). */
   layersControl?: boolean;
+  /** Botón estilo Waze/Google Maps para volver a centrar la vista en `center` -- útil
+   * después de que el usuario arrastró el mapa a mano (ver `userMovedRef`, que desde ese
+   * momento deja de seguir los cambios de `center` que vengan del padre). */
+  recenterControl?: boolean;
   /** Cuando se da, recuerda en disco el último centro/zoom/capa que el usuario dejó en
    * este mapa (por moveend real, no por los `center`/`zoom` que le mande el padre) y los
    * restaura la próxima vez que se monte -- así un cambio de filtro en la pantalla de
@@ -334,7 +341,7 @@ function categoriaEmoji(cat) {
 }
 `;
 
-function buildHtml(isDark: boolean): string {
+function buildHtml(isDark: boolean, initialCenter: Coordinate, initialZoom: number): string {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -372,7 +379,13 @@ function buildHtml(isDark: boolean): string {
     var ROUTE_LAYER = 'go-route-line';
 
     function ensureRouteLayer() {
-      if (!map.isStyleLoaded()) return;
+      // setStyle() (goSetBaseLayer -- cambiar entre Predeterminado/Satélite/Terreno) borra
+      // TODA fuente/capa personalizada del mapa, incluida esta ruta -- por eso se vuelve a
+      // agregar en cada 'style.load'. Si en ese momento el estilo todavía no terminó de
+      // cargar del todo, en vez de rendirse en silencio (dejando el mapa sin ruta hasta el
+      // próximo goSetRoute) se reintenta apenas el mapa esté 'idle' -- así la línea SIEMPRE
+      // reaparece sin importar en cuál de las 3 capas esté.
+      if (!map.isStyleLoaded()) { map.once('idle', ensureRouteLayer); return; }
       if (map.getLayer(ROUTE_LAYER)) map.removeLayer(ROUTE_LAYER);
       if (map.getSource(ROUTE_SOURCE)) map.removeSource(ROUTE_SOURCE);
       if (!pendingRoute) return;
@@ -396,12 +409,16 @@ function buildHtml(isDark: boolean): string {
         var existing = markerObjs[m.id];
         if (existing) {
           existing.setLngLat(m.coordinate);
-          if (m.category) existing.getElement().innerHTML = pinHtml(m.color || categoriaColor(m.category), categoriaEmoji(m.category));
+          if (m.emoji) existing.getElement().innerHTML = pinHtml(m.color || '#38D6FF', m.emoji);
+          else if (m.category) existing.getElement().innerHTML = pinHtml(m.color || categoriaColor(m.category), categoriaEmoji(m.category));
         } else {
           var el = document.createElement('div');
           el.style.cursor = 'pointer';
           var marker;
-          if (m.category) {
+          if (m.emoji) {
+            el.innerHTML = pinHtml(m.color || '#38D6FF', m.emoji);
+            marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat(m.coordinate).addTo(map);
+          } else if (m.category) {
             el.innerHTML = pinHtml(m.color || categoriaColor(m.category), categoriaEmoji(m.category));
             marker = new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat(m.coordinate).addTo(map);
           } else {
@@ -458,7 +475,7 @@ function buildHtml(isDark: boolean): string {
 
     function initMap() {
       resolveStyle('default').then(function (styleValue) {
-        map = new maplibregl.Map({ container: 'map', style: cloneStyle(styleValue), center: [0, 0], zoom: 2, attributionControl: { compact: true } });
+        map = new maplibregl.Map({ container: 'map', style: cloneStyle(styleValue), center: [${initialCenter[0]}, ${initialCenter[1]}], zoom: ${initialZoom}, attributionControl: { compact: true } });
         map.on('load', function () {
           if (pendingView) map.jumpTo({ center: pendingView.center, zoom: pendingView.zoom });
           if (pendingMarkers) applyMarkers(pendingMarkers);
@@ -519,7 +536,13 @@ function buildHtml(isDark: boolean): string {
     window.goSetBaseLayer = function (base) {
       currentBase = base;
       resolveStyle(base).then(function (styleValue) {
-        if (map) map.setStyle(cloneStyle(styleValue));
+        if (!map) return;
+        map.setStyle(cloneStyle(styleValue));
+        // Además del listener permanente de 'style.load' (arriba en initMap), se engancha
+        // acá un 'idle' explícito atado a ESTE cambio de capa en particular -- doble
+        // seguro para que la ruta reaparezca sí o sí en Satélite/Terreno, sin depender por
+        // completo de que 'style.load' se dispare justo cuando isStyleLoaded() ya es true.
+        map.once('idle', ensureRouteLayer);
       });
     };
 
@@ -561,6 +584,7 @@ export function WebMapView({
   style,
   height = "100%",
   layersControl,
+  recenterControl,
   persistKey,
 }: Props) {
   const { isDark, tokens } = useTheme();
@@ -569,7 +593,13 @@ export function WebMapView({
   const [ready, setReady] = useState(false);
   const [baseLayer, setBaseLayer] = useState<MapBaseLayer>("default");
   const [pickerOpen, setPickerOpen] = useState(false);
-  const html = useMemo(() => buildHtml(isDark), [isDark]);
+  // Se congela el center/zoom del primer render y se hornea directo en el constructor de
+  // MapLibre (buildHtml) -- así el mapa nace ya en el lugar correcto en vez de arrancar en
+  // [0,0] zoom 2 (el mundo entero) y recién después animar (easeTo) hacia la ubicación real
+  // una vez el WebView confirma "ready". Deliberadamente no reactivo a cambios de
+  // center/zoom: eso ya lo maneja el efecto de abajo vía goSetView una vez el mapa existe.
+  const initialViewRef = useRef({ center, zoom });
+  const html = useMemo(() => buildHtml(isDark, initialViewRef.current.center, initialViewRef.current.zoom), [isDark]);
   // Una vez el usuario mueve el mapa a mano (o se restauró una vista guardada), los
   // cambios de `center`/`zoom` que mande el padre (p. ej. un filtro nuevo cambia cuál es
   // la primera tienda del resultado) dejan de pisarle la posición.
@@ -579,6 +609,15 @@ export function WebMapView({
   const lastViewRef = useRef<{ lng: number; lat: number; zoom: number } | null>(null);
 
   const run = (js: string) => webRef.current?.injectJavaScript(`${js};true;`);
+
+  // Botón "recentrar" (Waze/Google Maps): vuelve a la vista que manda el padre (para el
+  // repartidor, siempre su ubicación en vivo) y reactiva el seguimiento automático que
+  // `userMovedRef` había apagado al arrastrar el mapa a mano.
+  const recenter = () => {
+    userMovedRef.current = false;
+    run(`window.goSetView(${center[0]}, ${center[1]}, ${zoom})`);
+    lastViewRef.current = { lng: center[0], lat: center[1], zoom };
+  };
 
   const saveView = (view: { lng: number; lat: number; zoom: number; baseLayer: MapBaseLayer }) => {
     if (!storageKey) return;
@@ -714,9 +753,18 @@ export function WebMapView({
           }}
         />
       )}
+      {recenterControl && ready && (
+        <Pressable onPress={recenter} style={[recenterStyles.button, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
+          <CrosshairIcon size={18} weight="bold" color={tokens.cyan} />
+        </Pressable>
+      )}
     </View>
   );
 }
+
+const recenterStyles = StyleSheet.create({
+  button: { position: "absolute", right: 12, top: 12, width: 40, height: 40, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center", zIndex: 5 },
+});
 
 function MapLayersPicker({
   open,
@@ -767,9 +815,9 @@ function MapLayersPicker({
 }
 
 const pickerStyles = StyleSheet.create({
-  wrap: { position: "absolute", left: 12, top: 12, zIndex: 5 },
+  wrap: { position: "absolute", left: 12, bottom: 12, zIndex: 5 },
   trigger: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  panel: { position: "absolute", top: 48, left: 0, width: 220, borderRadius: 14, borderWidth: 1, padding: 10 },
+  panel: { position: "absolute", bottom: 48, left: 0, width: 220, borderRadius: 14, borderWidth: 1, padding: 10 },
   option: { flex: 1, height: 64, borderRadius: 10, borderWidth: 1.5, alignItems: "center", justifyContent: "center", gap: 4 },
   optionLabel: { fontSize: 9.5, fontFamily: "Inter_700Bold", textAlign: "center" },
 });

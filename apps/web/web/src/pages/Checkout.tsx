@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CreditCard, Money, PaypalLogo, Plus, Rocket, Storefront, Truck } from "@phosphor-icons/react";
+import { CreditCard, Crosshair, Money, PaypalLogo, Plus, Rocket, Storefront, Truck } from "@phosphor-icons/react";
 import { carritoApi, direccionesApi, ApiError } from "../lib/api";
 import type { Cupon, DireccionUsuario, MetodoPago } from "../lib/types";
 import { money } from "../lib/format";
+import { geocodificarInverso } from "../lib/geocoding";
 import { useCart } from "../context/CartContext";
 import { useToast } from "../context/ToastContext";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Skeleton } from "../components/ui/Skeleton";
+import { MapView } from "../components/ui/MapView";
 
 type MetodoUI = "efectivo" | "tarjeta" | "paypal";
+
+const EL_SALVADOR_CENTER: [number, number] = [-89.2182, 13.6929];
 
 export function Checkout() {
   const { items, total, cargando: cargandoCart, refrescar } = useCart();
@@ -19,6 +23,15 @@ export function Checkout() {
 
   const [direcciones, setDirecciones] = useState<DireccionUsuario[] | null>(null);
   const [direccionId, setDireccionId] = useState<number | null>(null);
+  const [modoDireccion, setModoDireccion] = useState<"guardada" | "mapa">("guardada");
+  const [mapaCoords, setMapaCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapaDireccion, setMapaDireccion] = useState("");
+  const [mapaMunicipio, setMapaMunicipio] = useState("");
+  const [mapaDepartamento, setMapaDepartamento] = useState("");
+  const [mapaReferencia, setMapaReferencia] = useState("");
+  const [ubicando, setUbicando] = useState(false);
+  const [guardarUbicacion, setGuardarUbicacion] = useState(false);
+  const [guardarAlias, setGuardarAlias] = useState("");
   const [metodosGuardados, setMetodosGuardados] = useState<MetodoPago[]>([]);
   const [metodo, setMetodo] = useState<MetodoUI>("efectivo");
   const [tipoEntrega, setTipoEntrega] = useState<"domicilio" | "recogida">("domicilio");
@@ -48,6 +61,7 @@ export function Checkout() {
       setDirecciones(r.direcciones);
       const principal = r.direcciones.find((d) => d.es_principal) ?? r.direcciones[0];
       if (principal) setDireccionId(principal.id);
+      else setModoDireccion("mapa");
     });
     carritoApi.metodosListar().then((r) => setMetodosGuardados(r.metodos));
   }, []);
@@ -61,14 +75,44 @@ export function Checkout() {
 
   const direccion = direcciones?.find((d) => d.id === direccionId) ?? null;
   const esRecogida = tipoEntrega === "recogida";
+  const usaMapa = !esRecogida && modoDireccion === "mapa";
+  const direccionListaLista = esRecogida || (usaMapa ? !!mapaCoords && !!mapaDireccion.trim() && !!mapaMunicipio.trim() : !!direccion);
   const costoEnvio = esRecogida ? 0 : envioModo === "express" ? 4.99 : 2.5;
   const descuento = cupon?.descuento ?? 0;
   const totalFinal = Math.max(0, total - descuento) + costoEnvio;
   const PICKUP_EFECTIVO_MAX = 20;
   const recogidaEfectivoBloqueado = esRecogida && metodo === "efectivo" && totalFinal > PICKUP_EFECTIVO_MAX;
 
+  const elegirEnMapa = async (coords: { lat: number; lng: number }) => {
+    setMapaCoords(coords);
+    setUbicando(true);
+    try {
+      const r = await geocodificarInverso(coords.lat, coords.lng);
+      if (r.direccion) setMapaDireccion(r.direccion);
+      if (r.municipio) setMapaMunicipio(r.municipio);
+      if (r.departamento) setMapaDepartamento(r.departamento);
+      toast.show("Ubicación detectada", "success");
+    } catch {
+      toast.show("No se pudo detectar la calle — puedes escribirla manualmente.", "warning");
+    } finally {
+      setUbicando(false);
+    }
+  };
+
+  const usarUbicacionActual = () => {
+    if (!navigator.geolocation) return toast.show("Tu navegador no soporta geolocalización.", "error");
+    setUbicando(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => elegirEnMapa({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {
+        setUbicando(false);
+        toast.show("No se pudo obtener tu ubicación. Revisa los permisos del navegador.", "error");
+      },
+    );
+  };
+
   const confirmar = async () => {
-    if (!esRecogida && !direccion) return toast.show("Selecciona una dirección de entrega.", "warning");
+    if (!esRecogida && !direccionListaLista) return toast.show(usaMapa ? "Marca tu ubicación en el mapa y completa la dirección." : "Selecciona una dirección de entrega.", "warning");
     if (recogidaEfectivoBloqueado) return toast.show(`Para recoger en tienda, pedidos de más de $${PICKUP_EFECTIVO_MAX} deben pagarse con tarjeta.`, "warning");
     if (metodo === "tarjeta" && !metodoPagoId) {
       const numero = tarjetaNumero.replace(/\D/g, "");
@@ -83,11 +127,15 @@ export function Checkout() {
       const res = await carritoApi.checkout({
         metodo_pago: metodo,
         tipo_entrega: tipoEntrega,
-        direccion_entrega: direccion ? `${direccion.direccion}${direccion.referencia ? ", " + direccion.referencia : ""}` : undefined,
-        lat: direccion?.lat ?? undefined,
-        lng: direccion?.lng ?? undefined,
-        municipio: direccion?.municipio,
-        departamento: direccion?.departamento,
+        direccion_entrega: esRecogida
+          ? undefined
+          : usaMapa
+            ? `${mapaDireccion.trim()}${mapaReferencia.trim() ? ", " + mapaReferencia.trim() : ""}`
+            : `${direccion!.direccion}${direccion!.referencia ? ", " + direccion!.referencia : ""}`,
+        lat: esRecogida ? undefined : usaMapa ? mapaCoords?.lat : direccion?.lat ?? undefined,
+        lng: esRecogida ? undefined : usaMapa ? mapaCoords?.lng : direccion?.lng ?? undefined,
+        municipio: esRecogida ? undefined : usaMapa ? mapaMunicipio.trim() : direccion?.municipio,
+        departamento: esRecogida ? undefined : usaMapa ? mapaDepartamento.trim() || undefined : direccion?.departamento,
         metodo_pago_id: metodoPagoId ?? undefined,
         tarjeta_numero: metodo === "tarjeta" && !metodoPagoId ? tarjetaNumero : undefined,
         tarjeta_cvv: metodo === "tarjeta" && !metodoPagoId ? tarjetaCvv : undefined,
@@ -99,6 +147,20 @@ export function Checkout() {
         cupon_codigo: cupon?.cupon.codigo,
         notas: notas.trim() || undefined,
       });
+      if (usaMapa && guardarUbicacion) {
+        direccionesApi
+          .crear({
+            alias: guardarAlias.trim() || `Ubicación ${(direcciones?.length ?? 0) + 1}`,
+            municipio: mapaMunicipio.trim(),
+            direccion: mapaDireccion.trim(),
+            referencia: mapaReferencia.trim() || null,
+            departamento: mapaDepartamento.trim() || "San Salvador",
+            lat: mapaCoords?.lat ?? null,
+            lng: mapaCoords?.lng ?? null,
+            es_principal: 0,
+          })
+          .catch(() => {});
+      }
       sessionStorage.removeItem("gocreaj_cupon");
       pedidoRealizadoRef.current = true;
       await refrescar();
@@ -144,39 +206,89 @@ export function Checkout() {
             <h2 style={{ fontSize: 14, marginBottom: 10 }}>Dirección de entrega</h2>
             {direcciones === null ? (
               <Skeleton height={80} />
-            ) : direcciones.length === 0 ? (
-              <p style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-                No tienes direcciones guardadas.{" "}
-                <button onClick={() => navigate("/direcciones")} style={{ color: "var(--cyan)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>
-                  Agregar una
-                </button>
-              </p>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {direcciones.map((d) => (
-                  <label
-                    key={d.id}
-                    style={{
-                      display: "flex",
-                      gap: 10,
-                      alignItems: "flex-start",
-                      padding: 12,
-                      border: `1px solid ${direccionId === d.id ? "var(--cyan)" : "var(--border)"}`,
-                      borderRadius: "var(--radius-md)",
-                      background: direccionId === d.id ? "var(--cyan-bg)" : "var(--surface-1)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <input type="radio" name="direccion" checked={direccionId === d.id} onChange={() => setDireccionId(d.id)} style={{ marginTop: 3 }} />
+              <>
+                {direcciones.length > 0 && (
+                  <div style={{ display: "flex", gap: 8, marginBottom: 12, background: "var(--surface-2)", padding: 4, borderRadius: "var(--radius-sm)", width: "fit-content" }}>
+                    <button
+                      onClick={() => setModoDireccion("guardada")}
+                      style={{ padding: "7px 14px", borderRadius: "var(--radius-sm)", border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: modoDireccion === "guardada" ? "var(--surface-1)" : "transparent", color: modoDireccion === "guardada" ? "var(--cyan)" : "var(--text-secondary)" }}
+                    >
+                      Mis direcciones
+                    </button>
+                    <button
+                      onClick={() => setModoDireccion("mapa")}
+                      style={{ padding: "7px 14px", borderRadius: "var(--radius-sm)", border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 700, background: modoDireccion === "mapa" ? "var(--surface-1)" : "transparent", color: modoDireccion === "mapa" ? "var(--cyan)" : "var(--text-secondary)" }}
+                    >
+                      Nueva ubicación
+                    </button>
+                  </div>
+                )}
+
+                {modoDireccion === "guardada" && direcciones.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {direcciones.map((d) => (
+                      <label
+                        key={d.id}
+                        style={{
+                          display: "flex",
+                          gap: 10,
+                          alignItems: "flex-start",
+                          padding: 12,
+                          border: `1px solid ${direccionId === d.id ? "var(--cyan)" : "var(--border)"}`,
+                          borderRadius: "var(--radius-md)",
+                          background: direccionId === d.id ? "var(--cyan-bg)" : "var(--surface-1)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <input type="radio" name="direccion" checked={direccionId === d.id} onChange={() => setDireccionId(d.id)} style={{ marginTop: 3 }} />
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 13.5 }}>{d.alias}</div>
+                          <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
+                            {d.direccion}, {d.municipio}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {usaMapa && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{d.alias}</div>
-                      <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>
-                        {d.direccion}, {d.municipio}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                        <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Haz clic en el mapa para ubicar tu dirección</label>
+                        <button
+                          onClick={usarUbicacionActual}
+                          disabled={ubicando}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "none", border: "none", color: "var(--cyan)", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                        >
+                          <Crosshair size={13} /> Mi ubicación
+                        </button>
                       </div>
+                      <MapView
+                        markers={mapaCoords ? [{ id: "pin", lat: mapaCoords.lat, lng: mapaCoords.lng, color: "#38D6FF" }] : []}
+                        center={mapaCoords ? [mapaCoords.lng, mapaCoords.lat] : EL_SALVADOR_CENTER}
+                        zoom={mapaCoords ? 16 : 12}
+                        fitToMarkers={false}
+                        height={200}
+                        onMapClick={elegirEnMapa}
+                      />
+                      {ubicando && <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 6 }}>Detectando la calle…</p>}
                     </div>
-                  </label>
-                ))}
-              </div>
+
+                    <Input label="Dirección" value={mapaDireccion} onChange={(e) => setMapaDireccion(e.target.value)} placeholder="Calle, avenida, número" />
+                    <Input label="Municipio" value={mapaMunicipio} onChange={(e) => setMapaMunicipio(e.target.value)} placeholder="San Salvador" />
+                    <Input label="Referencia (opcional)" value={mapaReferencia} onChange={(e) => setMapaReferencia(e.target.value)} placeholder="Casa color celeste, portón negro" />
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)" }}>
+                      <input type="checkbox" checked={guardarUbicacion} onChange={(e) => setGuardarUbicacion(e.target.checked)} /> Guardar esta ubicación en mis direcciones
+                    </label>
+                    {guardarUbicacion && (
+                      <Input label="Alias" value={guardarAlias} onChange={(e) => setGuardarAlias(e.target.value)} placeholder={`Casa, Trabajo… (vacío = Ubicación ${(direcciones?.length ?? 0) + 1})`} />
+                    )}
+                  </div>
+                )}
+              </>
             )}
           </section>
         )}

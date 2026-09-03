@@ -1,4 +1,5 @@
 import { Image, StyleSheet, Text, View } from "react-native";
+import { StorefrontIcon } from "phosphor-react-native";
 import { useTheme } from "../../theme/ThemeContext";
 
 function initials(nombre: string): string {
@@ -13,14 +14,21 @@ interface Props {
   foto?: string | null;
   size?: number;
   online?: boolean;
+  /** Cuando es "vendedor" y no hay `foto`, se muestra el mismo placeholder de
+   * tienda usado en StoreCard (ícono de tienda) en vez de las iniciales. */
+  rol?: string;
 }
 
-export function Avatar({ nombre, foto, size = 40, online }: Props) {
+export function Avatar({ nombre, foto, size = 40, online, rol }: Props) {
   const { tokens } = useTheme();
   return (
     <View style={{ width: size, height: size }}>
       {foto ? (
         <Image source={{ uri: foto }} style={{ width: size, height: size, borderRadius: size / 2, borderWidth: 1, borderColor: tokens.border }} />
+      ) : rol === "vendedor" ? (
+        <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2, backgroundColor: tokens.surface2, borderWidth: 1, borderColor: tokens.border }]}>
+          <StorefrontIcon size={size * 0.5} color={tokens.textMuted} />
+        </View>
       ) : (
         <View style={[styles.fallback, { width: size, height: size, borderRadius: size / 2, backgroundColor: tokens.cyanBg }]}>
           <Text style={{ color: tokens.cyan, fontFamily: "SpaceGrotesk_700Bold", fontSize: size * 0.36 }}>{initials(nombre)}</Text>

@@ -1,5 +1,5 @@
 import { Outlet } from "react-router-dom";
-import { ChatCircleDots, Gauge, Package, User, Wallet as WalletIcon } from "@phosphor-icons/react";
+import { ClockCounterClockwise, Gauge, Package, User, Wallet as WalletIcon } from "@phosphor-icons/react";
 import { SidebarLayout } from "../../components/layout/SidebarLayout";
 
 export function RepartidorLayout() {
@@ -12,6 +12,7 @@ export function RepartidorLayout() {
           items: [
             { to: "/repartidor", label: "Disponibles", icon: Gauge, end: true },
             { to: "/repartidor/entregas", label: "Mi pedido actual", icon: Package },
+            { to: "/repartidor/historial", label: "Historial", icon: ClockCounterClockwise },
           ],
         },
         {
@@ -19,12 +20,11 @@ export function RepartidorLayout() {
           items: [
             { to: "/repartidor/perfil", label: "Mi perfil", icon: User },
             { to: "/repartidor/wallet", label: "Billetera", icon: WalletIcon },
-            { to: "/chat", label: "Chat", icon: ChatCircleDots },
           ],
         },
       ]}
     >
-      <div style={{ padding: "24px 28px 60px" }}>
+      <div className="dashboard-content">
         <Outlet />
       </div>
     </SidebarLayout>

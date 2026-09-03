@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowBendUpLeft, Heart, PaperPlaneTilt } from "@phosphor-icons/react";
+import { ArrowBendUpLeft, Flag, Heart, PaperPlaneTilt } from "@phosphor-icons/react";
 import { interaccionesApi } from "../../lib/api";
 import type { Producto } from "../../lib/types";
 import { relativeTime } from "../../lib/format";
@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { Sheet } from "../ui/Sheet";
 import { Avatar } from "../ui/Avatar";
 import { Skeleton } from "../ui/Skeleton";
+import { ReportSheet } from "./ReportSheet";
 
 interface Comentario {
   id: number;
@@ -28,6 +29,7 @@ export function CommentsSheet({ producto, onClose, onComentarioNuevo }: { produc
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [respondiendoA, setRespondiendoA] = useState<Comentario | null>(null);
+  const [reportandoComentario, setReportandoComentario] = useState<Comentario | null>(null);
 
   const cargar = () => {
     interaccionesApi
@@ -37,6 +39,19 @@ export function CommentsSheet({ producto, onClose, onComentarioNuevo }: { produc
   };
 
   useEffect(cargar, [producto.id]);
+
+  // No hay WebSocket para comentarios -- mientras el sheet está abierto, refresca en
+  // segundo plano cada pocos segundos para que aparezcan los comentarios de otras
+  // personas sin que el usuario tenga que cerrar y volver a abrir.
+  useEffect(() => {
+    const id = setInterval(() => {
+      interaccionesApi
+        .listarComentarios(producto.id)
+        .then((r) => setComentarios(r.comentarios))
+        .catch(() => {});
+    }, 4000);
+    return () => clearInterval(id);
+  }, [producto.id]);
 
   const respuestasPorPadre = useMemo(() => {
     const mapa = new Map<number, Comentario[]>();
@@ -85,11 +100,12 @@ export function CommentsSheet({ producto, onClose, onComentarioNuevo }: { produc
                   c={c}
                   onLike={() => likeComentario(c.id)}
                   onResponder={() => setRespondiendoA(c)}
+                  onReportar={() => setReportandoComentario(c)}
                 />
                 {(respuestasPorPadre.get(c.id) ?? []).length > 0 && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12, paddingLeft: 30, borderLeft: "1.5px solid var(--border)", marginLeft: 15 }}>
                     {respuestasPorPadre.get(c.id)!.map((r) => (
-                      <ComentarioFila key={r.id} c={r} small onLike={() => likeComentario(r.id)} onResponder={() => setRespondiendoA(c)} />
+                      <ComentarioFila key={r.id} c={r} small onLike={() => likeComentario(r.id)} onResponder={() => setRespondiendoA(c)} onReportar={() => setReportandoComentario(r)} />
                     ))}
                   </div>
                 )}
@@ -125,11 +141,20 @@ export function CommentsSheet({ producto, onClose, onComentarioNuevo }: { produc
           <PaperPlaneTilt size={15} weight="fill" />
         </button>
       </div>
+
+      {reportandoComentario && (
+        <ReportSheet
+          tipo="comentario"
+          entidadId={reportandoComentario.id}
+          entidadNombre={reportandoComentario.comentario}
+          onClose={() => setReportandoComentario(null)}
+        />
+      )}
     </Sheet>
   );
 }
 
-function ComentarioFila({ c, small, onLike, onResponder }: { c: Comentario; small?: boolean; onLike: () => void; onResponder: () => void }) {
+function ComentarioFila({ c, small, onLike, onResponder, onReportar }: { c: Comentario; small?: boolean; onLike: () => void; onResponder: () => void; onReportar: () => void }) {
   return (
     <div style={{ display: "flex", gap: 10 }}>
       <Avatar nombre={c.nombre} foto={c.foto_perfil} size={small ? 26 : 32} />
@@ -146,6 +171,9 @@ function ComentarioFila({ c, small, onLike, onResponder }: { c: Comentario; smal
           <button onClick={onResponder} style={{ display: "flex", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>
             <ArrowBendUpLeft size={12} />
             <span style={{ fontSize: 10.5, fontWeight: 600 }}>Responder</span>
+          </button>
+          <button onClick={onReportar} aria-label="Reportar comentario" style={{ display: "flex", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}>
+            <Flag size={12} />
           </button>
         </div>
       </div>

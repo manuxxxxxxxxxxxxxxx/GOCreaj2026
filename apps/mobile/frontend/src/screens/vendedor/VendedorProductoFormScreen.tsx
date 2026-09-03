@@ -8,6 +8,7 @@ import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
 import { vendedorApi, ApiError } from "../../lib/api";
 import type { Producto } from "../../lib/types";
+import { money } from "../../lib/format";
 import { CategoryPicker } from "../../components/domain/CategoryPicker";
 import { MultiImagePicker } from "../../components/domain/MultiImagePicker";
 import { PriceInput } from "../../components/domain/PriceInput";
@@ -17,6 +18,8 @@ import { Skeleton } from "../../components/ui/Skeleton";
 import { WebFormContainer } from "../../components/ui/WebFormContainer";
 
 const WIDE_BREAKPOINT = 860;
+const MAX_NOMBRE_PRODUCTO = 80;
+const MAX_DESCRIPCION_PRODUCTO = 500;
 
 type Props = NativeStackScreenProps<RootStackParamList, "VendedorProductoForm">;
 
@@ -33,6 +36,9 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
   const [descripcion, setDescripcion] = useState("");
   const [precio, setPrecio] = useState(0);
   const [precioOferta, setPrecioOferta] = useState(0);
+  // Oferta como % de descuento -- alternativa al monto fijo. "20% sobre $10 = $8".
+  const [ofertaModo, setOfertaModo] = useState<"monto" | "porcentaje">("monto");
+  const [ofertaPorcentaje, setOfertaPorcentaje] = useState("");
   const [stockIlimitado, setStockIlimitado] = useState(false);
   const [stock, setStock] = useState("0");
   const [categoria, setCategoria] = useState("comida");
@@ -50,7 +56,14 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
           setNombre(p.nombre);
           setDescripcion(p.descripcion ?? "");
           setPrecio(p.precio);
-          setPrecioOferta(p.precio_oferta ?? 0);
+          if (p.oferta_tipo === "porcentaje") {
+            setOfertaModo("porcentaje");
+            setOfertaPorcentaje(String(p.oferta_valor ?? ""));
+            setPrecioOferta(0);
+          } else {
+            setOfertaModo("monto");
+            setPrecioOferta(p.precio_oferta ?? 0);
+          }
           setStockIlimitado(!!p.stock_ilimitado);
           setStock(String(p.stock));
           setCategoria(p.categoria);
@@ -61,19 +74,29 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
     }
   }, [productoId]);
 
+  const porcentajeNum = Math.min(99, Math.max(0, Number(ofertaPorcentaje) || 0));
+  const precioOfertaFinal = ofertaModo === "porcentaje" ? Math.round(precio * (1 - porcentajeNum / 100) * 100) / 100 : precioOferta;
+  const hayOferta = ofertaModo === "porcentaje" ? porcentajeNum > 0 : precioOferta > 0;
+
   const guardar = async () => {
     if (!nombre.trim() || !precio) return toast.show("Nombre y precio son obligatorios.", "warning");
+    if (nombre.length > MAX_NOMBRE_PRODUCTO) return toast.show(`El nombre no puede pasar de ${MAX_NOMBRE_PRODUCTO} caracteres.`, "warning");
+    if (descripcion.length > MAX_DESCRIPCION_PRODUCTO) return toast.show(`La descripción no puede pasar de ${MAX_DESCRIPCION_PRODUCTO} caracteres.`, "warning");
     if (imagenes.length === 0) return toast.show("Agrega al menos una foto.", "warning");
+    if (hayOferta && precioOfertaFinal >= precio) return toast.show("El precio de oferta debe ser menor al precio normal.", "warning");
     setGuardando(true);
     try {
+      const ofertaPayload = hayOferta
+        ? { precio_oferta: precioOfertaFinal, oferta_tipo: ofertaModo, oferta_valor: ofertaModo === "porcentaje" ? porcentajeNum : precioOfertaFinal }
+        : {};
       if (producto) {
         await vendedorApi.actualizarProducto({
           producto_id: producto.id,
           nombre,
           descripcion,
           precio,
-          precio_oferta: precioOferta || undefined,
-          quitar_oferta: !precioOferta,
+          ...ofertaPayload,
+          quitar_oferta: !hayOferta,
           stock_ilimitado: stockIlimitado,
           stock: stockIlimitado ? 0 : Number(stock),
           categoria,
@@ -90,7 +113,7 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
           nombre,
           descripcion,
           precio,
-          precio_oferta: precioOferta || undefined,
+          ...ofertaPayload,
           stock_ilimitado: stockIlimitado,
           stock: stockIlimitado ? 0 : Number(stock),
           categoria,
@@ -131,15 +154,49 @@ export function VendedorProductoFormScreen({ route, navigation }: Props) {
               <MultiImagePicker imagenes={imagenes} onChange={setImagenes} />
             </View>
             <View style={{ flex: 1, gap: 14 }}>
-              <Input label="Nombre" value={nombre} onChangeText={setNombre} />
-              <Input label="Descripción" value={descripcion} onChangeText={setDescripcion} multiline />
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <View style={{ flex: 1 }}>
-                  <PriceInput label="Precio" value={precio} onChange={setPrecio} />
+              <Input label="Nombre" value={nombre} onChangeText={setNombre} maxLength={MAX_NOMBRE_PRODUCTO} hint={`${nombre.length}/${MAX_NOMBRE_PRODUCTO}`} />
+              <Input
+                label="Descripción"
+                value={descripcion}
+                onChangeText={setDescripcion}
+                multiline
+                maxLength={MAX_DESCRIPCION_PRODUCTO}
+                hint={`${descripcion.length}/${MAX_DESCRIPCION_PRODUCTO}`}
+              />
+              <PriceInput label="Precio" value={precio} onChange={setPrecio} />
+
+              <View>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary }}>Precio de oferta (opcional)</Text>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    <Pressable
+                      onPress={() => setOfertaModo("monto")}
+                      style={[styles.ofertaChip, { borderColor: ofertaModo === "monto" ? tokens.cyan : tokens.border, backgroundColor: ofertaModo === "monto" ? tokens.cyanBg : tokens.surface1 }]}
+                    >
+                      <Text style={{ fontSize: 11.5, fontFamily: "Inter_700Bold", color: ofertaModo === "monto" ? tokens.cyan : tokens.textSecondary }}>Monto fijo</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setOfertaModo("porcentaje")}
+                      style={[styles.ofertaChip, { borderColor: ofertaModo === "porcentaje" ? tokens.cyan : tokens.border, backgroundColor: ofertaModo === "porcentaje" ? tokens.cyanBg : tokens.surface1 }]}
+                    >
+                      <Text style={{ fontSize: 11.5, fontFamily: "Inter_700Bold", color: ofertaModo === "porcentaje" ? tokens.cyan : tokens.textSecondary }}>% descuento</Text>
+                    </Pressable>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <PriceInput label="Precio oferta" value={precioOferta} onChange={setPrecioOferta} />
-                </View>
+                {ofertaModo === "monto" ? (
+                  <PriceInput label="Precio con oferta" value={precioOferta} onChange={setPrecioOferta} />
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Input label="% de descuento" value={ofertaPorcentaje} onChangeText={setOfertaPorcentaje} keyboardType="number-pad" placeholder="ej. 20" />
+                    </View>
+                    {porcentajeNum > 0 && (
+                      <Text style={{ fontSize: 12.5, color: tokens.textSecondary, paddingTop: 18 }}>
+                        Final: <Text style={{ fontFamily: "IBMPlexMono_500Medium", color: tokens.danger }}>{money(precioOfertaFinal)}</Text>
+                      </Text>
+                    )}
+                  </View>
+                )}
               </View>
             </View>
           </View>
@@ -188,4 +245,5 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingVertical: 14 },
   closeBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   stockOpcion: { flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, alignItems: "center" },
+  ofertaChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
 });

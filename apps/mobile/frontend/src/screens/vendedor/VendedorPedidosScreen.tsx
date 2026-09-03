@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
-import { BicycleIcon, CheckCircleIcon, MagnifyingGlassIcon, PackageIcon, QrCodeIcon, XIcon } from "phosphor-react-native";
+import { FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { BicycleIcon, CheckCircleIcon, GaugeIcon, MagnifyingGlassIcon, PackageIcon, QrCodeIcon, TimerIcon, XIcon } from "phosphor-react-native";
 import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
 import { vendedorApi, ApiError } from "../../lib/api";
 import type { Pedido } from "../../lib/types";
 import { money, formatDateTime, numeroPedido } from "../../lib/format";
+import { distanciaKm, minutosCoherentes } from "../../lib/routing";
 import { StatusPill } from "../../components/ui/StatusPill";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
@@ -18,6 +19,8 @@ import { AnimatedListItem } from "../../components/ui/Motion";
 import { CodigoQrCard } from "../../components/domain/CodigoQrCard";
 
 const ESTADOS_CERRADOS = ["entregado", "cancelado", "rechazado_repartidor"];
+const PROGRESO_LABEL: Record<string, string> = { camino_tienda: "Repartidor yendo a tu tienda", recolectado: "Repartidor recogió el pedido", camino_cliente: "Repartidor en camino al cliente" };
+const TRAFICO_COLOR: Record<string, string> = { fluido: "okInk", moderado: "warnInk", pesado: "danger" };
 
 export function VendedorPedidosScreen() {
   const { tokens } = useTheme();
@@ -139,6 +142,31 @@ export function VendedorPedidosScreen() {
     return null;
   };
 
+  // Una vez el pedido pasa a en_camino, antes el vendedor perdía todo rastro del progreso
+  // (la tienda ya no tiene acciones que hacer) -- esto le muestra en qué tramo va el
+  // repartidor (a la tienda / recogido / al cliente), y su distancia/ETA al cliente en
+  // cuanto ya recogió (antes de eso no hay con qué calcularla: la tienda no trae sus
+  // propias coordenadas en /vendedor_dashboard.php?action=mis_ventas).
+  const renderProgreso = (p: Pedido) => {
+    if (p.estado !== "en_camino" || !p.progreso_repartidor) return null;
+    const distKm = p.progreso_repartidor !== "camino_tienda" && p.repartidor_lat && p.repartidor_lng && p.lat_entrega && p.lng_entrega
+      ? distanciaKm(p.repartidor_lat, p.repartidor_lng, p.lat_entrega, p.lng_entrega)
+      : null;
+    const minutos = minutosCoherentes(distKm, p.tiempo_estimado);
+    const colorTrafico = p.trafico ? (tokens[TRAFICO_COLOR[p.trafico] as keyof typeof tokens] as string) : tokens.cyanInk;
+    return (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: tokens.cyanBg, borderRadius: 10, paddingVertical: 7, paddingHorizontal: 12, marginBottom: 10 }}>
+        <BicycleIcon size={13} weight="bold" color={tokens.cyanInk} />
+        <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: tokens.cyanInk, flex: 1 }}>
+          {PROGRESO_LABEL[p.progreso_repartidor] ?? "Repartidor en camino"}
+          {distKm != null ? ` · ${distKm.toFixed(1)} km` : ""}
+          {minutos != null ? ` · ~${minutos} min` : ""}
+        </Text>
+        {p.trafico && <GaugeIcon size={13} weight="bold" color={colorTrafico} />}
+      </View>
+    );
+  };
+
   return (
     <View style={{ flex: 1 }}>
       <View style={{ paddingHorizontal: 20, paddingTop: 20 }}>
@@ -179,11 +207,33 @@ export function VendedorPedidosScreen() {
                     <Text style={{ fontFamily: "IBMPlexMono_500Medium", fontWeight: "700", marginTop: 6, color: tokens.textPrimary }}>{money(p.total)}</Text>
                   </View>
                 </View>
+                {p.items?.length > 0 && (
+                  <View style={{ gap: 4, marginBottom: 8 }}>
+                    {p.items.map((it, idx) => (
+                      <View key={it.id ?? idx} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <View style={{ width: 20, height: 20, borderRadius: 5, backgroundColor: tokens.surface2, overflow: "hidden" }}>
+                          {it.imagen && <Image source={{ uri: it.imagen }} style={{ width: "100%", height: "100%" }} />}
+                        </View>
+                        <Text style={{ flex: 1, fontSize: 11.5, color: tokens.textSecondary }}>
+                          <Text style={{ fontFamily: "Inter_700Bold", color: tokens.textPrimary }}>{it.cantidad}× </Text>
+                          {it.nombre}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
                 {p.tipo_entrega === "recogida" && (
                   <View style={{ alignSelf: "flex-start", backgroundColor: tokens.violetBg, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 10, marginBottom: 10 }}>
                     <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: tokens.violet }}>Recoge en tienda</Text>
                   </View>
                 )}
+                {p.estado === "preparacion" && p.repartidor_id && !p.confirmado_vendedor_recogida && p.tiempo_estimado != null && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: tokens.cyanBg, borderRadius: 10, paddingVertical: 7, paddingHorizontal: 12, marginBottom: 10 }}>
+                    <TimerIcon size={13} weight="bold" color={tokens.cyanInk} />
+                    <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: tokens.cyanInk }}>Repartidor llega en ~{p.tiempo_estimado} min</Text>
+                  </View>
+                )}
+                {renderProgreso(p)}
                 {renderAccion(p)}
               </Card>
             </AnimatedListItem>

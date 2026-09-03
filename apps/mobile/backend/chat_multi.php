@@ -30,6 +30,13 @@ function chat_meta_upsert(int $uid, int $otro, string $field, int $val): void {
 // para no tener que tocar nada del frontend.
 const CHAT_EN_LINEA_SQL = "(ultimo_visto IS NOT NULL AND ultimo_visto >= (NOW() - INTERVAL 90 SECOND)) AS en_linea";
 
+// Para que el chat pueda mostrar el logo de la tienda como avatar por defecto (cuando el
+// vendedor no tiene foto de perfil) y para poder llevar al usuario a "su tienda" o "su perfil
+// de repartidor" al tocar el nombre/avatar, cada SELECT de usuario en este archivo agrega
+// estos dos campos vía LEFT JOIN a tiendas (null si el usuario no es vendedor o no tiene tienda).
+const CHAT_USUARIO_SELECT = "u.id, u.nombre, u.username, u.foto_perfil, u.rol, t.id AS tienda_id, t.logo AS tienda_logo, " . CHAT_EN_LINEA_SQL;
+const CHAT_USUARIO_FROM = "FROM usuarios u LEFT JOIN tiendas t ON t.vendedor_id = u.id";
+
 switch ($action) {
 
     case 'conversaciones': {
@@ -51,7 +58,7 @@ switch ($action) {
         foreach ($rows as $r) {
             $otro = (int)$r['otro_id'];
 
-            $us = db()->prepare("SELECT id, nombre, username, foto_perfil, rol, " . CHAT_EN_LINEA_SQL . " FROM usuarios WHERE id = ?");
+            $us = db()->prepare("SELECT " . CHAT_USUARIO_SELECT . " " . CHAT_USUARIO_FROM . " WHERE u.id = ?");
             $us->execute([$otro]);
             $usr = $us->fetch();
             if (!$usr) continue;
@@ -140,7 +147,7 @@ switch ($action) {
         db()->prepare("UPDATE chats SET leido = 1 WHERE receptor_id = ? AND emisor_id = ? AND leido = 0")
              ->execute([$uid, $otro]);
 
-        $ou = db()->prepare("SELECT id, nombre, username, foto_perfil, rol, " . CHAT_EN_LINEA_SQL . ", ultimo_visto FROM usuarios WHERE id = ?");
+        $ou = db()->prepare("SELECT " . CHAT_USUARIO_SELECT . ", u.ultimo_visto " . CHAT_USUARIO_FROM . " WHERE u.id = ?");
         $ou->execute([$otro]);
         $otroInfo = $ou->fetch() ?: null;
 
@@ -370,9 +377,9 @@ switch ($action) {
 
         if ($rol === 'admin') {
             $st = db()->prepare("
-                SELECT id, nombre, username, foto_perfil, rol, " . CHAT_EN_LINEA_SQL . "
-                FROM usuarios WHERE activo = 1 AND id <> ?
-                ORDER BY en_linea DESC, nombre ASC
+                SELECT " . CHAT_USUARIO_SELECT . "
+                " . CHAT_USUARIO_FROM . " WHERE u.activo = 1 AND u.id <> ?
+                ORDER BY en_linea DESC, u.nombre ASC
             ");
             $st->execute([$uid]);
             jout(['ok' => true, 'contactos' => $st->fetchAll()]);
@@ -404,9 +411,9 @@ switch ($action) {
 
         $in = implode(',', array_fill(0, count($otroIds), '?'));
         $st = db()->prepare("
-            SELECT id, nombre, username, foto_perfil, rol, " . CHAT_EN_LINEA_SQL . "
-            FROM usuarios WHERE activo = 1 AND id IN ($in)
-            ORDER BY en_linea DESC, nombre ASC
+            SELECT " . CHAT_USUARIO_SELECT . "
+            " . CHAT_USUARIO_FROM . " WHERE u.activo = 1 AND u.id IN ($in)
+            ORDER BY en_linea DESC, u.nombre ASC
         ");
         $st->execute($otroIds);
         jout(['ok' => true, 'contactos' => $st->fetchAll()]);
@@ -466,27 +473,71 @@ switch ($action) {
         break;
     }
 
+    // ─── Perfil público de un repartidor (tap en nombre/avatar dentro del chat) ───
+    // A diferencia de repartidor_dashboard.php?action=mi_perfil (que solo el propio
+    // repartidor puede leer), esto lo puede pedir cualquier usuario autenticado sobre
+    // CUALQUIER repartidor, para mostrar su ficha pública desde el chat.
+    case 'perfil_publico_repartidor': {
+        $rid = (int)($_GET['usuario_id'] ?? 0);
+        if (!$rid) jout(['ok' => false, 'error' => 'usuario_id requerido'], 400);
+
+        $st = db()->prepare(
+            "SELECT id, nombre, foto_perfil, descripcion, telefono,
+                    repartidor_calificacion_promedio, repartidor_total_resenas
+             FROM usuarios WHERE id = ? AND rol = 'repartidor' AND activo = 1"
+        );
+        $st->execute([$rid]);
+        $perfil = $st->fetch();
+        if (!$perfil) jout(['ok' => false, 'error' => 'Repartidor no encontrado'], 404);
+
+        $perfil['entregas_completadas'] = (int)db()->query(
+            "SELECT COUNT(*) FROM pedidos WHERE repartidor_id = {$rid} AND estado = 'entregado'"
+        )->fetchColumn();
+
+        $rs = db()->prepare(
+            "SELECT cr.id, cr.estrellas, cr.comentario, cr.created_at, u.nombre AS comprador_nombre
+             FROM calificaciones_repartidor cr
+             JOIN usuarios u ON u.id = cr.comprador_id
+             WHERE cr.repartidor_id = ?
+             ORDER BY cr.created_at DESC LIMIT 30"
+        );
+        $rs->execute([$rid]);
+
+        jout(['ok' => true, 'perfil' => $perfil, 'resenas' => $rs->fetchAll()]);
+        break;
+    }
+
     // ─── Buscar usuarios para iniciar nuevo chat ───
     case 'buscar_usuarios': {
         $q = trim($_GET['q'] ?? '');
         $rol = $_GET['rol'] ?? '';
-        $sql = "SELECT id, nombre, username, foto_perfil, rol, " . CHAT_EN_LINEA_SQL . "
-                FROM usuarios
-                WHERE activo = 1 AND id <> ?";
+        $sql = "SELECT " . CHAT_USUARIO_SELECT . "
+                " . CHAT_USUARIO_FROM . "
+                WHERE u.activo = 1 AND u.id <> ?";
         $params = [$uid];
         if ($q !== '') {
-            $sql .= " AND (nombre LIKE ? OR username LIKE ? OR email LIKE ?)";
+            $sql .= " AND (u.nombre LIKE ? OR u.username LIKE ? OR u.email LIKE ?)";
             $like = "%{$q}%";
             $params[] = $like; $params[] = $like; $params[] = $like;
         }
         if ($rol && in_array($rol, ['comprador','vendedor','repartidor','admin'])) {
-            $sql .= " AND rol = ?";
+            $sql .= " AND u.rol = ?";
             $params[] = $rol;
         }
-        $sql .= " ORDER BY en_linea DESC, nombre ASC LIMIT 30";
+        $sql .= " ORDER BY en_linea DESC, u.nombre ASC LIMIT 30";
         $st = db()->prepare($sql);
         $st->execute($params);
         jout(['ok' => true, 'usuarios' => $st->fetchAll()]);
+        break;
+    }
+
+    // ─── Reportar una conversación (punto 6 de moderación) — entidad_id guarda el id del
+    // OTRO usuario de la conversación; el admin ve ambos lados con quién reportó. ───
+    case 'reportar_chat': {
+        require_fields($data, ['otro_usuario_id', 'motivo']);
+        db()->prepare("INSERT INTO reportes (tipo, entidad_id, usuario_id, motivo, detalle) VALUES ('chat', ?, ?, ?, ?)")
+            ->execute([(int)$data['otro_usuario_id'], $uid, mb_substr(trim($data['motivo']), 0, 160), $data['detalle'] ?? null]);
+        jout(['ok' => true]);
         break;
     }
 

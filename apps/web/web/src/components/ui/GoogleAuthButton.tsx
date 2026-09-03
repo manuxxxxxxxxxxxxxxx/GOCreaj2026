@@ -30,7 +30,8 @@ export function GoogleAuthButton() {
       if (res.es_nuevo) {
         navigate("/onboarding", { replace: true, state: { usernameSugerido: res.username_sugerido } });
       } else {
-        navigate(from, { replace: true });
+        // Ver Login.tsx: un admin siempre entra por el resumen, ignora un "from" viejo.
+        navigate(res.usuario.rol === "admin" ? "/admin" : from, { replace: true });
       }
     } catch (err) {
       toast.show(err instanceof ApiError ? err.message : "No se pudo iniciar sesión con Google.", "error");

@@ -18,9 +18,10 @@ interface Props {
   icon?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   multiline?: boolean;
+  maxLength?: number;
 }
 
-export function Input({ label, value, onChangeText, placeholder, error, hint, secureTextEntry, keyboardType, autoCapitalize = "sentences", icon, style, multiline }: Props) {
+export function Input({ label, value, onChangeText, placeholder, error, hint, secureTextEntry, keyboardType, autoCapitalize = "sentences", icon, style, multiline, maxLength }: Props) {
   const { tokens } = useTheme();
   const [focused, setFocused] = useState(false);
   const [showPass, setShowPass] = useState(false);
@@ -39,6 +40,7 @@ export function Input({ label, value, onChangeText, placeholder, error, hint, se
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           multiline={multiline}
+          maxLength={maxLength}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           style={[

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { FilmSlate, Infinity, Pencil, Plus, Storefront } from "@phosphor-icons/react";
 import { vendedorApi, ApiError } from "../../lib/api";
 import type { Producto, Tienda } from "../../lib/types";
@@ -19,6 +20,7 @@ export function VendedorProductos() {
   const [tiendas, setTiendas] = useState<Tienda[] | null>(null);
   const [editando, setEditando] = useState<Producto | "nuevo" | null>(null);
   const [subiendoReel, setSubiendoReel] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const cargar = () => {
     vendedorApi.misProductos().then((r) => setProductos(r.productos)).catch(() => setProductos([]));
@@ -28,6 +30,19 @@ export function VendedorProductos() {
     cargar();
     vendedorApi.misTiendas().then((r) => setTiendas(r.tiendas)).catch(() => setTiendas([]));
   }, []);
+
+  // Llegar con ?editar=<id> (p. ej. desde el lápiz en la vista previa de la tienda) abre
+  // directo el formulario de ese producto en vez de dejar al vendedor buscarlo en la grilla.
+  useEffect(() => {
+    const editarId = searchParams.get("editar");
+    if (!editarId || !productos) return;
+    const p = productos.find((pr) => pr.id === Number(editarId));
+    if (p) setEditando(p);
+    setSearchParams((sp) => {
+      sp.delete("editar");
+      return sp;
+    }, { replace: true });
+  }, [searchParams, productos]);
 
   if (tiendas !== null && tiendas.length === 0) {
     return <EmptyState icon={<Storefront size={26} />} title="Primero crea tu tienda" description="Necesitas una tienda antes de publicar productos." actionLabel="Ir a Mi tienda" onAction={() => (window.location.href = "/vendedor/tienda")} />;
@@ -109,11 +124,17 @@ export function VendedorProductos() {
   );
 }
 
+const MAX_NOMBRE_PRODUCTO = 80;
+const MAX_DESCRIPCION_PRODUCTO = 500;
+
 function ProductoForm({ producto, tiendaId, onClose, onSaved }: { producto: Producto | null; tiendaId?: number; onClose: () => void; onSaved: () => void }) {
   const [nombre, setNombre] = useState(producto?.nombre ?? "");
   const [descripcion, setDescripcion] = useState(producto?.descripcion ?? "");
   const [precio, setPrecio] = useState(producto?.precio ?? 0);
-  const [precioOferta, setPrecioOferta] = useState(producto?.precio_oferta ?? 0);
+  const [precioOferta, setPrecioOferta] = useState(producto?.oferta_tipo !== "porcentaje" ? producto?.precio_oferta ?? 0 : 0);
+  // Oferta como % de descuento -- alternativa al monto fijo. "20% sobre $10 = $8".
+  const [ofertaModo, setOfertaModo] = useState<"monto" | "porcentaje">(producto?.oferta_tipo === "porcentaje" ? "porcentaje" : "monto");
+  const [ofertaPorcentaje, setOfertaPorcentaje] = useState(producto?.oferta_tipo === "porcentaje" ? String(producto.oferta_valor ?? "") : "");
   const [stockIlimitado, setStockIlimitado] = useState(!!producto?.stock_ilimitado);
   const [stock, setStock] = useState(String(producto?.stock ?? "0"));
   const [categoria, setCategoria] = useState(producto?.categoria ?? "comida");
@@ -122,19 +143,31 @@ function ProductoForm({ producto, tiendaId, onClose, onSaved }: { producto: Prod
   const [guardando, setGuardando] = useState(false);
   const toast = useToast();
 
+  const porcentajeNum = Math.min(99, Math.max(0, Number(ofertaPorcentaje) || 0));
+  // Precio final de la oferta: en modo monto es lo que se escribió directo; en modo
+  // porcentaje se calcula sobre el precio normal y se redondea al centavo.
+  const precioOfertaFinal = ofertaModo === "porcentaje" ? Math.round(precio * (1 - porcentajeNum / 100) * 100) / 100 : precioOferta;
+  const hayOferta = ofertaModo === "porcentaje" ? porcentajeNum > 0 : precioOferta > 0;
+
   const guardar = async () => {
     if (!nombre.trim() || !precio) return toast.show("Nombre y precio son obligatorios.", "warning");
+    if (nombre.length > MAX_NOMBRE_PRODUCTO) return toast.show(`El nombre no puede pasar de ${MAX_NOMBRE_PRODUCTO} caracteres.`, "warning");
+    if (descripcion.length > MAX_DESCRIPCION_PRODUCTO) return toast.show(`La descripción no puede pasar de ${MAX_DESCRIPCION_PRODUCTO} caracteres.`, "warning");
     if (imagenes.length === 0) return toast.show("Agrega al menos una foto.", "warning");
+    if (hayOferta && precioOfertaFinal >= precio) return toast.show("El precio de oferta debe ser menor al precio normal.", "warning");
     setGuardando(true);
     try {
+      const ofertaPayload = hayOferta
+        ? { precio_oferta: precioOfertaFinal, oferta_tipo: ofertaModo, oferta_valor: ofertaModo === "porcentaje" ? porcentajeNum : precioOfertaFinal }
+        : {};
       if (producto) {
         await vendedorApi.actualizarProducto({
           producto_id: producto.id,
           nombre,
           descripcion,
           precio,
-          precio_oferta: precioOferta || undefined,
-          quitar_oferta: !precioOferta,
+          ...ofertaPayload,
+          quitar_oferta: !hayOferta,
           stock_ilimitado: stockIlimitado,
           stock: stockIlimitado ? 0 : Number(stock),
           categoria,
@@ -151,7 +184,7 @@ function ProductoForm({ producto, tiendaId, onClose, onSaved }: { producto: Prod
           nombre,
           descripcion,
           precio,
-          precio_oferta: precioOferta || undefined,
+          ...ofertaPayload,
           stock_ilimitado: stockIlimitado,
           stock: stockIlimitado ? 0 : Number(stock),
           categoria,
@@ -174,18 +207,71 @@ function ProductoForm({ producto, tiendaId, onClose, onSaved }: { producto: Prod
           <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 8 }}>Fotos (hasta 10)</label>
           <MultiImagePicker imagenes={imagenes} onChange={setImagenes} />
         </div>
-        <Input label="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+        <div>
+          <Input label="Nombre" value={nombre} onChange={(e) => setNombre(e.target.value.slice(0, MAX_NOMBRE_PRODUCTO))} />
+          <span style={{ fontSize: 11, color: "var(--text-muted)", float: "right", marginTop: 4 }}>
+            {nombre.length}/{MAX_NOMBRE_PRODUCTO}
+          </span>
+        </div>
         <div>
           <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>Descripción</label>
-          <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} style={{ width: "100%", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", padding: 12, fontSize: 13.5, fontFamily: "inherit", resize: "vertical" }} />
+          <textarea
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value.slice(0, MAX_DESCRIPCION_PRODUCTO))}
+            rows={3}
+            style={{ width: "100%", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", padding: 12, fontSize: 13.5, fontFamily: "inherit", resize: "vertical" }}
+          />
+          <span style={{ fontSize: 11, color: "var(--text-muted)", float: "right", marginTop: 4 }}>
+            {descripcion.length}/{MAX_DESCRIPCION_PRODUCTO}
+          </span>
         </div>
         <div style={{ display: "flex", gap: 10 }}>
           <div style={{ flex: 1 }}>
             <PriceInput label="Precio" value={precio} onChange={setPrecio} />
           </div>
-          <div style={{ flex: 1 }}>
-            <PriceInput label="Precio oferta (opcional)" value={precioOferta} onChange={setPrecioOferta} />
+        </div>
+
+        <div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Precio de oferta (opcional)</label>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setOfertaModo("monto")}
+                style={{ padding: "4px 10px", borderRadius: "var(--radius-pill)", border: `1px solid ${ofertaModo === "monto" ? "var(--cyan)" : "var(--border)"}`, background: ofertaModo === "monto" ? "var(--cyan-bg)" : "var(--surface-1)", color: ofertaModo === "monto" ? "var(--cyan)" : "var(--text-secondary)", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}
+              >
+                Monto fijo
+              </button>
+              <button
+                type="button"
+                onClick={() => setOfertaModo("porcentaje")}
+                style={{ padding: "4px 10px", borderRadius: "var(--radius-pill)", border: `1px solid ${ofertaModo === "porcentaje" ? "var(--cyan)" : "var(--border)"}`, background: ofertaModo === "porcentaje" ? "var(--cyan-bg)" : "var(--surface-1)", color: ofertaModo === "porcentaje" ? "var(--cyan)" : "var(--text-secondary)", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}
+              >
+                % descuento
+              </button>
+            </div>
           </div>
+          {ofertaModo === "monto" ? (
+            <PriceInput label="Precio con oferta" value={precioOferta} onChange={setPrecioOferta} />
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <Input
+                  label="% de descuento"
+                  type="number"
+                  value={ofertaPorcentaje}
+                  onChange={(e) => setOfertaPorcentaje(e.target.value)}
+                  placeholder="ej. 20"
+                />
+              </div>
+              {porcentajeNum > 0 && (
+                <div style={{ fontSize: 12.5, color: "var(--text-secondary)", paddingTop: 18 }}>
+                  <span style={{ color: "var(--text-muted)" }}>Precio final: </span>
+                  <strong className="tabular" style={{ color: "var(--danger)" }}>{money(precioOfertaFinal)}</strong>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div>

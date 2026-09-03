@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Headset } from "@phosphor-icons/react";
 import { adminApi, ApiError } from "../../lib/api";
 import type { ReporteSoporte } from "../../lib/types";
@@ -18,6 +19,7 @@ export function AdminSoporte() {
   const [tickets, setTickets] = useState<TicketAdmin[] | null>(null);
   const [respuestas, setRespuestas] = useState<Record<number, string>>({});
   const toast = useToast();
+  const navigate = useNavigate();
 
   const cargar = () => {
     adminApi.soporte().then((r) => setTickets(r.reportes as TicketAdmin[])).catch(() => setTickets([]));
@@ -31,7 +33,9 @@ export function AdminSoporte() {
     try {
       await adminApi.responderSoporte(t.id, respuesta, estado);
       toast.show("Respuesta enviada", "success");
-      cargar();
+      // Antes esto solo recargaba la misma lista de tickets y el admin se quedaba
+      // atrapado ahí -- ahora vuelve al panel principal como se espera.
+      navigate("/admin");
     } catch (err) {
       toast.show(err instanceof ApiError ? err.message : "No se pudo responder.", "error");
     }

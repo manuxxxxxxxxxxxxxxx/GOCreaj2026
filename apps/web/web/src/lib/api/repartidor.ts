@@ -9,6 +9,10 @@ export const repartidorApi = {
 
   aceptar: (pedido_id: number) => post<{ ok: true }>("repartidor_dashboard", "aceptar", { pedido_id }),
 
+  /** Soltar un pedido recién aceptado sin quedar responsable de él -- solo dentro de los
+   * primeros 3 minutos y antes de confirmar la recogida en tienda (ver DESIGN.md). */
+  cancelarAsignacion: (pedido_id: number) => post<{ ok: true }>("repartidor_dashboard", "cancelar_asignacion", { pedido_id }),
+
   confirmarRecogida: (pedido_id: number, codigo: { qr_token: string } | { pin: string }) =>
     post<{ ok: true; en_camino: boolean }>("repartidor_dashboard", "confirmar_recogida", { pedido_id, ...codigo }),
 

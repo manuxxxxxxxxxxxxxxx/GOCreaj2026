@@ -17,6 +17,7 @@ import {
 import type { ComponentType } from "react";
 import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
+import { useAuth } from "../../context/AuthContext";
 import type { RootStackParamList } from "../../navigation/types";
 
 interface FooterLink {
@@ -28,9 +29,14 @@ interface FooterLink {
 export function Footer() {
   const { tokens } = useTheme();
   const { show } = useToast();
+  const { usuario } = useAuth();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const proximamente = () => show("Muy pronto disponible 🚀", "info");
+
+  // Un vendedor o repartidor ya es socio -- no tiene sentido ofrecerle "convertirse"
+  // de nuevo (misma regla que ConfiguracionAvanzadaScreen / ProfileScreen).
+  const puedeConvertirse = !usuario || usuario.rol === "comprador";
 
   const columnas: { titulo: string; links: FooterLink[] }[] = [
     {
@@ -44,7 +50,7 @@ export function Footer() {
     {
       titulo: "Vender",
       links: [
-        { label: "Conviértete en vendedor", icon: StorefrontIcon, onPress: () => navigation.navigate("Convertirse") },
+        ...(puedeConvertirse ? [{ label: "Conviértete en vendedor", icon: StorefrontIcon, onPress: () => navigation.navigate("Convertirse") }] : []),
         { label: "Centro de ayuda", icon: ShieldCheckIcon, onPress: () => navigation.navigate("Soporte") },
       ],
     },

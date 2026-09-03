@@ -1,8 +1,15 @@
-import { Bell, BellSlash, Camera, ChatCircleText, SealCheck, Star, Storefront, UsersThree } from "@phosphor-icons/react";
+import { useRef } from "react";
+import { Bell, BellSlash, Camera, ChatCircleText, CreditCard, Flag, Money, PaypalLogo, PencilSimple, SealCheck, Star, Storefront, UsersThree } from "@phosphor-icons/react";
 import type { Tienda } from "../../../lib/types";
 import { Button } from "../../ui/Button";
 import { BrandMosaic } from "../../ui/BrandMosaic";
 import { CATEGORIA_LABEL, categoriaColor, categoriaIcon, type Categoria } from "../../../lib/categoryIcons";
+
+const METODOS_PAGO: { key: string; label: string; icon: typeof Money }[] = [
+  { key: "efectivo", label: "Efectivo", icon: Money },
+  { key: "tarjeta", label: "Tarjeta", icon: CreditCard },
+  { key: "paypal", label: "PayPal", icon: PaypalLogo },
+];
 
 function formatCount(n: number): string {
   if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1).replace(/\.0$/, "")}k`;
@@ -13,10 +20,15 @@ interface Props {
   tienda: Tienda;
   isOwner: boolean;
   notifOn: boolean;
-  onEditBanner?: () => void;
+  onPortadaChange?: (file: File) => void;
+  subiendoPortada?: boolean;
+  onLogoChange?: (file: File) => void;
+  subiendoLogo?: boolean;
+  onEditarProductos?: () => void;
   onToggleSeguir: () => void;
   onToggleNotif: () => void;
   onContactar: () => void;
+  onReportar?: () => void;
 }
 
 /**
@@ -24,8 +36,24 @@ interface Props {
  * identidad (nombre, stats, categorías, acciones) queda debajo -- todo apilado
  * y centrado, como una tarjeta de perfil en vez de un banner ancho tipo web clásico.
  */
-export function StoreHero({ tienda, isOwner, notifOn, onEditBanner, onToggleSeguir, onToggleNotif, onContactar }: Props) {
+export function StoreHero({
+  tienda,
+  isOwner,
+  notifOn,
+  onPortadaChange,
+  subiendoPortada,
+  onLogoChange,
+  subiendoLogo,
+  onEditarProductos,
+  onToggleSeguir,
+  onToggleNotif,
+  onContactar,
+  onReportar,
+}: Props) {
   const categorias = (tienda.categoria ?? "").split(",").filter(Boolean) as Categoria[];
+  const metodosPago = (tienda.metodos_pago ?? "").split(",").filter(Boolean);
+  const portadaInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <div className="store-hero">
@@ -38,38 +66,94 @@ export function StoreHero({ tienda, isOwner, notifOn, onEditBanner, onToggleSegu
         {/* Oscurece un poco toda la portada -- así el logo centrado y el botón de
             editar quedan legibles sobre cualquier foto, no solo sobre los bordes */}
         <div style={{ position: "absolute", inset: 0, background: "rgba(8,11,20,0.22)" }} />
-        {isOwner && (
-          <button
-            onClick={onEditBanner}
-            style={{
-              position: "absolute",
-              top: 10,
-              right: 10,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 11px",
-              borderRadius: "var(--radius-pill)",
-              background: "rgba(8,11,20,0.5)",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.2)",
-              fontSize: 11.5,
-              fontWeight: 700,
-              cursor: "pointer",
-              backdropFilter: "blur(6px)",
-            }}
-          >
-            <Camera size={13} weight="bold" /> Cambiar portada
-          </button>
+        {isOwner && onPortadaChange && (
+          <>
+            <input
+              ref={portadaInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) onPortadaChange(file);
+                e.target.value = "";
+              }}
+            />
+            <button
+              onClick={() => portadaInputRef.current?.click()}
+              disabled={subiendoPortada}
+              style={{
+                position: "absolute",
+                top: 10,
+                right: 10,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 11px",
+                borderRadius: "var(--radius-pill)",
+                background: "rgba(8,11,20,0.5)",
+                color: "#fff",
+                border: "1px solid rgba(255,255,255,0.2)",
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: subiendoPortada ? "default" : "pointer",
+                backdropFilter: "blur(6px)",
+                opacity: subiendoPortada ? 0.7 : 1,
+              }}
+            >
+              <Camera size={13} weight="bold" /> {subiendoPortada ? "Subiendo..." : "Cambiar portada"}
+            </button>
+          </>
         )}
-        <div className="store-hero-logo-wrap">
-          <div className="store-hero-logo">
-            {tienda.logo ? (
-              <img src={tienda.logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", background: "var(--surface-2)", color: "var(--text-muted)" }}>
-                <Storefront size={28} />
-              </div>
+        <div className="store-hero-logo-wrap" style={{ pointerEvents: "none" }}>
+          <div style={{ position: "relative", pointerEvents: "auto" }}>
+            <div className="store-hero-logo">
+              {tienda.logo ? (
+                <img src={tienda.logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", background: "var(--surface-2)", color: "var(--text-muted)" }}>
+                  <Storefront size={28} />
+                </div>
+              )}
+            </div>
+            {isOwner && onLogoChange && (
+              <>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) onLogoChange(file);
+                    e.target.value = "";
+                  }}
+                />
+                <button
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={subiendoLogo}
+                  aria-label="Cambiar foto de perfil"
+                  title="Cambiar foto de perfil"
+                  style={{
+                    position: "absolute",
+                    bottom: -2,
+                    right: -2,
+                    width: 24,
+                    height: 24,
+                    borderRadius: "50%",
+                    background: "var(--cyan)",
+                    color: "var(--cyan-ink)",
+                    border: "2px solid var(--surface-1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: subiendoLogo ? "default" : "pointer",
+                    opacity: subiendoLogo ? 0.7 : 1,
+                  }}
+                >
+                  <Camera size={11} weight="bold" />
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -122,20 +206,32 @@ export function StoreHero({ tienda, isOwner, notifOn, onEditBanner, onToggleSegu
           </div>
         )}
 
+        {/* Un vendedor no se sigue ni se contacta a sí mismo -- estos botones solo tienen
+            sentido para un visitante distinto al dueño de la tienda. En su lugar, desde
+            su propia vista previa puede saltar directo a editar el catálogo. */}
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-          <Button size="sm" variant={tienda.yo_sigo ? "secondary" : "primary"} onClick={onToggleSeguir}>
-            {tienda.yo_sigo ? (
-              "Siguiendo"
-            ) : (
-              <>
-                <Bell size={14} weight="fill" /> SEGUIR
-              </>
-            )}
-          </Button>
-          <Button size="sm" variant="secondary" onClick={onContactar}>
-            <ChatCircleText size={14} /> CONTACTAR
-          </Button>
-          {!!tienda.yo_sigo && (
+          {isOwner && onEditarProductos && (
+            <Button size="sm" variant="primary" onClick={onEditarProductos}>
+              <PencilSimple size={14} weight="bold" /> EDITAR PRODUCTOS
+            </Button>
+          )}
+          {!isOwner && (
+            <Button size="sm" variant={tienda.yo_sigo ? "secondary" : "primary"} onClick={onToggleSeguir}>
+              {tienda.yo_sigo ? (
+                "Siguiendo"
+              ) : (
+                <>
+                  <Bell size={14} weight="fill" /> SEGUIR
+                </>
+              )}
+            </Button>
+          )}
+          {!isOwner && (
+            <Button size="sm" variant="secondary" onClick={onContactar}>
+              <ChatCircleText size={14} /> CONTACTAR
+            </Button>
+          )}
+          {!isOwner && !!tienda.yo_sigo && (
             <button
               onClick={onToggleNotif}
               aria-label={notifOn ? "Desactivar notificaciones de esta tienda" : "Activar notificaciones de esta tienda"}
@@ -158,7 +254,44 @@ export function StoreHero({ tienda, isOwner, notifOn, onEditBanner, onToggleSegu
               {notifOn ? <Bell size={15} weight="fill" /> : <BellSlash size={15} />}
             </button>
           )}
+          {!isOwner && onReportar && (
+            <button
+              onClick={onReportar}
+              aria-label="Reportar tienda"
+              title="Reportar tienda"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--border)",
+                background: "var(--surface-2)",
+                color: "var(--text-secondary)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: "pointer",
+                flexShrink: 0,
+              }}
+            >
+              <Flag size={14} />
+            </button>
+          )}
         </div>
+
+        {!!metodosPago.length && (
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            {METODOS_PAGO.filter((m) => metodosPago.includes(m.key)).map(({ key, icon: MetodoIcon, label }) => (
+              <span
+                key={key}
+                title={label}
+                aria-label={label}
+                style={{ width: 30, height: 30, borderRadius: "50%", background: "var(--cyan-bg)", color: "var(--cyan)", display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <MetodoIcon size={15} weight="fill" />
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <style>{`

@@ -1,19 +1,27 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bicycle, CheckCircle, Clock, Storefront, UploadSimple } from "@phosphor-icons/react";
+import { Bicycle, Car, CheckCircle, Clock, Storefront, UploadSimple } from "@phosphor-icons/react";
 import { solicitudesApi, ApiError } from "../lib/api";
 import type { SolicitudRol } from "../lib/types";
-import { fileToBase64 } from "../lib/format";
+import { fileToBase64, formatDui } from "../lib/format";
 import { useToast } from "../context/ToastContext";
+import { useAuth } from "../context/AuthContext";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { Skeleton } from "../components/ui/Skeleton";
 import { BackButton } from "../components/ui/BackButton";
+import { MunicipioSelect } from "../components/domain/MunicipioSelect";
 
 const ROLE_META = {
   vendedor: { accent: "violet" as const, icon: <Storefront size={28} weight="duotone" /> },
   repartidor: { accent: "coral" as const, icon: <Bicycle size={28} weight="duotone" /> },
 };
+
+const VEHICULOS: { key: string; label: string; Icon: typeof Bicycle }[] = [
+  { key: "moto", label: "Moto", Icon: Bicycle },
+  { key: "carro", label: "Carro", Icon: Car },
+];
 
 const slideVariants = {
   enter: (dir: number) => ({ opacity: 0, x: dir > 0 ? 24 : -24 }),
@@ -47,6 +55,8 @@ function Step({ n, active, done, label }: { n: number; active: boolean; done: bo
 }
 
 export function Convertirse() {
+  const { usuario } = useAuth();
+  const navigate = useNavigate();
   const [solicitudes, setSolicitudes] = useState<SolicitudRol[] | null>(null);
   const [rol, setRol] = useState<"vendedor" | "repartidor" | null>(null);
   const [dir, setDir] = useState(1);
@@ -55,6 +65,13 @@ export function Convertirse() {
     solicitudesApi.misSolicitudes().then((r) => setSolicitudes(r.solicitudes)).catch(() => setSolicitudes([]));
   }, []);
 
+  // Un usuario que ya es vendedor/repartidor no debería poder "convertirse" de nuevo --
+  // por si llega aquí por URL directa en vez de por el menú (que ya oculta la entrada).
+  useEffect(() => {
+    if (usuario && usuario.rol !== "comprador") navigate("/", { replace: true });
+  }, [usuario, navigate]);
+
+  if (usuario && usuario.rol !== "comprador") return null;
   if (solicitudes === null) return <Skeleton height={140} />;
 
   const pendiente = solicitudes.find((s) => s.estado === "pendiente");
@@ -210,6 +227,9 @@ function SolicitudForm({ rol, onBack, onSent }: { rol: "vendedor" | "repartidor"
   const [nombreNegocio, setNombreNegocio] = useState("");
   const [fotoNegocio, setFotoNegocio] = useState<string | null>(null);
   const [tipoVehiculo, setTipoVehiculo] = useState("moto");
+  const [vehiculoModelo, setVehiculoModelo] = useState("");
+  const [vehiculoPlaca, setVehiculoPlaca] = useState("");
+  const [licenciaNumero, setLicenciaNumero] = useState("");
   const [licenciaFrente, setLicenciaFrente] = useState<string | null>(null);
   const [licenciaReverso, setLicenciaReverso] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
@@ -218,6 +238,12 @@ function SolicitudForm({ rol, onBack, onSent }: { rol: "vendedor" | "repartidor"
   const enviar = async () => {
     if (!nombreCompleto.trim() || !duiNumero.trim() || !duiFrente || !duiReverso) {
       return toast.show("Completa tu nombre, DUI y ambas fotos del DUI.", "warning");
+    }
+    if (duiNumero.replace(/\D/g, "").length !== 9) {
+      return toast.show("El DUI debe tener 9 dígitos, formato 00000000-0.", "warning");
+    }
+    if (rol === "repartidor" && (!vehiculoModelo.trim() || !vehiculoPlaca.trim() || !licenciaNumero.trim() || !licenciaFrente || !licenciaReverso)) {
+      return toast.show("Completa el modelo, la placa, la licencia de conducir y sus fotos.", "warning");
     }
     setEnviando(true);
     try {
@@ -233,6 +259,9 @@ function SolicitudForm({ rol, onBack, onSent }: { rol: "vendedor" | "repartidor"
         licencia_frente: rol === "repartidor" && licenciaFrente ? licenciaFrente : undefined,
         licencia_reverso: rol === "repartidor" && licenciaReverso ? licenciaReverso : undefined,
         tipo_vehiculo: rol === "repartidor" ? tipoVehiculo : undefined,
+        vehiculo_modelo: rol === "repartidor" ? vehiculoModelo : undefined,
+        vehiculo_placa: rol === "repartidor" ? vehiculoPlaca : undefined,
+        licencia_numero: rol === "repartidor" ? licenciaNumero : undefined,
       });
       setEnviado(true);
       onSent();
@@ -277,8 +306,8 @@ function SolicitudForm({ rol, onBack, onSent }: { rol: "vendedor" | "repartidor"
       </div>
 
       <Input label="Nombre completo" value={nombreCompleto} onChange={(e) => setNombreCompleto(e.target.value)} />
-      <Input label="Municipio" value={municipio} onChange={(e) => setMunicipio(e.target.value)} />
-      <Input label="Número de DUI" value={duiNumero} onChange={(e) => setDuiNumero(e.target.value)} placeholder="00000000-0" />
+      <MunicipioSelect value={municipio} onChange={setMunicipio} />
+      <Input label="Número de DUI" value={duiNumero} onChange={(e) => setDuiNumero(formatDui(e.target.value))} placeholder="00000000-0" maxLength={10} inputMode="numeric" />
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ flex: 1 }}>
           <FileField label="DUI (frente)" value={duiFrente} onFile={setDuiFrente} />
@@ -299,13 +328,37 @@ function SolicitudForm({ rol, onBack, onSent }: { rol: "vendedor" | "repartidor"
         <>
           <div>
             <label style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", display: "block", marginBottom: 6 }}>Tipo de vehículo</label>
-            <select value={tipoVehiculo} onChange={(e) => setTipoVehiculo(e.target.value)} style={{ width: "100%", height: 44, borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", padding: "0 12px", fontSize: 14, background: "var(--surface-1)" }}>
-              <option value="moto">Moto</option>
-              <option value="bicicleta">Bicicleta</option>
-              <option value="carro">Carro</option>
-              <option value="a_pie">A pie</option>
-            </select>
+            <div style={{ display: "flex", gap: 10 }}>
+              {VEHICULOS.map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setTipoVehiculo(key)}
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    height: 44,
+                    borderRadius: "var(--radius-sm)",
+                    border: `1px solid ${tipoVehiculo === key ? "var(--cyan)" : "var(--border)"}`,
+                    background: tipoVehiculo === key ? "var(--cyan-bg)" : "var(--surface-1)",
+                    color: tipoVehiculo === key ? "var(--cyan)" : "var(--text-secondary)",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 600,
+                  }}
+                >
+                  <Icon size={16} weight={tipoVehiculo === key ? "fill" : "regular"} />
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
+          <Input label="Modelo del vehículo" value={vehiculoModelo} onChange={(e) => setVehiculoModelo(e.target.value)} placeholder="Ej. Yamaha FZ 2020" />
+          <Input label="Placa" value={vehiculoPlaca} onChange={(e) => setVehiculoPlaca(e.target.value.toUpperCase())} placeholder="P123-456" />
+          <Input label="Número de licencia de conducir" value={licenciaNumero} onChange={(e) => setLicenciaNumero(e.target.value)} placeholder="12345678" />
           <div style={{ display: "flex", gap: 12 }}>
             <div style={{ flex: 1 }}>
               <FileField label="Licencia (frente)" value={licenciaFrente} onFile={setLicenciaFrente} />

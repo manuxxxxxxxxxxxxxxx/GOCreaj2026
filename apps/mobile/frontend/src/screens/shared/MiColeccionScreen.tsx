@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { BookmarkSimpleIcon, CaretLeftIcon, HeartIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
@@ -30,12 +31,19 @@ export function MiColeccionScreen({ route, navigation }: Props) {
   const [page, setPage] = useState(1);
   const [cargandoMas, setCargandoMas] = useState(false);
 
-  useEffect(() => {
-    cfg.fetch(1, LIMIT).then((r) => {
-      setProductos(r.productos);
-      setTotal(r.total);
-    });
-  }, [tipo]);
+  // useFocusEffect en vez de un simple useEffect al montar -- así, si le diste like a un
+  // reel y volvés a esta pantalla, siempre trae la lista fresca en vez de la que trajo la
+  // primera vez que se montó (por ejemplo si React Navigation reutiliza la instancia).
+  useFocusEffect(
+    useCallback(() => {
+      setPage(1);
+      cfg.fetch(1, LIMIT).then((r) => {
+        setProductos(r.productos);
+        setTotal(r.total);
+      });
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tipo]),
+  );
 
   const cargarMas = () => {
     const siguiente = page + 1;

@@ -2,18 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useVideoPlayer, VideoView } from "expo-video";
+import * as ImagePicker from "expo-image-picker";
 import { CaretLeftIcon, ClockIcon, CreditCardIcon, MapPinIcon, PhoneIcon, PlayIcon, StarIcon, StorefrontIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
-import { productosApi, interaccionesApi } from "../../lib/api";
+import { useToast } from "../../context/ToastContext";
+import { productosApi, interaccionesApi, vendedorApi, ApiError } from "../../lib/api";
 import type { Producto, Tienda } from "../../lib/types";
 import { formatDate } from "../../lib/format";
+import { CATEGORIA_LABEL, categoriaColor, categoriaIcon, type Categoria } from "../../lib/categoryIcons";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { ProductCard } from "../../components/domain/ProductCard";
 import { WebMapView } from "../../components/ui/WebMapView";
 import { StoreHero } from "../../components/domain/store/StoreHero";
 import { StoreEmptyState } from "../../components/domain/store/StoreEmptyState";
+import { ReportSheet } from "../../components/domain/ReportSheet";
 
 type Props = NativeStackScreenProps<RootStackParamList, "StoreDetail">;
 
@@ -34,8 +39,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "sobre-nosotros", label: "Sobre Nosotros" },
   { key: "resenas", label: "Reseñas" },
 ];
-
-const CROSS_SECTION_LIMIT = 8;
 
 function parseHora(h: string): number | null {
   const m = h.match(/^(\d{1,2}):(\d{2})/);
@@ -58,11 +61,16 @@ export function StoreDetailScreen({ route, navigation }: Props) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
   const { usuario } = useAuth();
+  const toast = useToast();
   const [tienda, setTienda] = useState<Tienda | null>(null);
   const [productos, setProductos] = useState<Producto[] | null>(null);
   const [reels, setReels] = useState<Producto[] | null>(null);
   const [resenas, setResenas] = useState<Resena[]>([]);
   const [tab, setTab] = useState<Tab>("productos");
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string | null>(null);
+  const [reportando, setReportando] = useState(false);
+  const [subiendoPortada, setSubiendoPortada] = useState(false);
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
   const isOwner = !!usuario && usuario.rol === "vendedor" && tienda?.vendedor_id === usuario.id;
 
   useEffect(() => {
@@ -84,12 +92,65 @@ export function StoreDetailScreen({ route, navigation }: Props) {
     navigation.navigate("ChatThread", { otroId: tienda.vendedor_id });
   };
 
+  const cambiarPortada = async () => {
+    if (!tienda) return;
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.7, base64: true });
+    if (res.canceled || !res.assets[0].base64) return;
+    const portada = `data:${res.assets[0].mimeType ?? "image/jpeg"};base64,${res.assets[0].base64}`;
+    setSubiendoPortada(true);
+    try {
+      await vendedorApi.actualizarTienda({ tienda_id: tienda.id, portada });
+      setTienda({ ...tienda, portada });
+      toast.show("Portada actualizada", "success");
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo actualizar la portada.", "error");
+    } finally {
+      setSubiendoPortada(false);
+    }
+  };
+
+  const cambiarLogo = async () => {
+    if (!tienda) return;
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.7, base64: true });
+    if (res.canceled || !res.assets[0].base64) return;
+    const logo = `data:${res.assets[0].mimeType ?? "image/jpeg"};base64,${res.assets[0].base64}`;
+    setSubiendoLogo(true);
+    try {
+      await vendedorApi.actualizarTienda({ tienda_id: tienda.id, logo });
+      setTienda({ ...tienda, logo });
+      toast.show("Foto de perfil actualizada", "success");
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo actualizar la foto de perfil.", "error");
+    } finally {
+      setSubiendoLogo(false);
+    }
+  };
+
   const abierto = calcAbierto(tienda);
 
   const mapCenter = useMemo<[number, number] | null>(() => {
     if (!tienda || tienda.lat === null || tienda.lng === null) return null;
     return [tienda.lng, tienda.lat];
   }, [tienda]);
+
+  // Categorías que la tienda realmente vende -- solo las que aparecen entre sus propios
+  // productos, no las 129 categorías de la plataforma (mismo cálculo que la web).
+  const categoriasDeLaTienda = useMemo(() => {
+    const vistas = new Set<string>();
+    const lista: string[] = [];
+    (productos ?? []).forEach((p) => {
+      if (p.categoria && !vistas.has(p.categoria)) {
+        vistas.add(p.categoria);
+        lista.push(p.categoria);
+      }
+    });
+    return lista;
+  }, [productos]);
+
+  const productosFiltrados = useMemo(() => {
+    if (!productos || !categoriaFiltro) return productos;
+    return productos.filter((p) => p.categoria === categoriaFiltro);
+  }, [productos, categoriaFiltro]);
 
   const openReel = (r: Producto) => navigation.navigate("Tabs", { screen: "Reels", params: { tiendaId: r.tienda_id, productoId: r.id } });
 
@@ -104,20 +165,24 @@ export function StoreDetailScreen({ route, navigation }: Props) {
   return (
     <View style={{ flex: 1, backgroundColor: tokens.bg }}>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}>
-        <View style={{ position: "relative" }}>
-          <StoreHero
-            tienda={tienda}
-            isOwner={isOwner}
-            notifOn={!!tienda.yo_sigo}
-            onEditBanner={() => navigation.navigate("VendedorTienda")}
-            onToggleSeguir={toggleSeguir}
-            onToggleNotif={() => {}}
-            onContactar={contactar}
-          />
-          <Pressable onPress={navigation.goBack} style={[styles.backBtn, { top: insets.top + 8 }]}>
-            <CaretLeftIcon size={16} color="#fff" />
-          </Pressable>
-        </View>
+        <Pressable onPress={navigation.goBack} style={[styles.backRow, { paddingTop: insets.top + 12 }]}>
+          <CaretLeftIcon size={16} weight="bold" color={tokens.textSecondary} />
+          <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: tokens.textSecondary }}>Volver</Text>
+        </Pressable>
+        <StoreHero
+          tienda={tienda}
+          isOwner={isOwner}
+          notifOn={!!tienda.yo_sigo}
+          onPortadaChange={cambiarPortada}
+          subiendoPortada={subiendoPortada}
+          onLogoChange={cambiarLogo}
+          subiendoLogo={subiendoLogo}
+          onEditarProductos={isOwner ? () => navigation.navigate("VendedorProductos") : undefined}
+          onToggleSeguir={toggleSeguir}
+          onToggleNotif={() => {}}
+          onContactar={contactar}
+          onReportar={() => setReportando(true)}
+        />
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={[styles.tabsRow, { backgroundColor: tokens.surface2 }]}>
           {TABS.map((t) => {
@@ -136,25 +201,51 @@ export function StoreDetailScreen({ route, navigation }: Props) {
 
         <View style={{ paddingHorizontal: 20, paddingTop: 16, gap: 24 }}>
           {tab === "productos" && (
-            <>
+            <View style={{ gap: 14 }}>
+              {!!categoriasDeLaTienda.length && (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  <FiltroChip label="Todas" active={!categoriaFiltro} onPress={() => setCategoriaFiltro(null)} />
+                  {categoriasDeLaTienda.map((c) => {
+                    const color = categoriaColor(c);
+                    const CatIcon = categoriaIcon(c);
+                    const activo = categoriaFiltro === c;
+                    return (
+                      <FiltroChip
+                        key={c}
+                        label={CATEGORIA_LABEL[c as Categoria] ?? c}
+                        icon={<CatIcon size={12} weight={activo ? "fill" : "regular"} color={activo ? color : tokens.textSecondary} />}
+                        active={activo}
+                        accent={color}
+                        onPress={() => setCategoriaFiltro(c)}
+                      />
+                    );
+                  })}
+                </View>
+              )}
               <ProductWrapGrid
-                productos={productos}
+                productos={productosFiltrados}
+                isOwner={isOwner}
                 empty={
-                  <StoreEmptyState
-                    icon={<StorefrontIcon size={20} color={tokens.cyan} />}
-                    title={isOwner ? "Todavía no has publicado productos" : "Sin productos todavía"}
-                    description={isOwner ? "Agrega tu primer producto para que los compradores puedan encontrarte." : "Vuelve pronto, esta tienda está preparando su catálogo."}
-                    actionLabel={isOwner ? "Agregar producto" : undefined}
-                    onAction={isOwner ? () => navigation.navigate("VendedorProductos") : undefined}
-                  />
+                  categoriaFiltro ? (
+                    <StoreEmptyState
+                      icon={<StorefrontIcon size={20} color={tokens.cyan} />}
+                      title="Sin productos en esta categoría"
+                      description="Prueba con otra categoría o mira el catálogo completo."
+                      actionLabel="Ver todas"
+                      onAction={() => setCategoriaFiltro(null)}
+                    />
+                  ) : (
+                    <StoreEmptyState
+                      icon={<StorefrontIcon size={20} color={tokens.cyan} />}
+                      title={isOwner ? "Todavía no has publicado productos" : "Sin productos todavía"}
+                      description={isOwner ? "Agrega tu primer producto para que los compradores puedan encontrarte." : "Vuelve pronto, esta tienda está preparando su catálogo."}
+                      actionLabel={isOwner ? "Agregar producto" : undefined}
+                      onAction={isOwner ? () => navigation.navigate("VendedorProductos") : undefined}
+                    />
+                  )
                 }
               />
-              {!!reels?.length && (
-                <CrossSection title="Reels de la tienda" onViewAll={reels.length > CROSS_SECTION_LIMIT ? () => setTab("reels") : undefined}>
-                  <ReelGrid reels={reels.slice(0, CROSS_SECTION_LIMIT)} onOpen={openReel} />
-                </CrossSection>
-              )}
-            </>
+            </View>
           )}
 
           {tab === "reels" && (
@@ -163,7 +254,11 @@ export function StoreDetailScreen({ route, navigation }: Props) {
                 <Skeleton height={220} radius={16} />
               ) : reels.length === 0 ? (
                 <StoreEmptyState
-                  icon={<PlayIcon size={20} color={tokens.violet} />}
+                  // El triángulo de "play" no queda ópticamente centrado en su círculo
+                  // como un ícono simétrico -- se nota corrido a la izquierda sin este
+                  // empujón, porque el centroide del triángulo no coincide con el centro
+                  // de su propio bounding box cuadrado.
+                  icon={<PlayIcon size={20} color={tokens.violet} style={{ marginLeft: 2 }} />}
                   title={isOwner ? "Sube tu primer reel" : "Sin reels todavía"}
                   description={isOwner ? "Muestra tus productos en video corto, estilo TikTok." : undefined}
                   actionLabel={isOwner ? "Subir reel" : undefined}
@@ -173,24 +268,11 @@ export function StoreDetailScreen({ route, navigation }: Props) {
               ) : (
                 <ReelGrid reels={reels} onOpen={openReel} />
               )}
-              {!!productos?.length && (
-                <CrossSection title="Catálogo de productos" onViewAll={productos.length > CROSS_SECTION_LIMIT ? () => setTab("productos") : undefined}>
-                  <ProductWrapGrid productos={productos.slice(0, CROSS_SECTION_LIMIT)} empty={null} />
-                </CrossSection>
-              )}
             </>
           )}
 
           {tab === "sobre-nosotros" && (
             <View style={{ gap: 16 }}>
-              {mapCenter ? (
-                <View style={{ height: 200, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: tokens.border }}>
-                  <WebMapView center={mapCenter} zoom={15} interactive markers={[{ id: tienda.id, coordinate: mapCenter, category: tienda.categoria?.split(",")[0] ?? undefined }]} />
-                </View>
-              ) : (
-                <StoreEmptyState icon={<MapPinIcon size={20} color={tokens.cyan} />} title="Ubicación no disponible" description="Esta tienda todavía no ha registrado su dirección exacta." compact />
-              )}
-
               <View style={[styles.infoCard, { backgroundColor: tokens.surface1, borderColor: tokens.border }]}>
                 {tienda.descripcion ? <Text style={[styles.desc, { color: tokens.textSecondary }]}>{tienda.descripcion}</Text> : null}
                 <InfoRow icon={<MapPinIcon size={15} color={tokens.textMuted} />} text={[tienda.direccion, tienda.municipio].filter(Boolean).join(", ")} />
@@ -205,6 +287,14 @@ export function StoreDetailScreen({ route, navigation }: Props) {
                 {tienda.telefono ? <InfoRow icon={<PhoneIcon size={15} color={tokens.textMuted} />} text={tienda.telefono} /> : null}
                 {tienda.metodos_pago ? <InfoRow icon={<CreditCardIcon size={15} color={tokens.textMuted} />} text={tienda.metodos_pago} /> : null}
               </View>
+
+              {mapCenter ? (
+                <View style={{ height: 200, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: tokens.border }}>
+                  <WebMapView center={mapCenter} zoom={15} interactive markers={[{ id: tienda.id, coordinate: mapCenter, category: tienda.categoria?.split(",")[0] ?? undefined }]} />
+                </View>
+              ) : (
+                <StoreEmptyState icon={<MapPinIcon size={20} color={tokens.cyan} />} title="Ubicación no disponible" description="Esta tienda todavía no ha registrado su dirección exacta." compact />
+              )}
             </View>
           )}
 
@@ -237,28 +327,36 @@ export function StoreDetailScreen({ route, navigation }: Props) {
             ))}
         </View>
       </ScrollView>
+      {reportando && <ReportSheet tipo="tienda" entidadId={tienda.id} entidadNombre={tienda.nombre} onClose={() => setReportando(false)} />}
     </View>
   );
 }
 
-function CrossSection({ title, onViewAll, children }: { title: string; onViewAll?: () => void; children: React.ReactNode }) {
+function FiltroChip({ label, icon, active, accent, onPress }: { label: string; icon?: React.ReactNode; active: boolean; accent?: string; onPress: () => void }) {
   const { tokens } = useTheme();
+  const color = accent ?? tokens.cyan;
   return (
-    <View style={{ gap: 12 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <Text style={{ fontSize: 15, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>{title}</Text>
-        {onViewAll && (
-          <Pressable onPress={onViewAll}>
-            <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: tokens.cyan }}>Ver todos</Text>
-          </Pressable>
-        )}
-      </View>
-      {children}
-    </View>
+    <Pressable
+      onPress={onPress}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        paddingHorizontal: 12,
+        paddingVertical: 7,
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: active ? color : tokens.border,
+        backgroundColor: active ? `${color}29` : tokens.surface1,
+      }}
+    >
+      {icon}
+      <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: active ? color : tokens.textSecondary, textTransform: "capitalize" }}>{label}</Text>
+    </Pressable>
   );
 }
 
-function ProductWrapGrid({ productos, empty }: { productos: Producto[] | null; empty: React.ReactNode }) {
+function ProductWrapGrid({ productos, empty, isOwner }: { productos: Producto[] | null; empty: React.ReactNode; isOwner?: boolean }) {
   if (productos === null) {
     return (
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
@@ -273,7 +371,8 @@ function ProductWrapGrid({ productos, empty }: { productos: Producto[] | null; e
     <View style={styles.productGrid}>
       {productos.map((p) => (
         <View key={p.id} style={styles.productCell}>
-          <ProductCard producto={p} height={130} showWishlist />
+          {/* El dueño de la tienda no le da like a sus propios productos. */}
+          <ProductCard producto={p} height={130} showWishlist={!isOwner} isOwner={isOwner} />
         </View>
       ))}
     </View>
@@ -284,18 +383,45 @@ function ReelGrid({ reels, onOpen }: { reels: Producto[]; onOpen: (r: Producto) 
   return (
     <View style={styles.reelGrid}>
       {reels.map((r) => (
-        <Pressable key={r.id} onPress={() => onOpen(r)} style={styles.reelTile}>
-          {r.imagen && <Image source={{ uri: r.imagen }} style={StyleSheet.absoluteFill} />}
-          <View style={styles.reelGradient} />
-          <View style={styles.reelPlayBadge}>
-            <PlayIcon size={11} weight="fill" color="#fff" />
-          </View>
-          <Text numberOfLines={1} style={styles.reelTitle}>
-            {r.nombre}
-          </Text>
-        </Pressable>
+        <ReelTile key={r.id} reel={r} onOpen={() => onOpen(r)} />
       ))}
     </View>
+  );
+}
+
+/** Loop silencioso del propio video en vez de una foto fija -- así la cuadrícula se ve
+ * "viva" en vez de estática, igual que el perfil de TikTok/Instagram Reels. La miniatura
+ * (`reel.imagen`, el frame que el vendedor eligió al subir el reel) se muestra debajo y
+ * sigue visible hasta que el video reporta "readyToPlay" -- sin esto la cuadrícula
+ * arrancaba en negro/parpadeando mientras cada video cargaba su primer frame. */
+function ReelTile({ reel, onOpen }: { reel: Producto; onOpen: () => void }) {
+  const [listo, setListo] = useState(false);
+  const player = useVideoPlayer(reel.video_url ?? "", (p) => {
+    p.loop = true;
+    p.muted = true;
+    if (reel.video_url) p.play();
+  });
+
+  useEffect(() => {
+    if (!reel.video_url) return;
+    const sub = player.addListener("statusChange", ({ status }) => {
+      if (status === "readyToPlay") setListo(true);
+    });
+    return () => sub.remove();
+  }, [player, reel.video_url]);
+
+  return (
+    <Pressable onPress={onOpen} style={styles.reelTile}>
+      {reel.imagen && <Image source={{ uri: reel.imagen }} style={StyleSheet.absoluteFill} />}
+      {reel.video_url && <VideoView player={player} style={[StyleSheet.absoluteFill, { opacity: listo ? 1 : 0 }]} contentFit="cover" nativeControls={false} />}
+      <View style={styles.reelGradient} />
+      <View style={styles.reelPlayBadge}>
+        <PlayIcon size={11} weight="fill" color="#fff" />
+      </View>
+      <Text numberOfLines={1} style={styles.reelTitle}>
+        {reel.nombre}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -316,7 +442,7 @@ function InfoRow({ icon, text, badge, badgeOk }: { icon: React.ReactNode; text: 
 }
 
 const styles = StyleSheet.create({
-  backBtn: { position: "absolute", left: 20, width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
+  backRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 20, paddingBottom: 12 },
   tabsRow: { flexDirection: "row", gap: 6, marginHorizontal: 20, marginTop: 14, padding: 4, borderRadius: 12, alignSelf: "flex-start" },
   tabBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
   productGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },

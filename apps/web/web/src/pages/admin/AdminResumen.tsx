@@ -22,13 +22,13 @@ export function AdminResumen() {
       <h1 style={{ fontSize: 20 }}>Resumen de la plataforma</h1>
 
       {stats === null ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+        <div className="kpi-grid">
           {Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} height={80} radius="var(--radius-md)" />
           ))}
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+        <div className="kpi-grid">
           {[
             <Kpi icon={<UsersThree size={16} />} label="Usuarios" value={String(stats.usuarios)} />,
             <Kpi icon={<ShoppingBag size={16} />} label="Compradores" value={String(stats.compradores)} />,

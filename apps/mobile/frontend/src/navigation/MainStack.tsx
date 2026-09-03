@@ -7,7 +7,9 @@ import { CartScreen } from "../screens/comprador/CartScreen";
 import { CheckoutScreen } from "../screens/comprador/CheckoutScreen";
 import { OrdersScreen } from "../screens/comprador/OrdersScreen";
 import { OrderDetailScreen } from "../screens/comprador/OrderDetailScreen";
+import { ChatListScreen } from "../screens/shared/ChatListScreen";
 import { ChatThreadScreen } from "../screens/shared/ChatThreadScreen";
+import { RepartidorPerfilPublicoScreen } from "../screens/shared/RepartidorPerfilPublicoScreen";
 import { NotificationsScreen } from "../screens/shared/NotificationsScreen";
 import { DireccionesScreen } from "../screens/shared/DireccionesScreen";
 import { WalletScreen } from "../screens/shared/WalletScreen";
@@ -41,11 +43,13 @@ export function MainStack() {
       <Stack.Screen name="Tabs" component={TabsShell} />
       <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
       <Stack.Screen name="StoreDetail" component={StoreDetailScreen} />
-      <Stack.Screen name="Cart" component={CartScreen} options={{ presentation: "modal", animation: "slide_from_bottom" }} />
+      <Stack.Screen name="Cart" component={CartScreen} />
       <Stack.Screen name="Checkout" component={CheckoutScreen} />
       <Stack.Screen name="Orders" component={OrdersScreen} />
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
+      <Stack.Screen name="ChatList">{() => <ChatListScreen standalone />}</Stack.Screen>
       <Stack.Screen name="ChatThread" component={ChatThreadScreen} />
+      <Stack.Screen name="RepartidorPerfilPublico" component={RepartidorPerfilPublicoScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Direcciones" component={DireccionesScreen} />
       <Stack.Screen name="Wallet" component={WalletScreen} />

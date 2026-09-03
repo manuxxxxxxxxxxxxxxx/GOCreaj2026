@@ -5,6 +5,8 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { BagIcon, CaretLeftIcon, ChatCircleDotsIcon, CheckCircleIcon, CircleIcon, ConfettiIcon, MapPinIcon, NoteIcon, PhoneIcon, QrCodeIcon, ShareNetworkIcon, StarIcon, XIcon } from "phosphor-react-native";
 import { WebMapView } from "../../components/ui/WebMapView";
 import type { RootStackParamList } from "../../navigation/types";
+import type { Coordinate } from "../../lib/mapcn/types";
+import { distanciaKm, minutosCoherentes, obtenerRutaCalles, seMovioLoSuficiente } from "../../lib/routing";
 import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
 import { pedidosApi, ApiError } from "../../lib/api";
@@ -18,6 +20,7 @@ import { Sheet } from "../../components/ui/Sheet";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { codigoDesdeValor, QrScanBox } from "../../components/domain/QrScanBox";
 import { CodigoQrCard } from "../../components/domain/CodigoQrCard";
+import { EtaHud } from "../../components/domain/EtaHud";
 import { useSmoothMarker } from "@/hooks/use-smooth-marker";
 
 type Props = NativeStackScreenProps<RootStackParamList, "OrderDetail">;
@@ -133,9 +136,37 @@ export function OrderDetailScreen({ route, navigation }: Props) {
     if (!destino && !tienda && !repartidor) return null;
     const puntos = [destino, tienda, repartidor].filter((p): p is [number, number] => p !== null);
     const centro = repartidor ?? destino ?? tienda ?? puntos[0];
-    const ruta = repartidor && destino ? [repartidor, destino] : tienda && destino ? [tienda, destino] : null;
-    return { destino, tienda, repartidor, centro, ruta };
+    // Mismo criterio que el backend (pedidos_tracking.php) y la pantalla del repartidor:
+    // sin recogida confirmada el objetivo es la tienda, ya recogido es el comprador.
+    const vaHaciaTienda = !pedido.confirmado_repartidor_recogida && !!tienda;
+    const objetivo = vaHaciaTienda ? tienda : destino;
+    const ruta = repartidor && objetivo ? [repartidor, objetivo] : tienda && destino ? [tienda, destino] : null;
+    return { destino, tienda, repartidor, objetivo, centro, ruta, vaHaciaTienda };
   }, [pedido]);
+
+  // Ruta real por calles (OSRM) -- mismo patrón que RepartidorEntregasScreen.tsx, con
+  // fallback silencioso a la línea recta de `mapa.ruta` mientras no haya respuesta.
+  const [rutaCalles, setRutaCalles] = useState<Coordinate[] | null>(null);
+  const ultimaConsultaRef = useRef<{ yo: Coordinate; objetivo: Coordinate } | null>(null);
+  useEffect(() => {
+    if (!mapa?.repartidor || !mapa.objetivo) {
+      setRutaCalles(null);
+      ultimaConsultaRef.current = null;
+      return;
+    }
+    const previa = ultimaConsultaRef.current;
+    const mismoObjetivo = previa && previa.objetivo[0] === mapa.objetivo[0] && previa.objetivo[1] === mapa.objetivo[1];
+    if (mismoObjetivo && !seMovioLoSuficiente(previa!.yo, mapa.repartidor)) return;
+    const consulta = { yo: mapa.repartidor, objetivo: mapa.objetivo };
+    ultimaConsultaRef.current = consulta;
+    obtenerRutaCalles(consulta.yo, consulta.objetivo).then((coords) => {
+      // No se usa el cleanup automático del efecto para descartar respuestas viejas -- ese
+      // se dispara en CADA cambio de mapa.repartidor (cada poll, ~6s), incluso cuando esa
+      // corrida no pidió nada nuevo. Comparar contra la última consulta REALMENTE iniciada
+      // evita descartar en silencio casi cualquier respuesta de OSRM que tarde un poco.
+      if (ultimaConsultaRef.current === consulta) setRutaCalles(coords);
+    });
+  }, [mapa?.repartidor, mapa?.objetivo]);
 
   // Suaviza el marcador del repartidor entre cada actualización de ubicación (polling
   // cada ~6s, ver arriba) para que se deslice en vez de saltar de golpe en el mapa.
@@ -154,6 +185,7 @@ export function OrderDetailScreen({ route, navigation }: Props) {
   const esRecogida = pedido.tipo_entrega === "recogida";
   const puedeCancel = pedido.estado === "pendiente_confirmacion" || (pedido.estado === "preparacion" && (esRecogida || !pedido.repartidor_id));
   const puedeCalificar = pedido.estado === "entregado" && !pedido.mi_calificacion;
+  const distanciaRepartidorKm = mapa?.repartidor && mapa.objetivo ? distanciaKm(mapa.repartidor[1], mapa.repartidor[0], mapa.objetivo[1], mapa.objetivo[0]) : null;
 
   return (
     <View style={{ flex: 1, paddingTop: insets.top }}>
@@ -209,18 +241,21 @@ export function OrderDetailScreen({ route, navigation }: Props) {
         )}
 
         {mapa && !esRecogida && !["cancelado", "rechazado_repartidor"].includes(pedido.estado) && (
-          <View style={[styles.mapCard, { borderColor: tokens.border }]}>
-            <WebMapView
-              center={mapa.centro}
-              zoom={14}
-              interactive={false}
-              route={mapa.ruta ? { coordinates: mapa.ruta, color: tokens.cyan, width: 4 } : null}
-              markers={[
-                ...(mapa.tienda ? [{ id: "tienda", coordinate: mapa.tienda, color: tokens.warn }] : []),
-                ...(repartidorSuave ? [{ id: "repartidor", coordinate: repartidorSuave, color: tokens.cyan }] : []),
-                ...(mapa.destino ? [{ id: "destino", coordinate: mapa.destino, color: tokens.ok }] : []),
-              ]}
-            />
+          <View>
+            <View style={[styles.mapCard, { borderColor: tokens.border }]}>
+              <WebMapView
+                center={mapa.centro}
+                zoom={14}
+                interactive
+                route={(rutaCalles ?? mapa.ruta) ? { coordinates: (rutaCalles ?? mapa.ruta)!, color: mapa.vaHaciaTienda ? tokens.warn : tokens.ok, width: 5 } : null}
+                markers={[
+                  ...(mapa.tienda ? [{ id: "tienda", coordinate: mapa.tienda, color: tokens.warn, emoji: "🏬" }] : []),
+                  ...(repartidorSuave ? [{ id: "repartidor", coordinate: repartidorSuave, color: tokens.cyan, emoji: "🛵" }] : []),
+                  ...(mapa.destino ? [{ id: "destino", coordinate: mapa.destino, color: tokens.ok, emoji: "🧑" }] : []),
+                ]}
+              />
+            </View>
+            <EtaHud distanciaKm={distanciaRepartidorKm} tiempoEstimado={minutosCoherentes(distanciaRepartidorKm, pedido.tiempo_estimado)} trafico={pedido.trafico} />
           </View>
         )}
 

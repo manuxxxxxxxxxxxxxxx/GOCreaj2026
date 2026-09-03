@@ -43,7 +43,9 @@ import { VendedorResenas } from "./pages/vendedor/VendedorResenas";
 import { RepartidorLayout } from "./pages/repartidor/RepartidorLayout";
 import { RepartidorDisponibles } from "./pages/repartidor/RepartidorDisponibles";
 import { RepartidorEntregas } from "./pages/repartidor/RepartidorEntregas";
+import { RepartidorHistorial } from "./pages/repartidor/RepartidorHistorial";
 import { RepartidorPerfil } from "./pages/repartidor/RepartidorPerfil";
+import { RepartidorPublicProfile } from "./pages/RepartidorPublicProfile";
 import { AdminLayout } from "./pages/admin/AdminLayout";
 import { AdminResumen } from "./pages/admin/AdminResumen";
 import { AdminUsuarios } from "./pages/admin/AdminUsuarios";
@@ -95,6 +97,14 @@ export default function App() {
                   <Route path="/reels" element={<Reels />} />
                   <Route path="/producto/:id" element={<ProductDetail />} />
                   <Route path="/tienda/:id" element={<StoreDetail />} />
+                  <Route
+                    path="/repartidor-perfil/:id"
+                    element={
+                      <RequireAuth>
+                        <RepartidorPublicProfile />
+                      </RequireAuth>
+                    }
+                  />
 
                   <Route
                     path="/carrito"
@@ -243,6 +253,7 @@ export default function App() {
                 >
                   <Route index element={<RepartidorDisponibles />} />
                   <Route path="entregas" element={<RepartidorEntregas />} />
+                  <Route path="historial" element={<RepartidorHistorial />} />
                   <Route path="perfil" element={<RepartidorPerfil />} />
                   <Route path="wallet" element={<Wallet />} />
                 </Route>

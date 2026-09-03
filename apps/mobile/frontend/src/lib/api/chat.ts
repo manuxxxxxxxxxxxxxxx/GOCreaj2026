@@ -68,4 +68,14 @@ export const chatApi = {
     }),
 
   buscarUsuarios: (q: string, rol?: string) => get<{ ok: true; usuarios: Usuario[] }>("chat_multi", "buscar_usuarios", { q, rol }),
+
+  perfilPublicoRepartidor: (usuario_id: number) =>
+    get<{
+      ok: true;
+      perfil: { id: number; nombre: string; foto_perfil: string | null; descripcion: string | null; telefono: string | null; repartidor_calificacion_promedio: number; repartidor_total_resenas: number; entregas_completadas: number };
+      resenas: { id: number; estrellas: number; comentario: string; created_at: string; comprador_nombre: string }[];
+    }>("chat_multi", "perfil_publico_repartidor", { usuario_id }),
+
+  reportar: (otro_usuario_id: number, motivo: string, detalle?: string) =>
+    post<{ ok: true }>("chat_multi", "reportar_chat", { otro_usuario_id, motivo, detalle }),
 };

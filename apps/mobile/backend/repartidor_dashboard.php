@@ -21,6 +21,9 @@ const PROGRESO_SECUENCIA = [null, 'camino_tienda', 'recolectado', 'camino_client
 // Single Order Lock: un repartidor solo puede traer una entrega en curso a la vez.
 const MAX_PEDIDOS_ACTIVOS = 1;
 
+// Ventana de gracia para soltar un pedido recién aceptado sin quedar "responsable" de él.
+const REPARTIDOR_GRACIA_CANCELAR_SEG = 180;
+
 /** Agrega a cada pedido su lista de items con el stock actual del producto. */
 function adjuntar_items_con_stock(array &$pedidos): void {
     if (!$pedidos) return;
@@ -40,10 +43,13 @@ function adjuntar_items_con_stock(array &$pedidos): void {
 switch ($action) {
 
     case 'disponibles':
-        $r = db()->prepare("SELECT en_linea, lat, lng FROM usuarios WHERE id = ?");
+        $r = db()->prepare("SELECT en_linea, lat, lng, municipio FROM usuarios WHERE id = ?");
         $r->execute([$user['id']]);
         $yo = $r->fetch();
         if (!$yo || !(int)$yo['en_linea']) { jout(['ok' => true, 'pedidos' => [], 'en_linea' => false]); }
+        // Sin zona capturada no se le muestra nada -- así no le puede tocar por accidente un
+        // pedido de otro municipio (ver RepartidorDisponiblesScreen.tsx, captura la zona con GPS).
+        if (!$yo['municipio']) { jout(['ok' => true, 'pedidos' => [], 'en_linea' => true, 'sin_zona' => true]); }
 
         // Single Order Lock: con una entrega activa, no se muestran más solicitudes.
         $activos = (int)db()->query(
@@ -75,13 +81,14 @@ switch ($action) {
                AND p.tipo_entrega != 'recogida'
                AND p.pago_estado IN ('pagado', 'contraentrega')
                AND (p.oferta_repartidor_id IS NULL OR p.oferta_expira_at < NOW())
+               AND LOWER(TRIM(t.municipio)) = LOWER(TRIM(?))
                AND NOT EXISTS (
                    SELECT 1 FROM pedido_repartidor_descartes d
                    WHERE d.pedido_id = p.id AND d.repartidor_id = ?
                )
              ORDER BY p.created_at ASC"
         );
-        $st->execute([COMISION_REPARTIDOR_PCT, $user['id']]);
+        $st->execute([COMISION_REPARTIDOR_PCT, $yo['municipio'], $user['id']]);
         $pedidos = $st->fetchAll();
         adjuntar_items_con_stock($pedidos);
 
@@ -126,6 +133,11 @@ switch ($action) {
         );
         $st->execute([COMISION_REPARTIDOR_PCT, $user['id']]);
         $oferta = $st->fetch();
+        if ($oferta) {
+            $ofertas = [$oferta];
+            adjuntar_items_con_stock($ofertas);
+            $oferta = $ofertas[0];
+        }
         jout(['ok' => true, 'oferta' => $oferta ?: null, 'segundos_totales' => DESPACHO_OFERTA_SEGUNDOS]);
         break;
 
@@ -229,6 +241,45 @@ switch ($action) {
         }
         break;
 
+    // ─── Ventana de gracia: el repartidor puede soltar un pedido que acaba de aceptar
+    // sin quedar "responsable" de él, pero solo dentro de los primeros 3 minutos y solo
+    // si todavía no confirmó la recogida en tienda. Pasado ese margen, o si ya la
+    // confirmó, ya no puede soltarlo por acá -- queda bajo su responsabilidad. ───
+    case 'cancelar_asignacion':
+        require_fields($data, ['pedido_id']);
+        $pid = (int)$data['pedido_id'];
+        try {
+            db()->beginTransaction();
+            $st = db()->prepare(
+                "SELECT id, comprador_id, vendedor_id, repartidor_asignado_at,
+                        TIMESTAMPDIFF(SECOND, repartidor_asignado_at, NOW()) AS segundos_desde_asignacion
+                 FROM pedidos
+                 WHERE id = ? AND repartidor_id = ? AND confirmado_repartidor_recogida = 0
+                 FOR UPDATE"
+            );
+            $st->execute([$pid, $user['id']]);
+            $row = $st->fetch();
+            if (!$row) { db()->rollBack(); jout(['ok' => false, 'error' => 'Este pedido ya no se puede soltar -- ya confirmaste la recogida o no es tuyo.'], 409); }
+            if ((int)$row['segundos_desde_asignacion'] > REPARTIDOR_GRACIA_CANCELAR_SEG) {
+                db()->rollBack();
+                jout(['ok' => false, 'error' => 'Ya pasaron los 3 minutos para soltar este pedido -- ahora eres responsable de completarlo.'], 400);
+            }
+
+            db()->prepare("UPDATE pedidos SET repartidor_id = NULL, repartidor_asignado_at = NULL WHERE id = ?")->execute([$pid]);
+
+            $msg = "El repartidor {$user['nombre']} soltó tu pedido -- estamos buscando otro repartidor disponible.";
+            db()->prepare("INSERT INTO chats (emisor_id, receptor_id, mensaje, tipo) VALUES (?, ?, ?, 'texto')")
+                ->execute([$user['id'], (int)$row['vendedor_id'], $msg]);
+            crear_notificacion((int)$row['comprador_id'], 'pedido', 'Buscando repartidor', 'Tu repartidor cambió de planes -- estamos asignando uno nuevo.', $pid);
+
+            db()->commit();
+            jout(['ok' => true]);
+        } catch (Throwable $e) {
+            db()->rollBack();
+            jout(['ok' => false, 'error' => $e->getMessage()], 500);
+        }
+        break;
+
     // ─── Confirmación (lado repartidor) de que recogió el pedido en la tienda ───
     // Exige el código QR que generó el vendedor, o su PIN de 6 dígitos como
     // respaldo (ver DESIGN.md "Flujo logístico") en vez de un tap "de honor" —
@@ -307,6 +358,8 @@ switch ($action) {
     case 'mis_entregas':
         $st = db()->prepare(
             "SELECT p.*,
+                    GREATEST(0, " . REPARTIDOR_GRACIA_CANCELAR_SEG . " - TIMESTAMPDIFF(SECOND, p.repartidor_asignado_at, NOW())) AS gracia_cancelar_seg,
+                    ROUND(p.total * ?, 2) AS ganancia_repartidor,
                     v.nombre as vendedor_nombre,
                     c.nombre as comprador_nombre, c.telefono as comprador_telefono,
                     t.nombre AS tienda_nombre, t.lat AS tienda_lat, t.lng AS tienda_lng, t.direccion AS tienda_direccion
@@ -321,7 +374,7 @@ switch ($action) {
              LEFT JOIN tiendas t ON t.id = pt.tienda_id
              WHERE p.repartidor_id = ? ORDER BY p.created_at DESC"
         );
-        $st->execute([$user['id']]);
+        $st->execute([COMISION_REPARTIDOR_PCT, $user['id']]);
         $pedidos = $st->fetchAll();
         adjuntar_items_con_stock($pedidos);
         jout(['ok' => true, 'pedidos' => $pedidos]);
@@ -361,21 +414,10 @@ switch ($action) {
         jout(['ok' => true, 'progreso_repartidor' => $siguiente]);
         break;
 
-    // ─── COMPLETAR PEDIDO — respaldo manual del repartidor. El camino principal
-    // ahora es que el COMPRADOR escanee el QR de entrega (pedidos_tracking.php,
-    // action=confirmar_entrega) — este endpoint queda para cuando el comprador
-    // de verdad no puede escanear (sin smartphone, app caída, etc.). Usa la
-    // misma función de liquidación que ese camino, ver conexion.php. ───
-    case 'completar':
-        require_fields($data, ['pedido_id']);
-        $pid = (int)$data['pedido_id'];
-        try {
-            $resultado = finalizar_entrega_pedido($pid, $user['id']);
-        } catch (Throwable $e) {
-            jout(['ok' => false, 'error' => $e->getMessage()], 500);
-        }
-        jout(['ok' => true] + $resultado);
-        break;
+    // ─── El repartidor NO puede cerrar la entrega por su cuenta: el único camino
+    // es que el COMPRADOR escanee el QR o teclee el PIN de entrega
+    // (pedidos_tracking.php, action=confirmar_entrega -> finalizar_entrega_pedido()).
+    // Existió un endpoint 'completar' de respaldo manual; se quitó a propósito. ───
 
     // ─── Switch En línea / Fuera de línea ───
     case 'toggle_en_linea':
@@ -418,7 +460,7 @@ switch ($action) {
     // ─── Perfil del repartidor: foto + descripción personal ───
     case 'mi_perfil':
         $st = db()->prepare(
-            "SELECT id, nombre, foto_perfil, descripcion, telefono,
+            "SELECT id, nombre, foto_perfil, descripcion, telefono, municipio,
                     repartidor_calificacion_promedio, repartidor_total_resenas
              FROM usuarios WHERE id = ?"
         );
@@ -427,6 +469,16 @@ switch ($action) {
         $perfil = $st->fetch();
         $perfil['entregas_completadas'] = $entregas;
         jout(['ok' => true, 'perfil' => $perfil]);
+        break;
+
+    // ─── Captura de zona: guarda el municipio + lat/lng del repartidor (vía GPS +
+    // geocodificación inversa en el cliente, ver RepartidorDisponiblesScreen.tsx) para
+    // que 'disponibles' y el despacho automático solo le muestren pedidos de su zona. ───
+    case 'actualizar_zona':
+        require_fields($data, ['municipio', 'lat', 'lng']);
+        db()->prepare("UPDATE usuarios SET municipio = ?, lat = ?, lng = ? WHERE id = ? AND rol = 'repartidor'")
+            ->execute([$data['municipio'], $data['lat'], $data['lng'], $user['id']]);
+        jout(['ok' => true]);
         break;
 
     case 'actualizar_perfil':

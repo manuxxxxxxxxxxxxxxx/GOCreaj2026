@@ -105,7 +105,7 @@ export function Cart() {
     return acc;
   }, {});
   const tiendas = Object.entries(porTienda);
-  const hayAgotados = items.some((it) => it.estado_stock === "agotado" || it.stock <= 0);
+  const hayAgotados = items.some((it) => !it.stock_ilimitado && (it.estado_stock === "agotado" || it.stock <= 0));
   const totalFinal = Math.max(0, total - (cupon?.descuento ?? 0));
 
   return (
@@ -135,9 +135,9 @@ export function Cart() {
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {tiendaItems.map((it, idx) => {
-                  const agotado = it.estado_stock === "agotado" || it.stock <= 0;
+                  const agotado = !it.stock_ilimitado && (it.estado_stock === "agotado" || it.stock <= 0);
                   const enOferta = !!it.precio_oferta && it.precio_oferta > 0 && it.precio_oferta < it.precio;
-                  const stockBajo = !agotado && it.stock <= STOCK_BAJO;
+                  const stockBajo = !agotado && !it.stock_ilimitado && it.stock <= STOCK_BAJO;
                   return (
                     <Reveal
                       key={it.id}
@@ -199,8 +199,8 @@ export function Cart() {
                         </span>
                         <button
                           onClick={() => cambiarCantidad(it.id, 1, it.cantidad)}
-                          disabled={agotado || it.cantidad >= it.stock}
-                          style={{ width: 30, height: 30, background: "none", border: "none", cursor: agotado || it.cantidad >= it.stock ? "not-allowed" : "pointer", opacity: agotado || it.cantidad >= it.stock ? 0.4 : 1 }}
+                          disabled={agotado || (!it.stock_ilimitado && it.cantidad >= it.stock)}
+                          style={{ width: 30, height: 30, background: "none", border: "none", cursor: agotado || (!it.stock_ilimitado && it.cantidad >= it.stock) ? "not-allowed" : "pointer", opacity: agotado || (!it.stock_ilimitado && it.cantidad >= it.stock) ? 0.4 : 1 }}
                           aria-label="Sumar"
                         >
                           +

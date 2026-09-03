@@ -8,6 +8,7 @@ import {
   Gear,
   GearSix,
   Headset,
+  Heart,
   House,
   MagnifyingGlass,
   MapPinLine,
@@ -252,6 +253,7 @@ export function TopNav() {
 
   return (
     <header
+      className="topnav-header"
       style={{
         position: "sticky",
         top: 0,
@@ -276,7 +278,9 @@ export function TopNav() {
         />
       </Link>
 
-      <nav aria-label="Navegación principal" style={{ display: "flex", gap: 3, padding: 4, borderRadius: "var(--radius-pill)", background: "var(--surface-2)" }}>
+      {/* Reemplazada por la barra de tabs inferior en móvil (MobileTabBar) --
+          en 4 pills con texto no cabe en un viewport de teléfono. */}
+      <nav aria-label="Navegación principal" className="topnav-links-desktop" style={{ display: "flex", gap: 3, padding: 4, borderRadius: "var(--radius-pill)", background: "var(--surface-2)" }}>
         {(usuario?.rol === "vendedor" ? VENDEDOR_NAV_LINKS : usuario?.rol === "repartidor" ? REPARTIDOR_NAV_LINKS : NAV_LINKS).filter((l) => !l.requiereSesion || usuario).map((l) => {
           const active = l.to === "/" ? location.pathname === "/" : location.pathname.startsWith(l.to);
           const Icon = l.icon;
@@ -507,7 +511,10 @@ export function TopNav() {
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: "auto" }}>
+        {/* En móvil el toggle de tema vive dentro del menú del avatar -- aquí no
+            cabe junto a búsqueda + notificaciones + carrito + avatar. */}
         <IconButton
+          className="topnav-theme-toggle-desktop"
           icon={resolvedTheme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
           label={resolvedTheme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
           onClick={toggle}
@@ -570,7 +577,9 @@ export function TopNav() {
                 {usuario.rol === "vendedor" && <MenuLink to="/vendedor" label="Panel de vendedor" icon={<Storefront size={16} />} onClick={() => setMenuOpen(false)} />}
                 {usuario.rol === "admin" && <MenuLink to="/admin" label="Panel de administración" icon={<Storefront size={16} />} onClick={() => setMenuOpen(false)} />}
 
-                {misRoles.length > 1 && (
+                {/* El vendedor no puede cambiar de rol -- una vez que administra una tienda, se
+                    queda en ese rol; la sección ni siquiera debe aparecer para evitar confusión. */}
+                {usuario.rol !== "vendedor" && misRoles.length > 1 && (
                   <>
                     <div style={{ height: 1, background: "var(--border)", margin: "6px 4px" }} />
                     <div style={{ padding: "6px 10px 2px" }}>
@@ -613,6 +622,17 @@ export function TopNav() {
                 )}
 
                 <div style={{ height: 1, background: "var(--border)", margin: "6px 4px" }} />
+
+                {/* Único lugar donde el toggle de tema existe en móvil -- el ícono
+                    dedicado del header se esconde ahí por falta de espacio. */}
+                <button
+                  className="chat-menu-item topnav-theme-toggle-mobile"
+                  onClick={toggle}
+                  style={{ display: "none", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "9px 10px", borderRadius: "var(--radius-sm)", background: "none", border: "none", cursor: "pointer", fontSize: 13.5, fontWeight: 600, color: "var(--text-primary)" }}
+                >
+                  {resolvedTheme === "dark" ? <Sun size={16} color="var(--text-muted)" /> : <Moon size={16} color="var(--text-muted)" />}
+                  {resolvedTheme === "dark" ? "Modo claro" : "Modo oscuro"}
+                </button>
 
                 <MenuLink to="/perfil/configuracion" label="Configuración" icon={<GearSix size={16} />} onClick={() => setMenuOpen(false)} />
                 <MenuLink to="/perfil/seguridad" label="Seguridad" icon={<ShieldCheck size={16} />} onClick={() => setMenuOpen(false)} />
@@ -657,6 +677,24 @@ export function TopNav() {
           </Link>
         )}
       </div>
+
+      <style>{`
+        @media (max-width: 767px) {
+          .topnav-header {
+            gap: 10px !important;
+            padding: 0 12px !important;
+          }
+          .topnav-links-desktop {
+            display: none !important;
+          }
+          .topnav-theme-toggle-desktop {
+            display: none !important;
+          }
+          .topnav-theme-toggle-mobile {
+            display: flex !important;
+          }
+        }
+      `}</style>
     </header>
   );
 }
@@ -666,6 +704,7 @@ const NOTIF_ICONS: Record<Notificacion["tipo"], typeof Package> = {
   chat: ChatCircleDots,
   sistema: Gear,
   promocion: Megaphone,
+  interaccion: Heart,
 };
 
 function NotificationsPopover({ unread, onUnreadChange }: { unread: number; onUnreadChange: (n: number) => void }) {

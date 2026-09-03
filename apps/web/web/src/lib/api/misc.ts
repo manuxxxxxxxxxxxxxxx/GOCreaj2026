@@ -63,6 +63,13 @@ export const interaccionesApi = {
   misLikes: (page = 1, limit = 30) => get<{ ok: true; productos: Producto[]; total: number }>("interacciones", "mis_likes", { page, limit }),
   misGuardados: (page = 1, limit = 30) => get<{ ok: true; productos: Producto[]; total: number }>("interacciones", "mis_guardados", { page, limit }),
   misCompartidos: () => get<{ ok: true; productos: Producto[] }>("interacciones", "mis_compartidos"),
+
+  reportarProducto: (producto_id: number, motivo: string) =>
+    post<{ ok: true }>("interacciones", "reportar_producto", { producto_id, motivo }),
+  reportarTienda: (tienda_id: number, motivo: string, detalle?: string) =>
+    post<{ ok: true }>("interacciones", "reportar_tienda", { tienda_id, motivo, detalle }),
+  reportarComentario: (comentario_id: number, motivo: string, detalle?: string) =>
+    post<{ ok: true }>("interacciones", "reportar_comentario", { comentario_id, motivo, detalle }),
 };
 
 export const direccionesApi = {
@@ -86,6 +93,9 @@ export const solicitudesApi = {
     licencia_frente?: string;
     licencia_reverso?: string;
     tipo_vehiculo?: string;
+    vehiculo_modelo?: string;
+    vehiculo_placa?: string;
+    licencia_numero?: string;
     credenciales?: string;
   }) => post<{ ok: true; solicitud_id: number }>("perfil_solicitudes", "crear", data),
   misSolicitudes: () => get<{ ok: true; solicitudes: SolicitudRol[] }>("perfil_solicitudes", "mis_solicitudes"),

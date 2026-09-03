@@ -19,7 +19,7 @@ switch ($action) {
             "SELECT c.id, c.cantidad, p.id as producto_id, p.nombre, p.precio,
                     p.precio_oferta, p.oferta_hasta,
                     IF(p.precio_oferta IS NOT NULL AND p.precio_oferta > 0 AND (p.oferta_hasta IS NULL OR p.oferta_hasta > NOW()), p.precio_oferta, p.precio) AS precio_efectivo,
-                    p.imagen, p.stock, p.estado_stock, p.tienda_id, t.nombre as tienda_nombre, t.vendedor_id
+                    p.imagen, p.stock, p.stock_ilimitado, p.estado_stock, p.tienda_id, t.nombre as tienda_nombre, t.vendedor_id
              FROM carrito c JOIN productos p ON p.id = c.producto_id JOIN tiendas t ON t.id = p.tienda_id WHERE c.usuario_id = ?"
         );
         $st->execute([$user['id']]);
@@ -33,19 +33,21 @@ switch ($action) {
         require_fields($data, ['producto_id']);
         $cant = max(1, (int)($data['cantidad'] ?? 1));
 
-        $pr = db()->prepare("SELECT stock, estado_stock, nombre FROM productos WHERE id = ? AND activo = 1");
+        $pr = db()->prepare("SELECT stock, stock_ilimitado, estado_stock, nombre FROM productos WHERE id = ? AND activo = 1");
         $pr->execute([$data['producto_id']]);
         $prod = $pr->fetch();
         if (!$prod) jout(['ok' => false, 'error' => 'Producto no encontrado'], 404);
-        if ($prod['estado_stock'] === 'agotado' || (int)$prod['stock'] <= 0) {
+        if (!$prod['stock_ilimitado'] && ($prod['estado_stock'] === 'agotado' || (int)$prod['stock'] <= 0)) {
             jout(['ok' => false, 'error' => "Sin stock: {$prod['nombre']}"], 400);
         }
 
-        $ya = db()->prepare("SELECT cantidad FROM carrito WHERE usuario_id = ? AND producto_id = ?");
-        $ya->execute([$user['id'], $data['producto_id']]);
-        $enCarrito = (int)($ya->fetchColumn() ?: 0);
-        if ($enCarrito + $cant > (int)$prod['stock']) {
-            jout(['ok' => false, 'error' => "Solo hay {$prod['stock']} unidades disponibles de {$prod['nombre']}"], 400);
+        if (!$prod['stock_ilimitado']) {
+            $ya = db()->prepare("SELECT cantidad FROM carrito WHERE usuario_id = ? AND producto_id = ?");
+            $ya->execute([$user['id'], $data['producto_id']]);
+            $enCarrito = (int)($ya->fetchColumn() ?: 0);
+            if ($enCarrito + $cant > (int)$prod['stock']) {
+                jout(['ok' => false, 'error' => "Solo hay {$prod['stock']} unidades disponibles de {$prod['nombre']}"], 400);
+            }
         }
 
         $st = db()->prepare("INSERT INTO carrito (usuario_id, producto_id, cantidad) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE cantidad = cantidad + VALUES(cantidad)");
@@ -60,13 +62,13 @@ switch ($action) {
             db()->prepare("DELETE FROM carrito WHERE id = ? AND usuario_id = ?")->execute([$data['carrito_id'], $user['id']]);
         } else {
             $pr = db()->prepare(
-                "SELECT p.stock, p.nombre FROM carrito c JOIN productos p ON p.id = c.producto_id
+                "SELECT p.stock, p.stock_ilimitado, p.nombre FROM carrito c JOIN productos p ON p.id = c.producto_id
                  WHERE c.id = ? AND c.usuario_id = ?"
             );
             $pr->execute([$data['carrito_id'], $user['id']]);
             $prod = $pr->fetch();
             if (!$prod) jout(['ok' => false, 'error' => 'Item no encontrado'], 404);
-            if ($cant > (int)$prod['stock']) {
+            if (!$prod['stock_ilimitado'] && $cant > (int)$prod['stock']) {
                 jout(['ok' => false, 'error' => "Solo hay {$prod['stock']} unidades disponibles de {$prod['nombre']}"], 400);
             }
             db()->prepare("UPDATE carrito SET cantidad = ? WHERE id = ? AND usuario_id = ?")->execute([$cant, $data['carrito_id'], $user['id']]);

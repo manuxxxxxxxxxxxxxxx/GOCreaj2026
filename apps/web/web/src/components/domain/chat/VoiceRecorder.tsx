@@ -29,6 +29,69 @@ function blobABase64(blob: Blob): Promise<string> {
   });
 }
 
+/**
+ * MediaRecorder solo sabe producir webm/opus en Chrome/Firefox (Safari graba mp4/aac) --
+ * ninguno de los dos es un formato que el reproductor nativo de la app (AVPlayer en iOS,
+ * y variantes de ExoPlayer en Android) garantice poder reproducir; iOS en particular no
+ * tiene decodificador de WebM/Opus, punto. Reencodar acá mismo a WAV (PCM sin comprimir,
+ * el único formato que absolutamente todos -- navegador y ambos SO -- saben reproducir sin
+ * excepción) antes de subirlo resuelve esto sin depender de un conversor en el servidor
+ * (no hay ffmpeg instalado). El costo es un archivo más pesado, aceptable para notas de
+ * voz de pocos segundos/minutos.
+ */
+async function blobAWav(blob: Blob): Promise<Blob> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const audioCtx = new AudioContext();
+  try {
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    return audioBufferAWav(audioBuffer);
+  } finally {
+    await audioCtx.close().catch(() => {});
+  }
+}
+
+function audioBufferAWav(buffer: AudioBuffer): Blob {
+  const numChannels = buffer.numberOfChannels;
+  const sampleRate = buffer.sampleRate;
+  const numSamples = buffer.length;
+  const blockAlign = numChannels * 2; // 16-bit PCM
+  const dataSize = numSamples * blockAlign;
+  const out = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(out);
+
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+  };
+
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);
+  writeString(36, "data");
+  view.setUint32(40, dataSize, true);
+
+  const channels: Float32Array[] = [];
+  for (let ch = 0; ch < numChannels; ch++) channels.push(buffer.getChannelData(ch));
+
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    for (let ch = 0; ch < numChannels; ch++) {
+      const clamped = Math.max(-1, Math.min(1, channels[ch][i]));
+      view.setInt16(offset, clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff, true);
+      offset += 2;
+    }
+  }
+
+  return new Blob([out], { type: "audio/wav" });
+}
+
 function formatoTiempo(seg: number): string {
   const m = Math.floor(seg / 60);
   const s = Math.floor(seg % 60);
@@ -161,7 +224,15 @@ export function VoiceRecorder({ onSend, disabled }: Props) {
       if (blob.size < 300) {
         toast.show("La nota de voz fue muy corta.", "info");
       } else {
-        const dataUri = await blobABase64(blob);
+        let dataUri: string;
+        try {
+          dataUri = await blobABase64(await blobAWav(blob));
+        } catch {
+          // Si por lo que sea el navegador no pudo decodificar/reencodar, se manda el
+          // original -- sigue sonando en la propia web, aunque puede fallar en el
+          // reproductor nativo de la app (mejor eso que no enviar nada).
+          dataUri = await blobABase64(blob);
+        }
         onSend(dataUri, Math.max(1, duracion));
       }
       limpiarTodo();

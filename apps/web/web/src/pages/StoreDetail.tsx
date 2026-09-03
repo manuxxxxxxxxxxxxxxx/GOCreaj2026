@@ -1,18 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Clock, CreditCard, MapPin, Phone, Play, Star, Storefront } from "@phosphor-icons/react";
-import { productosApi, interaccionesApi } from "../lib/api";
+import { CaretLeft, Clock, CreditCard, MapPin, Phone, Play, Star, Storefront } from "@phosphor-icons/react";
+import { productosApi, interaccionesApi, vendedorApi, ApiError } from "../lib/api";
 import type { Producto, Tienda } from "../lib/types";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { ProductCard } from "../components/domain/ProductCard";
 import { Skeleton } from "../components/ui/Skeleton";
 import { MapView, type MapMarker } from "../components/ui/MapView";
-import { formatDate } from "../lib/format";
+import { formatDate, fileToBase64 } from "../lib/format";
 import { StoreHero } from "../components/domain/store/StoreHero";
+import { ReportSheet } from "../components/domain/ReportSheet";
 import { StoreEmptyState } from "../components/domain/store/StoreEmptyState";
 import { CATEGORIA_LABEL, categoriaColor, categoriaIcon, type Categoria } from "../lib/categoryIcons";
+import { useToast } from "../context/ToastContext";
 
 interface Resena {
   id: number;
@@ -66,11 +68,15 @@ export function StoreDetail() {
   const { id } = useParams();
   const { usuario } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [tienda, setTienda] = useState<Tienda | null>(null);
   const [productos, setProductos] = useState<Producto[] | null>(null);
   const [reels, setReels] = useState<Producto[] | null>(null);
   const [resenas, setResenas] = useState<Resena[]>([]);
   const [notifOn, setNotifOn] = useState(false);
+  const [reportandoTienda, setReportandoTienda] = useState(false);
+  const [subiendoPortada, setSubiendoPortada] = useState(false);
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
   const [tab, setTab] = useState<Tab>("productos");
   const [categoriaFiltro, setCategoriaFiltro] = useState<string | null>(null);
   const [estrellaFiltro, setEstrellaFiltro] = useState<number | null>(null);
@@ -95,6 +101,36 @@ export function StoreDetail() {
     if (!tienda) return;
     const r = await interaccionesApi.seguirTienda(tienda.id);
     setTienda({ ...tienda, yo_sigo: r.accion === "follow" ? 1 : 0, seguidores_count: r.total_seguidores });
+  };
+
+  const cambiarPortada = async (file: File) => {
+    if (!tienda) return;
+    setSubiendoPortada(true);
+    try {
+      const portada = await fileToBase64(file);
+      await vendedorApi.actualizarTienda({ tienda_id: tienda.id, portada });
+      setTienda({ ...tienda, portada });
+      toast.show("Portada actualizada", "success");
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo actualizar la portada.", "error");
+    } finally {
+      setSubiendoPortada(false);
+    }
+  };
+
+  const cambiarLogo = async (file: File) => {
+    if (!tienda) return;
+    setSubiendoLogo(true);
+    try {
+      const logo = await fileToBase64(file);
+      await vendedorApi.actualizarTienda({ tienda_id: tienda.id, logo });
+      setTienda({ ...tienda, logo });
+      toast.show("Foto de perfil actualizada", "success");
+    } catch (err) {
+      toast.show(err instanceof ApiError ? err.message : "No se pudo actualizar la foto de perfil.", "error");
+    } finally {
+      setSubiendoLogo(false);
+    }
   };
 
   const toggleNotif = () => {
@@ -171,17 +207,45 @@ export function StoreDetail() {
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}>
       <div className="store-page-grid">
         <div className="store-page-main">
+          {isOwner && (
+            <button
+              onClick={() => navigate(-1)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                alignSelf: "flex-start",
+                background: "none",
+                border: "none",
+                color: "var(--text-secondary)",
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              <CaretLeft size={15} weight="bold" /> Volver
+            </button>
+          )}
           <div style={{ borderRadius: "var(--radius-lg)", overflow: "hidden", border: "1px solid var(--border)" }}>
             <StoreHero
               tienda={tienda}
               isOwner={isOwner}
               notifOn={notifOn}
-              onEditBanner={() => navigate("/vendedor/tienda")}
+              onPortadaChange={cambiarPortada}
+              subiendoPortada={subiendoPortada}
+              onLogoChange={cambiarLogo}
+              subiendoLogo={subiendoLogo}
+              onEditarProductos={isOwner ? () => navigate("/vendedor/productos") : undefined}
               onToggleSeguir={toggleSeguir}
               onToggleNotif={toggleNotif}
               onContactar={contactar}
+              onReportar={() => setReportandoTienda(true)}
             />
           </div>
+          {reportandoTienda && (
+            <ReportSheet tipo="tienda" entidadId={tienda.id} entidadNombre={tienda.nombre} onClose={() => setReportandoTienda(false)} />
+          )}
 
           <div style={{ display: "flex", gap: 6, background: "var(--surface-2)", padding: 4, borderRadius: "var(--radius-sm)", width: "fit-content", overflowX: "auto", maxWidth: "100%" }}>
             {TABS.map((t) => (
@@ -233,6 +297,7 @@ export function StoreDetail() {
                   )}
                   <ProductosGrid
                     productos={productosFiltrados}
+                    isOwner={isOwner}
                     empty={
                       categoriaFiltro ? (
                         <StoreEmptyState icon={<Storefront size={22} />} title="Sin productos en esta categoría" description="Prueba con otra categoría o mira el catálogo completo." actionLabel="Ver todas" onAction={() => setCategoriaFiltro(null)} />
@@ -428,7 +493,7 @@ function FiltroChip({ label, icon, active, accent, disabled, onClick }: { label:
   );
 }
 
-function ProductosGrid({ productos, empty }: { productos: Producto[] | null; empty: React.ReactNode }) {
+function ProductosGrid({ productos, empty, isOwner }: { productos: Producto[] | null; empty: React.ReactNode; isOwner?: boolean }) {
   if (productos === null) {
     return (
       <div className="store-product-grid">
@@ -442,7 +507,9 @@ function ProductosGrid({ productos, empty }: { productos: Producto[] | null; emp
   return (
     <div className="store-product-grid">
       {productos.map((p) => (
-        <ProductCard key={p.id} producto={p} variant="small" showWishlist />
+        // El dueño de la tienda no le da like a sus propios productos, y en vez de
+        // agregarlos al carrito puede editarlos directo desde la vista previa.
+        <ProductCard key={p.id} producto={p} variant="small" showWishlist={!isOwner} isOwner={isOwner} />
       ))}
     </div>
   );
@@ -457,7 +524,14 @@ function ReelsGrid({ reels, tiendaId, navigate }: { reels: Producto[]; tiendaId:
           onClick={() => navigate(`/reels?tienda=${tiendaId}&producto=${r.id}`)}
           style={{ position: "relative", aspectRatio: "9 / 16", borderRadius: "var(--radius-md)", overflow: "hidden", border: "1px solid var(--border)", background: "#000", cursor: "pointer", padding: 0 }}
         >
-          {r.imagen && <img src={r.imagen} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+          {/* Video en loop silencioso -- así la cuadrícula se ve "viva" en vez de una foto fija,
+              igual que la vista de perfil de TikTok/Instagram Reels. `poster` cubre el instante
+              antes de que el video cargue el primer frame. */}
+          {r.video_url ? (
+            <video src={r.video_url} poster={r.imagen ?? undefined} muted loop autoPlay playsInline preload="metadata" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : (
+            r.imagen && <img src={r.imagen} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          )}
           <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.7) 100%)" }} />
           <div style={{ position: "absolute", top: 8, left: 8, width: 24, height: 24, borderRadius: "50%", background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Play size={11} weight="fill" color="#fff" />

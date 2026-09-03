@@ -13,6 +13,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import { useToast } from "../../context/ToastContext";
+import { useAuth } from "../../context/AuthContext";
 
 interface FooterLink {
   label: string;
@@ -26,10 +27,8 @@ const COMPRAR: FooterLink[] = [
   { label: "Mis direcciones", to: "/direcciones", icon: MapPin },
 ];
 
-const VENDER: FooterLink[] = [
-  { label: "Conviértete en vendedor", to: "/convertirse", icon: Storefront },
-  { label: "Centro de ayuda", to: "/soporte", icon: ShieldCheck },
-];
+const CONVERTIRSE: FooterLink = { label: "Conviértete en vendedor", to: "/convertirse", icon: Storefront };
+const AYUDA: FooterLink = { label: "Centro de ayuda", to: "/soporte", icon: ShieldCheck };
 
 const SOCIAL: { icon: Icon; label: string }[] = [
   { icon: FacebookLogo, label: "Facebook" },
@@ -40,6 +39,11 @@ const SOCIAL: { icon: Icon; label: string }[] = [
 
 export function Footer() {
   const toast = useToast();
+  const { usuario } = useAuth();
+  // Un vendedor o repartidor ya es socio -- no tiene sentido ofrecerle "convertirse"
+  // de nuevo (ver misma regla en ConfiguracionAvanzada.tsx / RolSection).
+  const puedeConvertirse = !usuario || usuario.rol === "comprador";
+  const VENDER: FooterLink[] = puedeConvertirse ? [CONVERTIRSE, AYUDA] : [AYUDA];
   const proximamente = (e: React.MouseEvent) => {
     e.preventDefault();
     toast.show("Muy pronto disponible 🚀", "info");

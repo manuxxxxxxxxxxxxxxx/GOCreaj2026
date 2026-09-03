@@ -4,12 +4,12 @@ import {
   Archive,
   ArrowBendUpLeft,
   Camera,
-  Check,
   Checks,
   ChatCircleDots,
   DownloadSimple,
   FileArrowUp,
   FilePdf,
+  Flag,
   Image as ImageIcon,
   MagnifyingGlass,
   MapPin,
@@ -25,7 +25,7 @@ import {
   X,
 } from "@phosphor-icons/react";
 import { chatApi, ApiError } from "../lib/api";
-import type { ChatMensaje, Conversacion } from "../lib/types";
+import type { ChatMensaje, Conversacion, Usuario } from "../lib/types";
 import { relativeTime, formatTime, fileToBase64, money } from "../lib/format";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
@@ -40,6 +40,7 @@ import { LocationPreviewSheet } from "../components/domain/chat/LocationPreviewS
 import { VoiceRecorder } from "../components/domain/chat/VoiceRecorder";
 import { EmojiPicker } from "../components/domain/chat/EmojiPicker";
 import { MapViewerSheet } from "../components/domain/chat/MapViewerSheet";
+import { ReportSheet } from "../components/domain/ReportSheet";
 
 interface ReplySnapshot {
   nombre: string;
@@ -98,7 +99,7 @@ export function Chat() {
   const otroId = id ? Number(id) : null;
 
   return (
-    <div style={{ position: "fixed", top: 68, left: 0, right: 0, bottom: 0, overflow: "hidden", padding: "20px 24px" }}>
+    <div className="fixed-below-topnav" style={{ overflow: "hidden", padding: "20px 24px" }}>
       <div style={{ maxWidth: 1160, height: "100%", margin: "0 auto", display: "grid", gridTemplateColumns: "320px 1fr", gap: 20, minHeight: 0 }}>
         <div style={{ display: "flex", flexDirection: "column", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", background: "var(--surface-1)", overflow: "hidden" }}>
           <div style={{ padding: 14, borderBottom: "1px solid var(--border)" }}>
@@ -150,7 +151,7 @@ export function Chat() {
                     textAlign: "left",
                   }}
                 >
-                  <Avatar nombre={c.nombre} foto={c.foto_perfil} size={40} online={!!c.en_linea} />
+                  <Avatar nombre={c.nombre} foto={c.foto_perfil ?? c.tienda_logo} size={40} online={!!c.en_linea} rol={c.rol} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
                       <span style={{ fontWeight: 700, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.nombre}</span>
@@ -184,10 +185,11 @@ type PendienteAdjunto = { file: File; kind: "imagen" | "video" | "pdf" } | null;
 function ChatThread({ otroId, usuarioId, onMeta }: { otroId: number; usuarioId: number; onMeta: () => void }) {
   const navigate = useNavigate();
   const [mensajes, setMensajes] = useState<ChatMensaje[] | null>(null);
-  const [otro, setOtro] = useState<{ nombre: string; foto_perfil: string | null; en_linea?: number } | null>(null);
+  const [otro, setOtro] = useState<Usuario | null>(null);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [meta, setMeta] = useState<{ archivado: number; favorito: number } | null>(null);
+  const [reportandoChat, setReportandoChat] = useState(false);
   const [pendiente, setPendiente] = useState<PendienteAdjunto>(null);
   const [recortando, setRecortando] = useState(false);
   const [pidiendoUbicacion, setPidiendoUbicacion] = useState(false);
@@ -335,14 +337,28 @@ function ChatThread({ otroId, usuarioId, onMeta }: { otroId: number; usuarioId: 
 
   const llamadaDeshabilitada = estadoLlamada !== "idle";
 
+  /** Tap en el nombre/avatar del contacto: vendedor -> su tienda, repartidor -> su perfil público. */
+  const puedeVerPerfil = otro.rol === "vendedor" ? !!otro.tienda_id : otro.rol === "repartidor";
+  const irAPerfilDeOtro = () => {
+    if (otro.rol === "vendedor" && otro.tienda_id) navigate(`/tienda/${otro.tienda_id}`);
+    else if (otro.rol === "repartidor") navigate(`/repartidor-perfil/${otro.id}`);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
-        <Avatar nombre={otro.nombre} foto={otro.foto_perfil} size={36} online={!!otro.en_linea} />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 13.5 }}>{otro.nombre}</div>
-          <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{otro.en_linea ? "En línea" : "Desconectado"}</div>
-        </div>
+        <button
+          onClick={puedeVerPerfil ? irAPerfilDeOtro : undefined}
+          disabled={!puedeVerPerfil}
+          aria-label={puedeVerPerfil ? `Ver ${otro.rol === "vendedor" ? "tienda" : "perfil"} de ${otro.nombre}` : undefined}
+          style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0, background: "none", border: "none", padding: 0, cursor: puedeVerPerfil ? "pointer" : "default", textAlign: "left" }}
+        >
+          <Avatar nombre={otro.nombre} foto={otro.foto_perfil ?? otro.tienda_logo} size={36} online={!!otro.en_linea} rol={otro.rol} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{otro.nombre}</div>
+            <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{otro.en_linea ? "En línea" : "Desconectado"}</div>
+          </div>
+        </button>
         <button
           onClick={() => iniciarLlamada({ id: otroId, nombre: otro.nombre, foto_perfil: otro.foto_perfil }, "voz")}
           disabled={llamadaDeshabilitada}
@@ -350,14 +366,6 @@ function ChatThread({ otroId, usuarioId, onMeta }: { otroId: number; usuarioId: 
           style={{ background: "none", border: "none", cursor: llamadaDeshabilitada ? "default" : "pointer", color: "var(--text-muted)", opacity: llamadaDeshabilitada ? 0.4 : 1, display: "flex" }}
         >
           <Phone size={18} />
-        </button>
-        <button
-          onClick={() => iniciarLlamada({ id: otroId, nombre: otro.nombre, foto_perfil: otro.foto_perfil }, "video")}
-          disabled={llamadaDeshabilitada}
-          aria-label="Videollamada"
-          style={{ background: "none", border: "none", cursor: llamadaDeshabilitada ? "default" : "pointer", color: "var(--text-muted)", opacity: llamadaDeshabilitada ? 0.4 : 1, display: "flex" }}
-        >
-          <VideoCamera size={18} />
         </button>
         <button
           onClick={async () => {
@@ -381,7 +389,18 @@ function ChatThread({ otroId, usuarioId, onMeta }: { otroId: number; usuarioId: 
         >
           <Archive size={18} />
         </button>
+        <button
+          onClick={() => setReportandoChat(true)}
+          aria-label="Reportar conversación"
+          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}
+        >
+          <Flag size={18} />
+        </button>
       </div>
+
+      {reportandoChat && (
+        <ReportSheet tipo="chat" entidadId={otroId} entidadNombre={otro.nombre} onClose={() => setReportandoChat(false)} />
+      )}
 
       <div style={{ flex: 1, overflowY: "auto", padding: 16, display: "flex", flexDirection: "column", gap: 14 }}>
         {mensajes.map((m) => {
@@ -427,7 +446,9 @@ function ChatThread({ otroId, usuarioId, onMeta }: { otroId: number; usuarioId: 
                 />
                 <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 3, padding: m.tipo === "texto" ? 0 : "4px 6px 0", marginTop: m.tipo === "texto" ? 3 : 0 }}>
                   <span style={{ fontSize: 10, opacity: 0.75 }}>{formatTime(m.created_at)}</span>
-                  {mio && (m.leido ? <Checks size={13} weight="bold" /> : <Check size={13} weight="bold" style={{ opacity: 0.7 }} />)}
+                  {/* Estilo WhatsApp: dos cheques (no un solo check) -- opacos/tenues mientras no se
+                      han leído, y en azul cuando el receptor ya abrió la conversación. */}
+                  {mio && <Checks size={14} weight="bold" color={m.leido ? "#34b7f1" : "currentColor"} style={{ opacity: m.leido ? 1 : 0.55 }} />}
                 </div>
 
                 <div className="chat-msg-toolbar" style={{ position: "absolute", top: -12, [mio ? "left" : "right"]: -12, display: "flex", gap: 4 }}>

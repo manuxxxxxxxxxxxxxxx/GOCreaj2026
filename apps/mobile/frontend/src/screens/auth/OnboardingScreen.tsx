@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInRight, FadeOutLeft, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { ArrowLeftIcon, CameraIcon, CheckCircleIcon, IdentificationCardIcon, MapPinIcon, PhoneIcon, ShieldCheckIcon } from "phosphor-react-native";
+import { ArrowLeftIcon, CameraIcon, CaretDownIcon, CheckCircleIcon, IdentificationCardIcon, MapPinIcon, ShieldCheckIcon } from "phosphor-react-native";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { authApi, municipiosApi, ApiError } from "../../lib/api";
@@ -13,13 +13,29 @@ import { useTheme } from "../../theme/ThemeContext";
 import { AmbientPageBackground } from "../../components/ui/AmbientPageBackground";
 import { Avatar } from "../../components/ui/Avatar";
 import { Input } from "../../components/ui/Input";
-import { PhoneInput } from "../../components/ui/PhoneInput";
 import { Button } from "../../components/ui/Button";
 
-const STEPS_CON_USUARIO = ["Usuario", "Teléfono", "Permisos", "Ubicación"] as const;
-const STEPS_SIN_USUARIO = ["Teléfono", "Permisos", "Ubicación"] as const;
+const STEPS_CON_USUARIO = ["Usuario", "Permisos", "Ubicación"] as const;
+const STEPS_SIN_USUARIO = ["Permisos", "Ubicación"] as const;
 
-/** Onboarding post-registro: username + foto (solo cuentas nuevas sin username), teléfono, permiso de ubicación y confirmar municipio. */
+// Municipios más buscados -- para acceso rápido con un toque, arriba del resto que se
+// confirma expandiendo su departamento. No hay ninguna columna de "popularidad" en el
+// catálogo, así que esta lista va fija en el cliente.
+const POPULARES = ["San Salvador", "Soyapango", "Santa Ana", "Santa Tecla", "Mejicanos", "Apopa"];
+const DEPTO_PRIORITARIO = "San Salvador";
+
+/** Distancia en línea recta (km) -- mismo cálculo que usa la versión web para encontrar
+ * el municipio más cercano a las coordenadas del GPS, sin llamada extra al servidor. */
+function distanciaKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const r = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** Onboarding post-registro: username + foto (solo cuentas nuevas sin username), permiso de
+ * ubicación y confirmar municipio. */
 export function OnboardingScreen() {
   const { usuario, usernameSugerido, actualizarUsuarioLocal, cerrarOnboarding } = useAuth();
   const toast = useToast();
@@ -35,12 +51,11 @@ export function OnboardingScreen() {
   const [foto, setFoto] = useState<string | null>(null);
   const [subiendoUsuario, setSubiendoUsuario] = useState(false);
 
-  const [telefono, setTelefono] = useState("");
-  const [guardandoTelefono, setGuardandoTelefono] = useState(false);
   const [permisoEstado, setPermisoEstado] = useState<"idle" | "pidiendo" | "concedido" | "denegado">("idle");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [municipios, setMunicipios] = useState<Municipio[] | null>(null);
   const [municipio, setMunicipio] = useState(usuario?.municipio ?? "");
+  const [deptoAbierto, setDeptoAbierto] = useState<string | null>(null);
   const [guardandoUbicacion, setGuardandoUbicacion] = useState(false);
 
   useEffect(() => {
@@ -54,8 +69,16 @@ export function OnboardingScreen() {
       if (!grupos.has(m.departamento)) grupos.set(m.departamento, []);
       grupos.get(m.departamento)!.push(m);
     }
-    return Array.from(grupos.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    // El departamento de San Salvador va primero (es el más conocido/poblado); el resto
+    // queda alfabético, igual que antes.
+    return Array.from(grupos.entries()).sort((a, b) => {
+      if (a[0] === DEPTO_PRIORITARIO) return -1;
+      if (b[0] === DEPTO_PRIORITARIO) return 1;
+      return a[0].localeCompare(b[0]);
+    });
   }, [municipios]);
+
+  const municipioObj = useMemo(() => municipios?.find((m) => m.nombre === municipio) ?? null, [municipios, municipio]);
 
   const irA = (n: number) => setStep(Math.max(0, Math.min(STEPS.length - 1, n)));
 
@@ -84,20 +107,15 @@ export function OnboardingScreen() {
     irA(1);
   };
 
-  const guardarTelefono = async (saltar: boolean) => {
-    if (!saltar && telefono.trim()) {
-      setGuardandoTelefono(true);
-      try {
-        const r = await authApi.actualizarPerfil({ telefono: telefono.trim() });
-        actualizarUsuarioLocal(r.usuario);
-      } catch (err) {
-        toast.show(err instanceof ApiError ? err.message : "No se pudo guardar tu teléfono.", "error");
-        setGuardandoTelefono(false);
-        return;
-      }
-      setGuardandoTelefono(false);
-    }
-    irA(offset + 1);
+  const elegirMunicipio = (m: Municipio) => {
+    setMunicipio(m.nombre);
+    setDeptoAbierto(m.departamento);
+  };
+
+  const elegirPopular = (nombre: string) => {
+    const m = municipios?.find((x) => x.nombre === nombre);
+    if (m) elegirMunicipio(m);
+    else setMunicipio(nombre);
   };
 
   const pedirPermiso = async () => {
@@ -109,16 +127,21 @@ export function OnboardingScreen() {
         return;
       }
       const pos = await Location.getCurrentPositionAsync({});
-      setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      const c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setCoords(c);
+      if (municipios && municipios.length > 0) {
+        const masCercano = municipios.reduce((mejor, m) => (distanciaKm(c.lat, c.lng, m.lat, m.lng) < distanciaKm(c.lat, c.lng, mejor.lat, mejor.lng) ? m : mejor));
+        elegirMunicipio(masCercano);
+      }
       setPermisoEstado("concedido");
-      setTimeout(() => irA(offset + 2), 700);
+      setTimeout(() => irA(offset + 1), 700);
     } catch {
       setPermisoEstado("denegado");
     }
   };
 
   const finalizar = async () => {
-    if (!municipio) return toast.show("Selecciona tu municipio.", "warning");
+    if (!municipio) return;
     setGuardandoUbicacion(true);
     try {
       await authApi.actualizarUbicacion({ municipio, lat: coords?.lat, lng: coords?.lng });
@@ -184,10 +207,10 @@ export function OnboardingScreen() {
               />
 
               <View style={{ flexDirection: "row", gap: 10, marginTop: 20 }}>
-                <Button variant="secondary" fullWidth onPress={() => guardarUsuario(true)} disabled={subiendoUsuario}>
+                <Button variant="secondary" style={{ flex: 1 }} onPress={() => guardarUsuario(true)} disabled={subiendoUsuario}>
                   Omitir
                 </Button>
-                <Button fullWidth loading={subiendoUsuario} onPress={() => guardarUsuario(false)}>
+                <Button style={{ flex: 1 }} loading={subiendoUsuario} onPress={() => guardarUsuario(false)}>
                   Continuar
                 </Button>
               </View>
@@ -195,25 +218,6 @@ export function OnboardingScreen() {
           )}
 
           {step === offset + 0 && (
-            <Animated.View key="tel" entering={FadeInRight.duration(300)} exiting={FadeOutLeft.duration(200)}>
-              <View style={[styles.iconBadge, { backgroundColor: tokens.cyanBg }]}>
-                <PhoneIcon size={22} color={tokens.cyan} weight="bold" />
-              </View>
-              <Text style={[styles.title, { color: tokens.textPrimary }]}>¿Cuál es tu número?</Text>
-              <Text style={[styles.subtitle, { color: tokens.textSecondary }]}>Lo usamos para avisarte del estado de tus pedidos. Puedes agregarlo después si prefieres.</Text>
-              <PhoneInput value={telefono} onChangeText={setTelefono} />
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 20 }}>
-                <Button variant="secondary" fullWidth onPress={() => guardarTelefono(true)}>
-                  Omitir
-                </Button>
-                <Button fullWidth loading={guardandoTelefono} onPress={() => guardarTelefono(false)}>
-                  Continuar
-                </Button>
-              </View>
-            </Animated.View>
-          )}
-
-          {step === offset + 1 && (
             <Animated.View key="perm" entering={FadeInRight.duration(300)} exiting={FadeOutLeft.duration(200)}>
               <View style={[styles.iconBadge, { backgroundColor: tokens.cyanBg }]}>
                 <ShieldCheckIcon size={22} color={tokens.cyan} weight="bold" />
@@ -237,17 +241,17 @@ export function OnboardingScreen() {
               </View>
 
               <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-                <Button variant="secondary" fullWidth onPress={() => irA(offset + 2)}>
+                <Button variant="secondary" style={{ flex: 1 }} onPress={() => irA(offset + 1)}>
                   Ahora no
                 </Button>
-                <Button fullWidth loading={permisoEstado === "pidiendo"} onPress={pedirPermiso}>
+                <Button style={{ flex: 1 }} loading={permisoEstado === "pidiendo"} onPress={pedirPermiso}>
                   Permitir ubicación
                 </Button>
               </View>
             </Animated.View>
           )}
 
-          {step === offset + 2 && (
+          {step === offset + 1 && (
             <Animated.View key="ubi" entering={FadeInRight.duration(300)} exiting={FadeOutLeft.duration(200)}>
               <View style={[styles.iconBadge, { backgroundColor: tokens.cyanBg }]}>
                 <MapPinIcon size={22} color={tokens.cyan} weight="bold" />
@@ -255,35 +259,67 @@ export function OnboardingScreen() {
               <Text style={[styles.title, { color: tokens.textPrimary }]}>Confirma tu zona</Text>
               <Text style={[styles.subtitle, { color: tokens.textSecondary }]}>Usamos tu municipio para mostrarte tiendas y calcular envíos.</Text>
 
-              <View style={{ marginTop: 4, marginBottom: 20, gap: 6 }}>
-                {municipiosPorDepto.map(([depto, ms]) => (
-                  <View key={depto}>
-                    <Text style={{ fontSize: 10.5, fontFamily: "Inter_700Bold", color: tokens.textMuted, textTransform: "uppercase", marginBottom: 6, marginTop: 8 }}>{depto}</Text>
-                    <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-                      {ms.map((m) => (
-                        <Pressable
-                          key={m.id}
-                          onPress={() => setMunicipio(m.nombre)}
-                          style={[styles.muniChip, { borderColor: municipio === m.nombre ? tokens.cyan : tokens.border, backgroundColor: municipio === m.nombre ? tokens.cyanBg : tokens.surface2 }]}
-                        >
-                          <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: municipio === m.nombre ? tokens.cyan : tokens.textSecondary }}>{m.nombre}</Text>
-                        </Pressable>
-                      ))}
-                    </View>
+              {municipio && (
+                <View style={[styles.detected, { backgroundColor: tokens.okBg }]}>
+                  <CheckCircleIcon size={18} weight="fill" color={tokens.ok} />
+                  <View>
+                    <Text style={{ fontSize: 14, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary }}>{municipio}</Text>
+                    {municipioObj && <Text style={{ fontSize: 11.5, color: tokens.textSecondary }}>{municipioObj.departamento}</Text>}
                   </View>
-                ))}
+                </View>
+              )}
+
+              <Text style={{ fontSize: 11, fontFamily: "Inter_700Bold", color: tokens.textMuted, textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>Más buscadas</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+                {POPULARES.map((nombre) => {
+                  const activo = municipio === nombre;
+                  return (
+                    <Pressable key={nombre} onPress={() => elegirPopular(nombre)} style={[styles.muniChip, { borderColor: activo ? tokens.cyan : tokens.border, backgroundColor: activo ? tokens.cyanBg : tokens.surface2 }]}>
+                      <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: activo ? tokens.cyan : tokens.textPrimary }}>{nombre}</Text>
+                    </Pressable>
+                  );
+                })}
               </View>
 
-              <Button fullWidth size="lg" loading={guardandoUbicacion} onPress={finalizar}>
-                Empezar a explorar
-              </Button>
+              <Text style={{ fontSize: 12.5, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary, marginBottom: 8 }}>O confirma tu ubicación</Text>
+              <View style={{ gap: 8, marginBottom: 20 }}>
+                {municipiosPorDepto.map(([depto, ms]) => {
+                  const abierto = deptoAbierto === depto;
+                  return (
+                    <View key={depto} style={[styles.deptoCard, { borderColor: tokens.border, backgroundColor: tokens.surface2 }]}>
+                      <Pressable onPress={() => setDeptoAbierto(abierto ? null : depto)} style={styles.deptoHeader}>
+                        <Text style={{ fontSize: 13, fontFamily: "Inter_700Bold", color: tokens.textPrimary }}>{depto}</Text>
+                        <CaretDownIcon size={14} color={tokens.textMuted} style={{ transform: [{ rotate: abierto ? "180deg" : "0deg" }] }} />
+                      </Pressable>
+                      {abierto && (
+                        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 12, paddingBottom: 12 }}>
+                          {ms.map((m) => {
+                            const activo = municipio === m.nombre;
+                            return (
+                              <Pressable key={m.id} onPress={() => elegirMunicipio(m)} style={[styles.muniChip, { borderColor: activo ? tokens.cyan : tokens.border, backgroundColor: activo ? tokens.cyanBg : tokens.surface1 }]}>
+                                <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: activo ? tokens.cyan : tokens.textSecondary }}>{m.nombre}</Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+
+              {municipio ? (
+                <Button fullWidth size="lg" loading={guardandoUbicacion} onPress={finalizar}>
+                  Empezar a explorar
+                </Button>
+              ) : (
+                <Button variant="secondary" fullWidth size="lg" onPress={cerrarOnboarding}>
+                  Omitir
+                </Button>
+              )}
             </Animated.View>
           )}
         </View>
-
-        <Pressable onPress={cerrarOnboarding} style={{ alignSelf: "center", marginTop: 16, padding: 4 }}>
-          <Text style={{ color: tokens.textMuted, fontSize: 12.5 }}>Saltar por ahora</Text>
-        </Pressable>
       </ScrollView>
     </View>
   );
@@ -319,4 +355,7 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19, marginBottom: 20 },
   camBtn: { position: "absolute", bottom: -2, right: -2, width: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   muniChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1 },
+  detected: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 18, padding: 12, borderRadius: 12 },
+  deptoCard: { borderRadius: 12, borderWidth: 1, overflow: "hidden" },
+  deptoHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 12 },
 });

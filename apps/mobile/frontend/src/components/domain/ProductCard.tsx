@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View, type DimensionValue } from "r
 import Animated, { useAnimatedStyle, useSharedValue, withSequence, withTiming } from "react-native-reanimated";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { HeartIcon, PlusIcon } from "phosphor-react-native";
+import { HeartIcon, PencilSimpleIcon, PlusIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import type { Producto } from "../../lib/types";
 import { money } from "../../lib/format";
@@ -22,9 +22,11 @@ interface Props {
   height?: DimensionValue;
   /** Shows a floating wishlist heart in the top-right corner (store-profile grids). */
   showWishlist?: boolean;
+  /** El dueño de la tienda ve un lápiz para editar el producto en vez de agregarlo al carrito. */
+  isOwner?: boolean;
 }
 
-export function ProductCard({ producto, height = 150, showWishlist }: Props) {
+export function ProductCard({ producto, height = 150, showWishlist, isOwner }: Props) {
   const { tokens } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { usuario } = useAuth();
@@ -46,7 +48,9 @@ export function ProductCard({ producto, height = 150, showWishlist }: Props) {
     }
   };
 
-  const agotado = producto.estado_stock === "agotado" || producto.stock <= 0;
+  // Stock ilimitado nunca se muestra como agotado -- el backend guarda `stock = 0` para esos
+  // productos (no hay cantidad real que llevar), así que sin este guard aparecían "AGOTADO" por error.
+  const agotado = !producto.stock_ilimitado && (producto.estado_stock === "agotado" || producto.stock <= 0);
   const enOferta = !!producto.precio_oferta && producto.precio_oferta > 0;
 
   const agregar = async () => {
@@ -74,6 +78,8 @@ export function ProductCard({ producto, height = 150, showWishlist }: Props) {
       ? navigation.navigate("Tabs", { screen: "Reels", params: { tiendaId: producto.tienda_id, productoId: producto.id } })
       : navigation.navigate("ProductDetail", { id: producto.id });
 
+  const editar = () => navigation.navigate("VendedorProductoForm", { id: producto.id });
+
   return (
     <AnimatedPressable
       onPress={abrir}
@@ -93,16 +99,24 @@ export function ProductCard({ producto, height = 150, showWishlist }: Props) {
             <Text style={styles.badgeText}>AGOTADO</Text>
           </View>
         )}
-        {!agotado && (
-          <View ref={addBtnRef} collapsable={false} style={styles.addBtnWrap}>
-            <AnimatedPressable
-              onPress={agregar}
-              accessibilityLabel={`Agregar ${producto.nombre}`}
-              style={[addAnimStyle, styles.addBtn, { backgroundColor: tokens.cyan }, glowShadow(tokens.cyanGlow, "sm")]}
-            >
-              <PlusIcon size={15} weight="bold" color={tokens.cyanInk} />
-            </AnimatedPressable>
+        {isOwner ? (
+          <View style={styles.addBtnWrap}>
+            <Pressable onPress={editar} accessibilityLabel={`Editar ${producto.nombre}`} style={[styles.addBtn, { backgroundColor: tokens.cyan }, glowShadow(tokens.cyanGlow, "sm")]}>
+              <PencilSimpleIcon size={13} weight="bold" color={tokens.cyanInk} />
+            </Pressable>
           </View>
+        ) : (
+          !agotado && (
+            <View ref={addBtnRef} collapsable={false} style={styles.addBtnWrap}>
+              <AnimatedPressable
+                onPress={agregar}
+                accessibilityLabel={`Agregar ${producto.nombre}`}
+                style={[addAnimStyle, styles.addBtn, { backgroundColor: tokens.cyan }, glowShadow(tokens.cyanGlow, "sm")]}
+              >
+                <PlusIcon size={15} weight="bold" color={tokens.cyanInk} />
+              </AnimatedPressable>
+            </View>
+          )
         )}
         {showWishlist && (
           <Pressable onPress={toggleGuardar} accessibilityLabel={guardado ? "Quitar de guardados" : "Guardar en mi lista"} style={styles.wishlistBtn}>
@@ -119,7 +133,8 @@ export function ProductCard({ producto, height = 150, showWishlist }: Props) {
         </Text>
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
           <Text style={{ fontFamily: "IBMPlexMono_500Medium", fontSize: 13, fontWeight: "700", color: enOferta ? tokens.danger : tokens.textPrimary }}>{money(enOferta ? producto.precio_oferta! : producto.precio)}</Text>
-          {enOferta && <Text style={{ fontFamily: "IBMPlexMono_500Medium", fontSize: 10.5, color: tokens.textMuted, textDecorationLine: "line-through" }}>{money(producto.precio)}</Text>}
+          {/* Mismo tamaño que el precio activo -- solo se diferencia por el tachado y el color apagado. */}
+          {enOferta && <Text style={{ fontFamily: "IBMPlexMono_500Medium", fontSize: 13, color: tokens.textMuted, textDecorationLine: "line-through" }}>{money(producto.precio)}</Text>}
         </View>
       </View>
     </AnimatedPressable>

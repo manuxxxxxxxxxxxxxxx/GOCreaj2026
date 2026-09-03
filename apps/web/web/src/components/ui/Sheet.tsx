@@ -86,7 +86,9 @@ export function Sheet({ open, onClose, title, children, maxWidth = 480 }: Props)
           // "volver atrás" en vez de quedarse dentro del sheet.
           touchAction: "pan-y",
           transform: `translateY(${dragY}px)`,
-          transition: dragging.current ? "none" : "transform var(--dur-base) var(--ease-spring)",
+          // ease-out en vez del --ease-spring con overshoot -- ese rebasaba el punto final
+          // antes de asentarse, lo que se sentía "brusco" al soltar el arrastre.
+          transition: dragging.current ? "none" : "transform var(--dur-base) var(--ease-out)",
           animation: dragY === 0 ? "sheet-in var(--dur-base) var(--ease-out) both" : undefined,
         }}
       >

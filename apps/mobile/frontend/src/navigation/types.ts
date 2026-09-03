@@ -18,7 +18,9 @@ export type RootStackParamList = {
   Checkout: { cuponCodigo?: string } | undefined;
   Orders: undefined;
   OrderDetail: { id: number; recienCreado?: boolean; totalPedidos?: number };
+  ChatList: undefined;
   ChatThread: { otroId: number };
+  RepartidorPerfilPublico: { id: number };
   Notifications: undefined;
   Direcciones: undefined;
   Wallet: undefined;

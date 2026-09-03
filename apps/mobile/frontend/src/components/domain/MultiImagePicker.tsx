@@ -1,15 +1,18 @@
+import { useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { CameraIcon, PlusIcon, XIcon } from "phosphor-react-native";
 import { useTheme } from "../../theme/ThemeContext";
+import { ImageLightbox } from "../ui/ImageLightbox";
 
 const MAX_IMAGENES = 10;
 
 /** Galería de hasta 10 fotos para el formulario de producto (antes una sola). Usa selección
  * múltiple nativa cuando está disponible y sigue funcionando si el usuario agrega de una en
- * una hasta llenar el cupo. */
+ * una hasta llenar el cupo. Tocar una foto la abre en grande (lightbox) sin quitarla. */
 export function MultiImagePicker({ imagenes, onChange }: { imagenes: string[]; onChange: (imagenes: string[]) => void }) {
   const { tokens } = useTheme();
+  const [verGrande, setVerGrande] = useState<number | null>(null);
   const cupoRestante = MAX_IMAGENES - imagenes.length;
 
   const agregar = async () => {
@@ -33,7 +36,9 @@ export function MultiImagePicker({ imagenes, onChange }: { imagenes: string[]; o
       <View style={styles.grid}>
         {imagenes.map((uri, i) => (
           <View key={i} style={[styles.tile, { borderColor: tokens.border }]}>
-            <Image source={{ uri }} style={StyleSheet.absoluteFill} />
+            <Pressable onPress={() => setVerGrande(i)} accessibilityLabel="Ver foto en grande" style={StyleSheet.absoluteFill}>
+              <Image source={{ uri }} style={StyleSheet.absoluteFill} />
+            </Pressable>
             {i === 0 && (
               <View style={[styles.portada, { backgroundColor: tokens.cyan }]}>
                 <Text style={{ fontSize: 9, fontFamily: "Inter_700Bold", color: tokens.cyanInk }}>Portada</Text>
@@ -51,7 +56,10 @@ export function MultiImagePicker({ imagenes, onChange }: { imagenes: string[]; o
           </Pressable>
         )}
       </View>
-      {imagenes.length > 0 && <Text style={{ fontSize: 11, color: tokens.textMuted, marginTop: 6 }}>La primera foto es la portada. Toca la X para quitar una.</Text>}
+      {imagenes.length > 0 && <Text style={{ fontSize: 11, color: tokens.textMuted, marginTop: 6 }}>La primera foto es la portada. Toca una foto para verla en grande, o la X para quitarla.</Text>}
+      {verGrande !== null && (
+        <ImageLightbox images={imagenes} index={verGrande} onIndexChange={setVerGrande} onClose={() => setVerGrande(null)} />
+      )}
     </View>
   );
 }

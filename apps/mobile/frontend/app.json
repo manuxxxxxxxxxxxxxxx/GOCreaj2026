@@ -63,7 +63,8 @@
         {
           "microphonePermission": "SV[Go] usa el micrófono para que grabes notas de voz en el chat."
         }
-      ]
+      ],
+      "@config-plugins/react-native-webrtc"
     ],
     "extra": {
       "eas": {

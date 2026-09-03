@@ -10,6 +10,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import {
   BookmarkSimpleIcon,
   ChatCircleIcon,
+  FlagIcon,
   HeartIcon,
   PlayIcon,
   PlusIcon,
@@ -34,6 +35,7 @@ import { Skeleton } from "../../components/ui/Skeleton";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
 import { CommentsSheet } from "../../components/domain/CommentsSheet";
 import { QuestionsSheet } from "../../components/domain/QuestionsSheet";
+import { ReportSheet } from "../../components/domain/ReportSheet";
 
 export function ReelsScreen() {
   const { tokens } = useTheme();
@@ -56,6 +58,7 @@ export function ReelsScreen() {
   const [muted, setMuted] = useState(false);
   const [comentariosDe, setComentariosDe] = useState<Producto | null>(null);
   const [preguntarA, setPreguntarA] = useState<Producto | null>(null);
+  const [reportarA, setReportarA] = useState<Producto | null>(null);
   // Medido en vivo con onLayout en vez de Dimensions.get("window") -- el alto
   // real disponible depende del TopBar y de la barra inferior flotante, que
   // Dimensions no conoce. Con un valor fijo mal calculado, cada "página" del
@@ -71,16 +74,12 @@ export function ReelsScreen() {
       productosApi.reels({ tienda_id: tiendaFiltro }).then((r) => setReels(r.reels)).catch(() => setReels([]));
       return;
     }
-    const municipio = usuario?.municipio ?? undefined;
-    // Si no hay reels en el municipio del usuario, mostramos los de todo el país en vez
-    // de un feed vacío -- mismo fallback que la web (Reels.tsx), que de otro modo deja
-    // el feed permanentemente vacío para cualquier cuenta cuyo municipio no tenga reels.
-    productosApi
-      .reels({ municipio })
-      .then((r) => (r.reels.length === 0 && municipio ? productosApi.reels({}).then((r2) => r2.reels) : r.reels))
-      .then(setReels)
-      .catch(() => setReels([]));
-  }, [usuario?.municipio, tiendaFiltro]);
+    // Sin filtro de municipio -- el feed siempre trae todos los reels activos del país,
+    // no solo los de la zona del usuario (antes se limitaba al municipio y solo caía a
+    // "todos" si esa zona no tenía NINGÚN reel, así que una zona con solo 1 o 2 dejaba
+    // sin ver el resto del catálogo nacional).
+    productosApi.reels({}).then((r) => setReels(r.reels)).catch(() => setReels([]));
+  }, [tiendaFiltro]);
 
   // Actualiza el contador de comentarios en el momento (sin esto se queda con el valor
   // que trajo el fetch inicial hasta que se recarga toda la lista de reels).
@@ -135,6 +134,7 @@ export function ReelsScreen() {
               onToggleMute={() => setMuted((m) => !m)}
               onComentarios={() => setComentariosDe(item)}
               onPreguntar={() => setPreguntarA(item)}
+              onReportar={() => setReportarA(item)}
               onEliminado={() => setReels((r) => (r ?? []).filter((x) => x.id !== item.id))}
             />
           )}
@@ -150,6 +150,7 @@ export function ReelsScreen() {
         <CommentsSheet producto={comentariosDe} onClose={() => setComentariosDe(null)} onComentarioNuevo={() => bumpComentarios(comentariosDe.id)} />
       )}
       {preguntarA && <QuestionsSheet producto={preguntarA} onClose={() => setPreguntarA(null)} />}
+      {reportarA && <ReportSheet tipo="reel" entidadId={reportarA.id} entidadNombre={reportarA.nombre} onClose={() => setReportarA(null)} />}
     </View>
   );
 }
@@ -163,6 +164,7 @@ function ReelCard({
   onToggleMute,
   onComentarios,
   onPreguntar,
+  onReportar,
   onEliminado,
 }: {
   producto: Producto;
@@ -173,6 +175,7 @@ function ReelCard({
   onToggleMute: () => void;
   onComentarios: () => void;
   onPreguntar: () => void;
+  onReportar: () => void;
   onEliminado: () => void;
 }) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -244,7 +247,7 @@ function ReelCard({
   // sin esto había un salto perceptible entre tocar y ver el cambio. Si la llamada falla,
   // se revierte al estado anterior.
   const toggleLike = async () => {
-    if (!usuario) return;
+    if (!usuario || esDueno) return;
     const previo = estado;
     setEstado((s) => ({ ...s, like: !s.like, likes: s.likes + (s.like ? -1 : 1) }));
     try {
@@ -266,7 +269,7 @@ function ReelCard({
     }
   };
   const toggleSeguir = async () => {
-    if (!usuario || !producto.tienda_id) return;
+    if (!usuario || !producto.tienda_id || esDueno) return;
     const r = await interaccionesApi.seguirTienda(producto.tienda_id);
     setEstado((s) => ({ ...s, sigo: r.accion === "follow" }));
   };
@@ -329,7 +332,8 @@ function ReelCard({
         </Text>
         {!!producto.hashtags && (
           <Text numberOfLines={1} style={{ color: "#7FE6FF", fontFamily: "Inter_600SemiBold", fontSize: 12.5, marginBottom: 10, textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 4 }}>
-            {producto.hashtags.split(/\s+/).filter(Boolean).map((t) => `#${t}`).join(" ")}
+            {/* replace() por si son datos viejos guardados sin "#" -- evita mostrar "##doble". */}
+            {producto.hashtags.split(/\s+/).filter(Boolean).map((t) => `#${t.replace(/^#+/, "")}`).join(" ")}
           </Text>
         )}
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -348,14 +352,18 @@ function ReelCard({
       </View>
 
       <View style={[styles.actions, { bottom: bottomSafeSpace }]}>
-        <ReelAction icon={<HeartIcon size={24} weight="fill" color={estado.like ? "#FF6B6B" : "#fff"} />} label={estado.likes} onPress={toggleLike} />
+        {/* Un vendedor no se da like ni se sigue a sí mismo -- mismo criterio que StoreHero web. */}
+        {!esDueno && <ReelAction icon={<HeartIcon size={24} weight="fill" color={estado.like ? "#FF6B6B" : "#fff"} />} label={estado.likes} onPress={toggleLike} />}
         <ReelAction icon={<ChatCircleIcon size={24} weight="fill" color="#fff" />} label={producto.comentarios_count} onPress={onComentarios} />
         <ReelAction icon={<ShareNetworkIcon size={24} weight="fill" color="#fff" />} label={producto.compartidos_count} onPress={() => interaccionesApi.compartir(producto.id).catch(() => {})} />
         <ReelAction icon={<BookmarkSimpleIcon size={24} weight="fill" color={estado.guardado ? "#FFD60A" : "#fff"} />} onPress={toggleGuardar} />
         {esDueno && <ReelAction icon={<TrashIcon size={22} weight="fill" color="#FF6B6B" />} onPress={() => setConfirmandoEliminar(true)} />}
-        <Pressable onPress={toggleSeguir} style={[styles.followBtn, { backgroundColor: estado.sigo ? "#38D6FF" : "#fff" }]}>
-          <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: estado.sigo ? "#04141C" : "#000" }}>{estado.sigo ? "✓" : "+"}</Text>
-        </Pressable>
+        {!esDueno && <ReelAction icon={<FlagIcon size={20} weight="fill" color="#fff" />} onPress={onReportar} />}
+        {!esDueno && (
+          <Pressable onPress={toggleSeguir} style={[styles.followBtn, { backgroundColor: estado.sigo ? "#38D6FF" : "#fff" }]}>
+            <Text style={{ fontSize: 15, fontFamily: "Inter_700Bold", color: estado.sigo ? "#04141C" : "#000" }}>{estado.sigo ? "✓" : "+"}</Text>
+          </Pressable>
+        )}
       </View>
 
       <ConfirmDialog

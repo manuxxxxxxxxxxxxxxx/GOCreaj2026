@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Package, ChatCircleDots, Megaphone, Gear, Trash } from "@phosphor-icons/react";
+import { Bell, Package, ChatCircleDots, Megaphone, Gear, Heart, Trash } from "@phosphor-icons/react";
 import { notificacionesApi } from "../lib/api";
 import type { Notificacion } from "../lib/types";
 import { relativeTime } from "../lib/format";
@@ -13,6 +13,7 @@ const ICONS: Record<Notificacion["tipo"], typeof Package> = {
   chat: ChatCircleDots,
   sistema: Gear,
   promocion: Megaphone,
+  interaccion: Heart,
 };
 
 export function Notifications() {
@@ -38,6 +39,7 @@ export function Notifications() {
 
   const marcarLeida = async (n: Notificacion) => {
     if (n.tipo === "pedido" && n.referencia_id) navigate(`/pedidos/${n.referencia_id}`);
+    if (n.tipo === "interaccion" && n.referencia_id) navigate(`/reels?producto=${n.referencia_id}`);
   };
 
   const eliminar = async (id: number) => {

@@ -31,6 +31,8 @@ export const vendedorApi = {
     descripcion?: string;
     precio: number;
     precio_oferta?: number;
+    oferta_tipo?: "monto" | "porcentaje";
+    oferta_valor?: number;
     stock?: number;
     stock_ilimitado?: boolean;
     imagen?: string;
@@ -53,6 +55,8 @@ export const vendedorApi = {
       descripcion?: string;
       precio: number;
       stock?: number;
+      stock_ilimitado?: boolean;
+      imagen?: string;
       categoria?: string;
       es_reel?: boolean;
       hashtags?: string;
@@ -63,7 +67,7 @@ export const vendedorApi = {
     apiUpload<{ ok: true; id: number }>(
       "vendedor_dashboard",
       "crear_producto",
-      { ...data, es_reel: data.es_reel ? 1 : 0 },
+      { ...data, es_reel: data.es_reel ? 1 : 0, stock_ilimitado: data.stock_ilimitado ? 1 : 0 },
       { field: "video", uri: videoUri, name: "reel.mp4", type: "video/mp4" },
       onProgress,
     ),

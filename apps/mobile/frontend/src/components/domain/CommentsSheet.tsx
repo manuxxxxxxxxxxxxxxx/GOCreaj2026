@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { ArrowBendUpLeftIcon, HeartIcon, PaperPlaneTiltIcon } from "phosphor-react-native";
+import { ArrowBendUpLeftIcon, FlagIcon, HeartIcon, PaperPlaneTiltIcon } from "phosphor-react-native";
 import type { Producto } from "../../lib/types";
 import { interaccionesApi } from "../../lib/api";
 import { relativeTime } from "../../lib/format";
@@ -9,6 +9,7 @@ import { useTheme } from "../../theme/ThemeContext";
 import { Sheet } from "../ui/Sheet";
 import { Avatar } from "../ui/Avatar";
 import { Skeleton } from "../ui/Skeleton";
+import { ReportSheet } from "./ReportSheet";
 
 interface Comentario {
   id: number;
@@ -29,12 +30,23 @@ export function CommentsSheet({ producto, onClose, onComentarioNuevo }: { produc
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [respondiendoA, setRespondiendoA] = useState<Comentario | null>(null);
+  const [reportandoComentario, setReportandoComentario] = useState<Comentario | null>(null);
 
   const cargar = () => {
     interaccionesApi.listarComentarios(producto.id).then((r) => setComentarios(r.comentarios)).catch(() => setComentarios([]));
   };
 
   useEffect(cargar, [producto.id]);
+
+  // No hay WebSocket para comentarios -- mientras el sheet está abierto, refresca en
+  // segundo plano cada pocos segundos para que aparezcan los comentarios de otras
+  // personas sin que el usuario tenga que cerrar y volver a abrir.
+  useEffect(() => {
+    const id = setInterval(() => {
+      interaccionesApi.listarComentarios(producto.id).then((r) => setComentarios(r.comentarios)).catch(() => {});
+    }, 4000);
+    return () => clearInterval(id);
+  }, [producto.id]);
 
   const respuestasPorPadre = useMemo(() => {
     const mapa = new Map<number, Comentario[]>();
@@ -78,11 +90,11 @@ export function CommentsSheet({ producto, onClose, onComentarioNuevo }: { produc
             .filter((c) => !c.parent_id)
             .map((c) => (
               <View key={c.id} style={{ marginBottom: 14 }}>
-                <ComentarioFila c={c} onLike={() => likeComentario(c.id)} onResponder={() => setRespondiendoA(c)} />
+                <ComentarioFila c={c} onLike={() => likeComentario(c.id)} onResponder={() => setRespondiendoA(c)} onReportar={() => setReportandoComentario(c)} />
                 {(respuestasPorPadre.get(c.id) ?? []).length > 0 && (
                   <View style={{ gap: 12, marginTop: 12, marginLeft: 15, paddingLeft: 15, borderLeftWidth: 1.5, borderLeftColor: tokens.border }}>
                     {respuestasPorPadre.get(c.id)!.map((r) => (
-                      <ComentarioFila key={r.id} c={r} small onLike={() => likeComentario(r.id)} onResponder={() => setRespondiendoA(c)} />
+                      <ComentarioFila key={r.id} c={r} small onLike={() => likeComentario(r.id)} onResponder={() => setRespondiendoA(c)} onReportar={() => setReportandoComentario(r)} />
                     ))}
                   </View>
                 )}
@@ -113,11 +125,20 @@ export function CommentsSheet({ producto, onClose, onComentarioNuevo }: { produc
           <PaperPlaneTiltIcon size={15} weight="fill" color={tokens.cyanInk} />
         </Pressable>
       </View>
+
+      {reportandoComentario && (
+        <ReportSheet
+          tipo="comentario"
+          entidadId={reportandoComentario.id}
+          entidadNombre={reportandoComentario.comentario}
+          onClose={() => setReportandoComentario(null)}
+        />
+      )}
     </Sheet>
   );
 }
 
-function ComentarioFila({ c, small, onLike, onResponder }: { c: Comentario; small?: boolean; onLike: () => void; onResponder: () => void }) {
+function ComentarioFila({ c, small, onLike, onResponder, onReportar }: { c: Comentario; small?: boolean; onLike: () => void; onResponder: () => void; onReportar: () => void }) {
   const { tokens } = useTheme();
   return (
     <View style={{ flexDirection: "row", gap: 10 }}>
@@ -136,6 +157,9 @@ function ComentarioFila({ c, small, onLike, onResponder }: { c: Comentario; smal
           <Pressable onPress={onResponder} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
             <ArrowBendUpLeftIcon size={12} color={tokens.textMuted} />
             <Text style={{ fontSize: 10.5, fontFamily: "Inter_600SemiBold", color: tokens.textMuted }}>Responder</Text>
+          </Pressable>
+          <Pressable onPress={onReportar} hitSlop={6}>
+            <FlagIcon size={12} color={tokens.textMuted} />
           </Pressable>
         </View>
       </View>

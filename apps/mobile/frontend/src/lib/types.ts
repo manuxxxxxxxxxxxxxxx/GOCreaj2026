@@ -24,6 +24,9 @@ export interface Usuario {
   perfil_publico?: number;
   activo?: number;
   created_at?: string;
+  /** Solo presente cuando rol === "vendedor" y tiene tienda (chat_multi.php la agrega vía JOIN). */
+  tienda_id?: number | null;
+  tienda_logo?: string | null;
 }
 
 export interface Tienda {
@@ -63,6 +66,8 @@ export interface Producto {
   descripcion?: string | null;
   precio: number;
   precio_oferta?: number | null;
+  oferta_tipo?: "monto" | "porcentaje" | null;
+  oferta_valor?: number | null;
   oferta_hasta?: string | null;
   stock: number;
   stock_ilimitado?: number;
@@ -104,6 +109,7 @@ export interface CarritoItem {
   precio_efectivo: number;
   imagen: string | null;
   stock: number;
+  stock_ilimitado?: number;
   estado_stock: EstadoStock;
   tienda_id: number;
   tienda_nombre: string;
@@ -168,6 +174,10 @@ export interface Pedido {
   pin_entrega?: string | null;
   confirmado_vendedor_recogida?: number;
   confirmado_repartidor_recogida?: number;
+  repartidor_asignado_at?: string | null;
+  /** Segundos restantes para poder soltar el pedido sin quedar responsable (ver
+   * REPARTIDOR_GRACIA_CANCELAR_SEG en el backend) -- 0 cuando ya venció o no aplica. */
+  gracia_cancelar_seg?: number;
   /** Despacho automático en curso: hay una oferta exclusiva activa a este repartidor (ver
    * DESIGN.md "Flujo logístico") -- null/vencida cuando no hay nadie respondiendo ahora mismo. */
   oferta_repartidor_id?: number | null;
@@ -226,6 +236,8 @@ export interface Conversacion {
   no_leidos: number;
   archivado: number;
   favorito: number;
+  tienda_id?: number | null;
+  tienda_logo?: string | null;
 }
 
 export interface Notificacion {
@@ -233,7 +245,7 @@ export interface Notificacion {
   usuario_id: number;
   titulo: string;
   cuerpo: string | null;
-  tipo: "pedido" | "chat" | "sistema" | "promocion";
+  tipo: "pedido" | "chat" | "sistema" | "promocion" | "interaccion";
   leida: number;
   referencia_id: number | null;
   created_at: string;
@@ -305,9 +317,22 @@ export interface SolicitudRol {
   rol_solicitado: "vendedor" | "repartidor";
   nombre_completo: string;
   municipio?: string | null;
+  dui_numero?: string | null;
+  dui_frente?: string | null;
+  dui_reverso?: string | null;
+  nombre_negocio?: string | null;
+  foto_negocio?: string | null;
+  licencia_frente?: string | null;
+  licencia_reverso?: string | null;
+  tipo_vehiculo?: string | null;
+  vehiculo_modelo?: string | null;
+  vehiculo_placa?: string | null;
+  licencia_numero?: string | null;
+  credenciales?: string | null;
   estado: "pendiente" | "aprobado" | "rechazado";
   notas_admin?: string | null;
   created_at: string;
+  revisado_at?: string | null;
   usuario_nombre?: string;
   email?: string;
   telefono?: string;

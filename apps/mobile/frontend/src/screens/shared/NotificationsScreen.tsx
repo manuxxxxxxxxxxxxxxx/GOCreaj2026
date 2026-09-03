@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { BellIcon, CaretLeftIcon, ChatCircleDotsIcon, GearIcon, MegaphoneIcon, PackageIcon, TrashIcon, type IconProps } from "phosphor-react-native";
+import { BellIcon, CaretLeftIcon, ChatCircleDotsIcon, GearIcon, HeartIcon, MegaphoneIcon, PackageIcon, TrashIcon, type IconProps } from "phosphor-react-native";
 import type { ComponentType } from "react";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
@@ -15,7 +15,7 @@ import { AnimatedListItem } from "../../components/ui/Motion";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Notifications">;
 
-const ICONS: Record<Notificacion["tipo"], ComponentType<IconProps>> = { pedido: PackageIcon, chat: ChatCircleDotsIcon, sistema: GearIcon, promocion: MegaphoneIcon };
+const ICONS: Record<Notificacion["tipo"], ComponentType<IconProps>> = { pedido: PackageIcon, chat: ChatCircleDotsIcon, sistema: GearIcon, promocion: MegaphoneIcon, interaccion: HeartIcon };
 
 export function NotificationsScreen({ navigation }: Props) {
   const { tokens } = useTheme();
@@ -41,6 +41,7 @@ export function NotificationsScreen({ navigation }: Props) {
 
   const marcar = (n: Notificacion) => {
     if (n.tipo === "pedido" && n.referencia_id) navigation.navigate("OrderDetail", { id: n.referencia_id });
+    if (n.tipo === "interaccion" && n.referencia_id) navigation.navigate("Tabs", { screen: "Reels", params: { productoId: n.referencia_id } });
   };
 
   return (

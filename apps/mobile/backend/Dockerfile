@@ -5,8 +5,14 @@ RUN docker-php-ext-install mysqli pdo_mysql
 
 # mod_rewrite: requerido por .htaccess (reenvía el header Authorization, que Apache
 # a veces no pasa a PHP por defecto). AllowOverride All para que ese .htaccess aplique.
-RUN a2enmod rewrite \
-    && sed -ri -e 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
+# mpm_prefork (único MPM compatible con mod_php): la imagen base a veces queda con
+# mpm_event también habilitado, lo que hace que Apache no arranque ("More than one
+# MPM loaded") -- se fuerza explícitamente a prefork.
+RUN rm -f /etc/apache2/mods-enabled/mpm_event.load /etc/apache2/mods-enabled/mpm_event.conf \
+           /etc/apache2/mods-enabled/mpm_worker.load /etc/apache2/mods-enabled/mpm_worker.conf \
+    && a2enmod mpm_prefork rewrite \
+    && sed -ri -e 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf \
+    && apache2ctl configtest
 
 # Límites por defecto de la imagen (2M/8M) son insuficientes: la app sube fotos/videos
 # como base64 (+33% de overhead) desde vendedor_dashboard.php/productos.php.
@@ -29,4 +35,6 @@ ENV PORT=80
 EXPOSE 80
 CMD sh -c "sed -ri \"s/Listen 80/Listen \$PORT/\" /etc/apache2/ports.conf && \
     sed -ri \"s/:80>/:\$PORT>/\" /etc/apache2/sites-enabled/000-default.conf && \
+    rm -f /etc/apache2/mods-enabled/mpm_event.load /etc/apache2/mods-enabled/mpm_event.conf \
+          /etc/apache2/mods-enabled/mpm_worker.load /etc/apache2/mods-enabled/mpm_worker.conf && \
     apache2-foreground"

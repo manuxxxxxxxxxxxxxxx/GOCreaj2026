@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { Modal, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Image, Modal, StyleSheet, Text, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { BicycleIcon, MapPinIcon, StorefrontIcon } from "phosphor-react-native";
 import { useTheme } from "../../theme/ThemeContext";
@@ -7,6 +7,7 @@ import { useToast } from "../../context/ToastContext";
 import { repartidorApi, ApiError } from "../../lib/api";
 import { money } from "../../lib/format";
 import { Button } from "../ui/Button";
+import { WebMapView } from "../ui/WebMapView";
 
 type Oferta = Awaited<ReturnType<typeof repartidorApi.miOferta>>["oferta"];
 
@@ -22,7 +23,7 @@ const RING_CIRC = 2 * Math.PI * RING_RADIUS;
  * este componente solo se encarga de mostrarla y de la cuenta regresiva visual -- la
  * expiración real la decide el backend (ver avanzar_despacho_global() en conexion.php),
  * este timer es puramente cosmético para que se sienta "vivo" mientras tanto. */
-export function OfertaDespachoModal({ oferta, segundosTotales, onRespondida }: { oferta: NonNullable<Oferta>; segundosTotales: number; onRespondida: () => void }) {
+export function OfertaDespachoModal({ oferta, segundosTotales, onRespondida }: { oferta: NonNullable<Oferta>; segundosTotales: number; onRespondida: (aceptada: boolean) => void }) {
   const { tokens } = useTheme();
   const toast = useToast();
   // Cuenta regresiva puramente local a partir de "segundos_restantes" que ya manda
@@ -43,13 +44,17 @@ export function OfertaDespachoModal({ oferta, segundosTotales, onRespondida }: {
     if (yaRespondio.current) return;
     yaRespondio.current = true;
     setRespondiendo(decision);
+    let aceptada = false;
     try {
       await repartidorApi.responderOferta(oferta.id, decision);
-      if (decision === "aceptar") toast.show("Pedido aceptado. Dirígete a la tienda.", "success");
+      if (decision === "aceptar") {
+        toast.show("Pedido aceptado. Dirígete a la tienda.", "success");
+        aceptada = true;
+      }
     } catch (err) {
       if (decision === "aceptar") toast.show(err instanceof ApiError ? err.message : "La oferta ya no está disponible.", "error");
     } finally {
-      onRespondida();
+      onRespondida(aceptada);
     }
   };
 
@@ -58,13 +63,23 @@ export function OfertaDespachoModal({ oferta, segundosTotales, onRespondida }: {
   useEffect(() => {
     if (restante === 0 && !yaRespondio.current) {
       yaRespondio.current = true;
-      onRespondida();
+      onRespondida(false);
     }
   }, [restante, onRespondida]);
 
   const progreso = Math.max(0, Math.min(1, restante / segundosTotales));
   const dashOffset = RING_CIRC * (1 - progreso);
   const urgente = restante <= Math.min(4, segundosTotales / 3);
+
+  const foto = oferta.items?.[0]?.imagen ?? null;
+
+  const mapa = useMemo(() => {
+    const tienda: [number, number] | null = oferta.tienda_lat && oferta.tienda_lng ? [oferta.tienda_lng, oferta.tienda_lat] : null;
+    const destino: [number, number] | null = oferta.lat_entrega && oferta.lng_entrega ? [oferta.lng_entrega, oferta.lat_entrega] : null;
+    const centro = tienda ?? destino;
+    if (!centro) return null;
+    return { tienda, destino, centro, ruta: tienda && destino ? [tienda, destino] : null };
+  }, [oferta.tienda_lat, oferta.tienda_lng, oferta.lat_entrega, oferta.lng_entrega]);
 
   return (
     <Modal visible transparent animationType="fade" statusBarTranslucent onRequestClose={() => {}}>
@@ -93,6 +108,23 @@ export function OfertaDespachoModal({ oferta, segundosTotales, onRespondida }: {
 
           <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: tokens.cyan, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 4 }}>¡Nuevo pedido!</Text>
           <Text style={{ fontSize: 18, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary, marginTop: 4, textAlign: "center" }}>{oferta.tienda_nombre ?? "Tienda"}</Text>
+
+          {foto && <Image source={{ uri: foto }} style={{ width: "100%", height: 110, borderRadius: 14, marginTop: 12 }} />}
+
+          {mapa && (
+            <View style={{ width: "100%", height: 130, borderRadius: 14, overflow: "hidden", marginTop: 12 }}>
+              <WebMapView
+                center={mapa.centro}
+                zoom={13}
+                interactive={false}
+                route={mapa.ruta ? { coordinates: mapa.ruta, color: tokens.cyan, width: 3 } : null}
+                markers={[
+                  ...(mapa.tienda ? [{ id: "tienda", coordinate: mapa.tienda, color: tokens.warn }] : []),
+                  ...(mapa.destino ? [{ id: "destino", coordinate: mapa.destino, color: tokens.ok }] : []),
+                ]}
+              />
+            </View>
+          )}
 
           <View style={{ gap: 8, width: "100%", marginTop: 16, marginBottom: 18 }}>
             <View style={styles.filaInfo}>

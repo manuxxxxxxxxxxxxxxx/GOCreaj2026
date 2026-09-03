@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { FlatList, Image, Linking, Pressable, Text, TextInput, View } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import { HeadsetIcon } from "phosphor-react-native";
 import { useTheme } from "../../theme/ThemeContext";
 import { useToast } from "../../context/ToastContext";
@@ -20,6 +21,7 @@ interface TicketAdmin extends ReporteSoporte {
 export function AdminSoporteScreen() {
   const { tokens } = useTheme();
   const toast = useToast();
+  const navigation = useNavigation();
   const [tickets, setTickets] = useState<TicketAdmin[] | null>(null);
   const [respuestas, setRespuestas] = useState<Record<number, string>>({});
 
@@ -35,7 +37,9 @@ export function AdminSoporteScreen() {
     try {
       await adminApi.responderSoporte(t.id, respuesta, estado);
       toast.show("Respuesta enviada", "success");
-      cargar();
+      // Antes se quedaba atrapado en esta pantalla mostrando la lista recargada --
+      // ahora vuelve al panel principal del admin como se espera.
+      navigation.goBack();
     } catch (err) {
       toast.show(err instanceof ApiError ? err.message : "No se pudo responder.", "error");
     }

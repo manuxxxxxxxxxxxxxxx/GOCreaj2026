@@ -1,14 +1,15 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { BellIcon, BellSlashIcon, CameraIcon, ChatCircleTextIcon, SealCheckIcon, StarIcon, StorefrontIcon, UsersThreeIcon } from "phosphor-react-native";
+import { BellIcon, BellSlashIcon, CameraIcon, ChatCircleTextIcon, CreditCardIcon, FlagIcon, MoneyIcon, PaypalLogoIcon, PencilSimpleIcon, SealCheckIcon, StarIcon, StorefrontIcon, UsersThreeIcon } from "phosphor-react-native";
 import type { Tienda } from "../../../lib/types";
 import { useTheme } from "../../../theme/ThemeContext";
 import { Button } from "../../ui/Button";
+import { BrandMosaic } from "../../ui/BrandMosaic";
 
-const DEFAULT_BANNERS: [string, string][] = [
-  ["#0891B2", "#7C3AED"],
-  ["#7C3AED", "#F5642E"],
-  ["#F5642E", "#0891B2"],
+const METODOS_PAGO: { key: string; label: string; Icon: typeof MoneyIcon }[] = [
+  { key: "efectivo", label: "Efectivo", Icon: MoneyIcon },
+  { key: "tarjeta", label: "Tarjeta", Icon: CreditCardIcon },
+  { key: "paypal", label: "PayPal", Icon: PaypalLogoIcon },
 ];
 
 function formatCount(n: number): string {
@@ -20,10 +21,15 @@ interface Props {
   tienda: Tienda;
   isOwner: boolean;
   notifOn: boolean;
-  onEditBanner?: () => void;
+  onPortadaChange?: () => void;
+  subiendoPortada?: boolean;
+  onLogoChange?: () => void;
+  subiendoLogo?: boolean;
+  onEditarProductos?: () => void;
   onToggleSeguir: () => void;
   onToggleNotif: () => void;
   onContactar: () => void;
+  onReportar?: () => void;
 }
 
 /**
@@ -31,9 +37,22 @@ interface Props {
  * bottom edge, and the identity/stats/CTA block acoupled directly beneath --
  * one shallow unit instead of a tall banner + a separate boxy info panel.
  */
-export function StoreHero({ tienda, isOwner, notifOn, onEditBanner, onToggleSeguir, onToggleNotif, onContactar }: Props) {
+export function StoreHero({
+  tienda,
+  isOwner,
+  notifOn,
+  onPortadaChange,
+  subiendoPortada,
+  onLogoChange,
+  subiendoLogo,
+  onEditarProductos,
+  onToggleSeguir,
+  onToggleNotif,
+  onContactar,
+  onReportar,
+}: Props) {
   const { tokens } = useTheme();
-  const [from, to] = DEFAULT_BANNERS[tienda.id % DEFAULT_BANNERS.length];
+  const metodosPago = (tienda.metodos_pago ?? "").split(",").filter(Boolean);
 
   return (
     <View>
@@ -41,23 +60,35 @@ export function StoreHero({ tienda, isOwner, notifOn, onEditBanner, onToggleSegu
         {tienda.portada ? (
           <Image source={{ uri: tienda.portada }} style={StyleSheet.absoluteFill} />
         ) : (
-          <LinearGradient colors={[from, to]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+          <BrandMosaic seed={tienda.id} />
         )}
         <LinearGradient colors={["rgba(8,11,20,0)", "rgba(8,11,20,0.35)"]} locations={[0.55, 1]} style={StyleSheet.absoluteFill} />
-        {isOwner && (
-          <Pressable onPress={onEditBanner} style={styles.editBtn}>
+        {isOwner && onPortadaChange && (
+          <Pressable onPress={onPortadaChange} disabled={subiendoPortada} style={styles.editBtn}>
             <CameraIcon size={12} weight="bold" color="#fff" />
-            <Text style={styles.editBtnText}>Cambiar portada</Text>
+            <Text style={styles.editBtnText}>{subiendoPortada ? "Subiendo..." : "Cambiar portada"}</Text>
           </Pressable>
         )}
       </View>
 
       <View style={[styles.identity, { backgroundColor: tokens.surface1 }]}>
-        <View style={[styles.logo, { borderColor: tokens.surface1, backgroundColor: tokens.surface2 }]}>
-          {tienda.logo ? (
-            <Image source={{ uri: tienda.logo }} style={StyleSheet.absoluteFill} />
-          ) : (
-            <StorefrontIcon size={22} color={tokens.textMuted} style={{ alignSelf: "center", marginTop: 19 }} />
+        <View style={{ position: "relative" }}>
+          <View style={[styles.logo, { borderColor: tokens.surface1, backgroundColor: tokens.surface2 }]}>
+            {tienda.logo ? (
+              <Image source={{ uri: tienda.logo }} style={StyleSheet.absoluteFill} />
+            ) : (
+              <StorefrontIcon size={22} color={tokens.textMuted} style={{ alignSelf: "center", marginTop: 19 }} />
+            )}
+          </View>
+          {isOwner && onLogoChange && (
+            <Pressable
+              onPress={onLogoChange}
+              disabled={subiendoLogo}
+              accessibilityLabel="Cambiar foto de perfil"
+              style={[styles.logoEditBtn, { backgroundColor: tokens.cyan, borderColor: tokens.surface1, opacity: subiendoLogo ? 0.7 : 1 }]}
+            >
+              <CameraIcon size={11} weight="bold" color={tokens.cyanInk} />
+            </Pressable>
           )}
         </View>
 
@@ -80,14 +111,26 @@ export function StoreHero({ tienda, isOwner, notifOn, onEditBanner, onToggleSegu
           <Text style={[styles.statMuted, { color: tokens.textSecondary }]}>{formatCount(tienda.seguidores_count ?? 0)} seguidores</Text>
         </View>
 
+        {/* Un vendedor no se sigue ni se contacta a sí mismo -- estos botones solo tienen
+            sentido para un visitante distinto al dueño de la tienda. En su lugar, desde
+            su propia vista previa puede saltar directo a editar el catálogo. */}
         <View style={styles.ctaRow}>
-          <Button size="sm" variant={tienda.yo_sigo ? "secondary" : "primary"} icon={!tienda.yo_sigo ? <BellIcon size={14} weight="fill" color={tokens.cyanInk} /> : undefined} onPress={onToggleSeguir}>
-            {tienda.yo_sigo ? "Siguiendo" : "SEGUIR"}
-          </Button>
-          <Button size="sm" variant="secondary" icon={<ChatCircleTextIcon size={14} color={tokens.textPrimary} />} onPress={onContactar}>
-            CONTACTAR
-          </Button>
-          {!!tienda.yo_sigo && (
+          {isOwner && onEditarProductos && (
+            <Button size="sm" icon={<PencilSimpleIcon size={14} weight="bold" color={tokens.cyanInk} />} onPress={onEditarProductos}>
+              EDITAR PRODUCTOS
+            </Button>
+          )}
+          {!isOwner && (
+            <Button size="sm" variant={tienda.yo_sigo ? "secondary" : "primary"} icon={!tienda.yo_sigo ? <BellIcon size={14} weight="fill" color={tokens.cyanInk} /> : undefined} onPress={onToggleSeguir}>
+              {tienda.yo_sigo ? "Siguiendo" : "SEGUIR"}
+            </Button>
+          )}
+          {!isOwner && (
+            <Button size="sm" variant="secondary" icon={<ChatCircleTextIcon size={14} color={tokens.textPrimary} />} onPress={onContactar}>
+              CONTACTAR
+            </Button>
+          )}
+          {!isOwner && !!tienda.yo_sigo && (
             <Pressable
               onPress={onToggleNotif}
               accessibilityLabel={notifOn ? "Desactivar notificaciones" : "Activar notificaciones"}
@@ -96,7 +139,26 @@ export function StoreHero({ tienda, isOwner, notifOn, onEditBanner, onToggleSegu
               {notifOn ? <BellIcon size={15} weight="fill" color={tokens.cyan} /> : <BellSlashIcon size={15} color={tokens.textSecondary} />}
             </Pressable>
           )}
+          {!isOwner && onReportar && (
+            <Pressable
+              onPress={onReportar}
+              accessibilityLabel="Reportar tienda"
+              style={[styles.notifBtn, { borderColor: tokens.border, backgroundColor: tokens.surface2 }]}
+            >
+              <FlagIcon size={14} color={tokens.textSecondary} />
+            </Pressable>
+          )}
         </View>
+
+        {!!metodosPago.length && (
+          <View style={styles.metodosRow}>
+            {METODOS_PAGO.filter((m) => metodosPago.includes(m.key)).map(({ key, Icon, label }) => (
+              <View key={key} accessibilityLabel={label} style={[styles.metodoPill, { backgroundColor: tokens.cyanBg }]}>
+                <Icon size={15} weight="fill" color={tokens.cyan} />
+              </View>
+            ))}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -121,6 +183,7 @@ const styles = StyleSheet.create({
   editBtnText: { color: "#fff", fontSize: 10.5, fontFamily: "Inter_700Bold" },
   identity: { paddingHorizontal: 20, paddingBottom: 16, alignItems: "center", gap: 6 },
   logo: { width: 60, height: 60, borderRadius: 30, borderWidth: 3, overflow: "hidden", marginTop: -30 },
+  logoEditBtn: { position: "absolute", bottom: -2, right: -2, width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   name: { fontSize: 17, fontFamily: "SpaceGrotesk_600SemiBold", textAlign: "center" },
   badge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   badgeText: { fontSize: 9.5, fontFamily: "Inter_700Bold" },
@@ -129,4 +192,6 @@ const styles = StyleSheet.create({
   statMuted: { fontSize: 12 },
   ctaRow: { flexDirection: "row", gap: 8, marginTop: 2 },
   notifBtn: { width: 34, height: 34, borderRadius: 10, borderWidth: 1, alignItems: "center", justifyContent: "center" },
+  metodosRow: { flexDirection: "row", gap: 10, marginTop: 10 },
+  metodoPill: { width: 30, height: 30, borderRadius: 15, alignItems: "center", justifyContent: "center" },
 });

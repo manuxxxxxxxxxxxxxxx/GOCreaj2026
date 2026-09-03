@@ -1,19 +1,27 @@
 import { cloneElement, isValidElement, useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import Animated, { FadeInRight, FadeOutLeft, useAnimatedStyle, useSharedValue, withTiming, withRepeat, withSequence } from "react-native-reanimated";
 import * as ImagePicker from "expo-image-picker";
-import { BicycleIcon, CaretLeftIcon, CheckCircleIcon, ClockIcon, StorefrontIcon, UploadSimpleIcon } from "phosphor-react-native";
+import { BicycleIcon, CaretLeftIcon, CarIcon, CheckCircleIcon, ClockIcon, StorefrontIcon, UploadSimpleIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
 import type { ThemeTokens } from "../../theme/tokens";
 import { useToast } from "../../context/ToastContext";
 import { solicitudesApi, ApiError } from "../../lib/api";
 import type { SolicitudRol } from "../../lib/types";
+import { formatDui } from "../../lib/format";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Skeleton } from "../../components/ui/Skeleton";
+import { MunicipioPicker } from "../../components/domain/MunicipioPicker";
+import { useAuth } from "../../context/AuthContext";
+
+const VEHICULOS: { key: string; label: string; Icon: typeof BicycleIcon }[] = [
+  { key: "moto", label: "Moto", Icon: BicycleIcon },
+  { key: "carro", label: "Carro", Icon: CarIcon },
+];
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -57,12 +65,21 @@ async function pickBase64(): Promise<string | null> {
 export function ConvertirseScreen({ navigation }: Props) {
   const { tokens } = useTheme();
   const insets = useSafeAreaInsets();
+  const { usuario } = useAuth();
   const [solicitudes, setSolicitudes] = useState<SolicitudRol[] | null>(null);
   const [rol, setRol] = useState<"vendedor" | "repartidor" | null>(null);
 
   useEffect(() => {
     solicitudesApi.misSolicitudes().then((r) => setSolicitudes(r.solicitudes)).catch(() => setSolicitudes([]));
   }, []);
+
+  // Un usuario que ya es vendedor/repartidor no debería poder "convertirse" de nuevo --
+  // por si llega aquí por deep-link en vez de por el menú (que ya oculta la entrada).
+  useEffect(() => {
+    if (usuario && usuario.rol !== "comprador") navigation.goBack();
+  }, [usuario, navigation]);
+
+  if (usuario && usuario.rol !== "comprador") return null;
 
   const Header = (
     <View style={styles.header}>
@@ -155,21 +172,48 @@ function RoleCard({ rolKey, icon, title, description, onPress }: { rolKey: "vend
 
 function SolicitudForm({ rol, step, onBack, header }: { rol: "vendedor" | "repartidor"; step: 1 | 2 | 3; onBack: () => void; header: React.ReactNode }) {
   const { tokens } = useTheme();
+  const insets = useSafeAreaInsets();
   const toast = useToast();
   const [nombreCompleto, setNombreCompleto] = useState("");
   const [municipio, setMunicipio] = useState("");
   const [duiNumero, setDuiNumero] = useState("");
   const [duiFrente, setDuiFrente] = useState<string | null>(null);
   const [duiReverso, setDuiReverso] = useState<string | null>(null);
+  const [nombreNegocio, setNombreNegocio] = useState("");
+  const [fotoNegocio, setFotoNegocio] = useState<string | null>(null);
   const [tipoVehiculo, setTipoVehiculo] = useState("moto");
+  const [vehiculoModelo, setVehiculoModelo] = useState("");
+  const [vehiculoPlaca, setVehiculoPlaca] = useState("");
+  const [licenciaNumero, setLicenciaNumero] = useState("");
+  const [licenciaFrente, setLicenciaFrente] = useState<string | null>(null);
+  const [licenciaReverso, setLicenciaReverso] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [enviado, setEnviado] = useState(false);
 
   const enviar = async () => {
     if (!nombreCompleto.trim() || !duiNumero.trim() || !duiFrente || !duiReverso) return toast.show("Completa tu nombre, DUI y ambas fotos del DUI.", "warning");
+    if (duiNumero.replace(/\D/g, "").length !== 9) return toast.show("El DUI debe tener 9 dígitos, formato 00000000-0.", "warning");
+    if (rol === "repartidor" && (!vehiculoModelo.trim() || !vehiculoPlaca.trim() || !licenciaNumero.trim() || !licenciaFrente || !licenciaReverso)) {
+      return toast.show("Completa el modelo, la placa, la licencia de conducir y sus fotos.", "warning");
+    }
     setEnviando(true);
     try {
-      await solicitudesApi.crear({ rol_solicitado: rol, nombre_completo: nombreCompleto, municipio, dui_numero: duiNumero, dui_frente: duiFrente, dui_reverso: duiReverso, tipo_vehiculo: rol === "repartidor" ? tipoVehiculo : undefined });
+      await solicitudesApi.crear({
+        rol_solicitado: rol,
+        nombre_completo: nombreCompleto,
+        municipio,
+        dui_numero: duiNumero,
+        dui_frente: duiFrente,
+        dui_reverso: duiReverso,
+        nombre_negocio: rol === "vendedor" ? nombreNegocio : undefined,
+        foto_negocio: rol === "vendedor" && fotoNegocio ? fotoNegocio : undefined,
+        licencia_frente: rol === "repartidor" && licenciaFrente ? licenciaFrente : undefined,
+        licencia_reverso: rol === "repartidor" && licenciaReverso ? licenciaReverso : undefined,
+        tipo_vehiculo: rol === "repartidor" ? tipoVehiculo : undefined,
+        vehiculo_modelo: rol === "repartidor" ? vehiculoModelo : undefined,
+        vehiculo_placa: rol === "repartidor" ? vehiculoPlaca : undefined,
+        licencia_numero: rol === "repartidor" ? licenciaNumero : undefined,
+      });
       setEnviado(true);
     } catch (err) {
       toast.show(err instanceof ApiError ? err.message : "No se pudo enviar la solicitud.", "error");
@@ -180,7 +224,7 @@ function SolicitudForm({ rol, step, onBack, header }: { rol: "vendedor" | "repar
 
   if (enviado) {
     return (
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, paddingTop: insets.top }}>
         {header}
         <StepIndicator step={3} />
         <Animated.View key="enviado" entering={FadeInRight.duration(280)} style={styles.centerMsg}>
@@ -195,37 +239,53 @@ function SolicitudForm({ rol, step, onBack, header }: { rol: "vendedor" | "repar
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    <KeyboardAvoidingView style={{ flex: 1, paddingTop: insets.top }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={insets.top}>
       {header}
       <StepIndicator step={step} />
-      <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 60 }}>
+      <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 60 }} keyboardShouldPersistTaps="handled">
         <Pressable onPress={onBack}>
           <Text style={{ fontSize: 12, color: tokens.textSecondary }}>← Cambiar rol</Text>
         </Pressable>
         <Input label="Nombre completo" value={nombreCompleto} onChangeText={setNombreCompleto} />
-        <Input label="Municipio" value={municipio} onChangeText={setMunicipio} />
-        <Input label="Número de DUI" value={duiNumero} onChangeText={setDuiNumero} placeholder="00000000-0" />
+        <MunicipioPicker value={municipio} onChange={setMunicipio} />
+        <Input label="Número de DUI" value={duiNumero} onChangeText={(t) => setDuiNumero(formatDui(t))} placeholder="00000000-0" maxLength={10} keyboardType="number-pad" />
         <View style={{ flexDirection: "row", gap: 10 }}>
           <FileField label="DUI (frente)" value={duiFrente} onPick={setDuiFrente} />
           <FileField label="DUI (reverso)" value={duiReverso} onPick={setDuiReverso} />
         </View>
+        {rol === "vendedor" && (
+          <>
+            <Input label="Nombre del negocio" value={nombreNegocio} onChangeText={setNombreNegocio} />
+            <FileField label="Foto del negocio (opcional)" value={fotoNegocio} onPick={setFotoNegocio} />
+          </>
+        )}
         {rol === "repartidor" && (
-          <View>
-            <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary, marginBottom: 6 }}>Tipo de vehículo</Text>
-            <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-              {["moto", "bicicleta", "carro", "a_pie"].map((v) => (
-                <Pressable key={v} onPress={() => setTipoVehiculo(v)} style={[styles.vehChip, { borderColor: tipoVehiculo === v ? tokens.cyan : tokens.border, backgroundColor: tipoVehiculo === v ? tokens.cyanBg : tokens.surface1 }]}>
-                  <Text style={{ fontSize: 12, color: tipoVehiculo === v ? tokens.cyan : tokens.textSecondary, textTransform: "capitalize" }}>{v.replace("_", " ")}</Text>
-                </Pressable>
-              ))}
+          <>
+            <View>
+              <Text style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: tokens.textSecondary, marginBottom: 6 }}>Tipo de vehículo</Text>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                {VEHICULOS.map(({ key, label, Icon }) => (
+                  <Pressable key={key} onPress={() => setTipoVehiculo(key)} style={[styles.vehChip, { borderColor: tipoVehiculo === key ? tokens.cyan : tokens.border, backgroundColor: tipoVehiculo === key ? tokens.cyanBg : tokens.surface1 }]}>
+                    <Icon size={15} weight={tipoVehiculo === key ? "fill" : "regular"} color={tipoVehiculo === key ? tokens.cyan : tokens.textSecondary} />
+                    <Text style={{ fontSize: 12.5, color: tipoVehiculo === key ? tokens.cyan : tokens.textSecondary }}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
             </View>
-          </View>
+            <Input label="Modelo del vehículo" value={vehiculoModelo} onChangeText={setVehiculoModelo} placeholder="Ej. Yamaha FZ 2020" />
+            <Input label="Placa" value={vehiculoPlaca} onChangeText={(t) => setVehiculoPlaca(t.toUpperCase())} placeholder="P123-456" autoCapitalize="characters" />
+            <Input label="Número de licencia de conducir" value={licenciaNumero} onChangeText={setLicenciaNumero} placeholder="12345678" />
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <FileField label="Licencia (frente)" value={licenciaFrente} onPick={setLicenciaFrente} />
+              <FileField label="Licencia (reverso)" value={licenciaReverso} onPick={setLicenciaReverso} />
+            </View>
+          </>
         )}
         <Button size="lg" onPress={enviar} loading={enviando}>
           Enviar solicitud
         </Button>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -253,7 +313,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   centerMsg: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
   roleCard: { flex: 1, alignItems: "center", padding: 20, borderRadius: 18, borderWidth: 1 },
-  vehChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1 },
+  vehChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1 },
   fileField: { flexDirection: "row", alignItems: "center", gap: 6, height: 44, borderRadius: 10, borderWidth: 1, borderStyle: "dashed", paddingHorizontal: 12, justifyContent: "center" },
   stepDot: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
 });

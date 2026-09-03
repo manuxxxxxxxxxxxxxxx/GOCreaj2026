@@ -7,10 +7,10 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import {
   ArchiveIcon,
+  FlagIcon,
   ArrowBendUpLeftIcon,
   CameraIcon,
   CaretLeftIcon,
-  CheckIcon,
   ChecksIcon,
   FileArrowUpIcon,
   FilePdfIcon,
@@ -19,6 +19,7 @@ import {
   PaperclipIcon,
   PaperPlaneTiltIcon,
   PauseIcon,
+  PhoneIcon,
   PlayIcon,
   SmileyIcon,
   StarIcon,
@@ -28,7 +29,7 @@ import {
 } from "phosphor-react-native";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
-import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { WebMapView } from "../../components/ui/WebMapView";
 import { AttachmentPreviewSheet, type PendienteAdjunto } from "../../components/domain/chat/AttachmentPreviewSheet";
 import { LocationPreviewSheet } from "../../components/domain/chat/LocationPreviewSheet";
@@ -41,10 +42,12 @@ import { useTheme } from "../../theme/ThemeContext";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { chatApi, ApiError } from "../../lib/api";
+import { useCall } from "../../context/CallContext";
 import type { ChatMensaje, Usuario } from "../../lib/types";
 import { formatTime, money } from "../../lib/format";
 import { Avatar } from "../../components/ui/Avatar";
 import { Skeleton } from "../../components/ui/Skeleton";
+import { ReportSheet } from "../../components/domain/ReportSheet";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ChatThread">;
 
@@ -78,6 +81,7 @@ export function ChatThreadScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { usuario } = useAuth();
   const toast = useToast();
+  const { iniciar: iniciarLlamada, estado: estadoLlamada } = useCall();
   const otroId = route.params.otroId;
   const [mensajes, setMensajes] = useState<ChatMensaje[] | null>(null);
   const [otro, setOtro] = useState<Usuario | null>(null);
@@ -88,6 +92,7 @@ export function ChatThreadScreen({ route, navigation }: Props) {
   const [menuAdjuntar, setMenuAdjuntar] = useState(false);
   const [verMapaDe, setVerMapaDe] = useState<{ lat: number; lng: number } | null>(null);
   const [meta, setMeta] = useState<{ archivado: number; favorito: number } | null>(null);
+  const [reportando, setReportando] = useState(false);
   const [respondiendoA, setRespondiendoA] = useState<ChatMensaje | null>(null);
   const [accionesDe, setAccionesDe] = useState<ChatMensaje | null>(null);
   const [emojiComposerAbierto, setEmojiComposerAbierto] = useState(false);
@@ -105,6 +110,13 @@ export function ChatThreadScreen({ route, navigation }: Props) {
     const t = setInterval(cargar, 4000);
     return () => clearInterval(t);
   }, [cargar]);
+
+  // Sin esto, la reproducción de notas de voz (propias o recibidas) queda muda si el
+  // teléfono está en silencio -- por defecto expo-audio no reproduce con el switch de
+  // silencio activado (iOS) hasta que se pide explícitamente playsInSilentMode.
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true, allowsRecording: false }).catch(() => {});
+  }, []);
 
   /** Construye la cita compacta que va sobre el mensaje al que se responde. */
   const snapshotDe = (m: ChatMensaje): ReplySnapshot => ({
@@ -237,11 +249,28 @@ export function ChatThreadScreen({ route, navigation }: Props) {
         <Pressable onPress={navigation.goBack} style={[styles.backBtn, { backgroundColor: tokens.surface2, borderColor: tokens.border }]}>
           <CaretLeftIcon size={16} color={tokens.textPrimary} />
         </Pressable>
-        <Avatar nombre={otro.nombre} foto={otro.foto_perfil} size={34} online={!!otro.en_linea} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontFamily: "Inter_700Bold", fontSize: 13.5, color: tokens.textPrimary }}>{otro.nombre}</Text>
-          <Text style={{ fontSize: 11, color: tokens.textMuted }}>{otro.en_linea ? "En línea" : "Desconectado"}</Text>
-        </View>
+        <Pressable
+          onPress={() => {
+            if (otro.rol === "vendedor" && otro.tienda_id) navigation.navigate("StoreDetail", { id: otro.tienda_id });
+            else if (otro.rol === "repartidor") navigation.navigate("RepartidorPerfilPublico", { id: otro.id });
+          }}
+          disabled={!(otro.rol === "vendedor" ? otro.tienda_id : otro.rol === "repartidor")}
+          style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }}
+        >
+          <Avatar nombre={otro.nombre} foto={otro.foto_perfil ?? otro.tienda_logo} size={34} online={!!otro.en_linea} rol={otro.rol} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: "Inter_700Bold", fontSize: 13.5, color: tokens.textPrimary }}>{otro.nombre}</Text>
+            <Text style={{ fontSize: 11, color: tokens.textMuted }}>{otro.en_linea ? "En línea" : "Desconectado"}</Text>
+          </View>
+        </Pressable>
+        <Pressable
+          onPress={() => otro && iniciarLlamada({ id: otro.id, nombre: otro.nombre, foto_perfil: otro.foto_perfil ?? null })}
+          disabled={estadoLlamada !== "idle"}
+          accessibilityLabel="Llamada de voz"
+          style={{ opacity: estadoLlamada !== "idle" ? 0.4 : 1 }}
+        >
+          <PhoneIcon size={19} color={tokens.textMuted} />
+        </Pressable>
         <Pressable
           onPress={async () => {
             const r = await chatApi.toggleFavorito(otroId);
@@ -265,7 +294,12 @@ export function ChatThreadScreen({ route, navigation }: Props) {
         >
           <ArchiveIcon size={19} color={tokens.textMuted} />
         </Pressable>
+        <Pressable onPress={() => setReportando(true)} accessibilityLabel="Reportar conversación">
+          <FlagIcon size={19} color={tokens.textMuted} />
+        </Pressable>
       </View>
+
+      {reportando && <ReportSheet tipo="chat" entidadId={otroId} entidadNombre={otro.nombre} onClose={() => setReportando(false)} />}
 
       <FlatList
         ref={listRef}
@@ -367,12 +401,8 @@ export function ChatThreadScreen({ route, navigation }: Props) {
                 {item.tipo !== "audio" && item.tipo !== "producto" && <Text style={{ fontSize: 13.5, color: mio ? tokens.cyanInk : tokens.textPrimary }}>{item.mensaje}</Text>}
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 3, marginTop: 3 }}>
                   <Text style={{ fontSize: 9.5, color: mio ? tokens.cyanInk : tokens.textMuted, opacity: 0.75 }}>{formatTime(item.created_at)}</Text>
-                  {mio &&
-                    (item.leido ? (
-                      <ChecksIcon size={13} weight="bold" color={tokens.cyanInk} />
-                    ) : (
-                      <CheckIcon size={13} weight="bold" color={tokens.cyanInk} style={{ opacity: 0.7 }} />
-                    ))}
+                  {/* Estilo WhatsApp: dos cheques tenues (enviado, no leído) o dos cheques azules (leído). */}
+                  {mio && <ChecksIcon size={13} weight="bold" color={item.leido ? "#34b7f1" : tokens.cyanInk} style={item.leido ? undefined : { opacity: 0.55 }} />}
                 </View>
               </Pressable>
 

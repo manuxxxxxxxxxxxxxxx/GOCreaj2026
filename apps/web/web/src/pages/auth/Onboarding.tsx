@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Camera, CheckCircle, IdentificationCard, MapPin, Phone } from "@phosphor-icons/react";
+import { ArrowLeft, Camera, CaretDown, CheckCircle, IdentificationCard, MapPin } from "@phosphor-icons/react";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { productosApi, authApi, ApiError } from "../../lib/api";
@@ -9,11 +9,15 @@ import type { Municipio } from "../../lib/types";
 import { fileToBase64 } from "../../lib/format";
 import { Avatar } from "../../components/ui/Avatar";
 import { Input } from "../../components/ui/Input";
-import { PhoneInput } from "../../components/ui/PhoneInput";
 import { Button } from "../../components/ui/Button";
-import { MapView, type MapMarker } from "../../components/ui/MapView";
 
-type StepKey = "telefono" | "usuario" | "ubicacion";
+type StepKey = "usuario" | "ubicacion";
+
+// Municipios más buscados -- para acceso rápido con un clic, arriba del resto que se
+// confirma expandiendo su departamento. No hay ninguna columna de "popularidad" en el
+// catálogo, así que esta lista va fija en el cliente.
+const POPULARES = ["San Salvador", "Soyapango", "Santa Ana", "Santa Tecla", "Mejicanos", "Apopa"];
+const DEPTO_PRIORITARIO = "San Salvador";
 
 /** Distancia en línea recta (km) -- mismo cálculo que distancia_km() en el backend
  * (conexion.php), usado aquí solo para encontrar el municipio más cercano a las
@@ -32,18 +36,13 @@ export function Onboarding() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Se calcula una sola vez al entrar (no en cada render): el usuario avanza dentro del
-  // mismo set de pasos que vio al empezar, así verificar el teléfono a mitad de camino no
-  // recalcula la lista y salta el paso de "Usuario" (telefono_verificado ya cambió a 1 antes
-  // de llegar a ese paso, lo que lo sacaría de la lista si dependiera del estado en vivo).
   const [steps] = useState<StepKey[]>(() => {
     const s: StepKey[] = [];
-    if (!usuario?.telefono_verificado) s.push("telefono");
     if (!usuario?.username) s.push("usuario");
     s.push("ubicacion");
     return s;
   });
-  const stepLabels: Record<StepKey, string> = { telefono: "Teléfono", usuario: "Usuario", ubicacion: "Ubicación" };
+  const stepLabels: Record<StepKey, string> = { usuario: "Usuario", ubicacion: "Ubicación" };
 
   const [step, setStep] = useState(0);
   const current = steps[step];
@@ -54,17 +53,12 @@ export function Onboarding() {
   const [subiendoUsuario, setSubiendoUsuario] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const [telefono, setTelefono] = useState(usuario?.telefono ?? "");
-  const [codigoTelEnviado, setCodigoTelEnviado] = useState(false);
-  const [codigoTel, setCodigoTel] = useState("");
-  const [enviandoTel, setEnviandoTel] = useState(false);
-  const [verificandoTel, setVerificandoTel] = useState(false);
-
   const [detectando, setDetectando] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [ubicacionError, setUbicacionError] = useState<string | null>(null);
   const [municipios, setMunicipios] = useState<Municipio[] | null>(null);
   const [municipio, setMunicipio] = useState("");
+  const [deptoAbierto, setDeptoAbierto] = useState<string | null>(null);
   const [guardandoUbicacion, setGuardandoUbicacion] = useState(false);
 
   useEffect(() => {
@@ -103,39 +97,15 @@ export function Onboarding() {
     siguiente();
   };
 
-  const enviarCodigoTelefono = async () => {
-    if (telefono.length !== 8) {
-      toast.show("Ingresa tu número completo (8 dígitos).", "warning");
-      return;
-    }
-    setEnviandoTel(true);
-    try {
-      const r = await authApi.enviarSms(telefono);
-      setCodigoTelEnviado(true);
-      toast.show(r.enviado ? `Te enviamos un código por WhatsApp a +503 ${telefono}.` : `Sin proveedor de WhatsApp configurado. Código simulado: ${r.codigo}`, "info");
-    } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : "No se pudo enviar el código.", "error");
-    } finally {
-      setEnviandoTel(false);
-    }
+  const elegirMunicipio = (m: Municipio) => {
+    setMunicipio(m.nombre);
+    setDeptoAbierto(m.departamento);
   };
 
-  const verificarCodigoTelefono = async () => {
-    if (codigoTel.trim().length !== 6) {
-      toast.show("El código tiene 6 dígitos.", "warning");
-      return;
-    }
-    setVerificandoTel(true);
-    try {
-      const r = await authApi.verificarSms(codigoTel.trim());
-      actualizarUsuarioLocal(r.usuario);
-      toast.show("Teléfono verificado", "success");
-      siguiente();
-    } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : "Código inválido.", "error");
-    } finally {
-      setVerificandoTel(false);
-    }
+  const elegirPopular = (nombre: string) => {
+    const m = municipios?.find((x) => x.nombre === nombre);
+    if (m) elegirMunicipio(m);
+    else setMunicipio(nombre);
   };
 
   const detectarUbicacion = () => {
@@ -151,7 +121,7 @@ export function Onboarding() {
         setCoords(c);
         if (municipios && municipios.length > 0) {
           const masCercano = municipios.reduce((mejor, m) => (distanciaKm(c.lat, c.lng, m.lat, m.lng) < distanciaKm(c.lat, c.lng, mejor.lat, mejor.lng) ? m : mejor));
-          setMunicipio(masCercano.nombre);
+          elegirMunicipio(masCercano);
         }
         setDetectando(false);
       },
@@ -170,11 +140,19 @@ export function Onboarding() {
       if (!grupos.has(m.departamento)) grupos.set(m.departamento, []);
       grupos.get(m.departamento)!.push(m);
     }
-    return Array.from(grupos.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    // El departamento de San Salvador va primero (es el más conocido/poblado); el resto
+    // queda alfabético, igual que antes.
+    return Array.from(grupos.entries()).sort((a, b) => {
+      if (a[0] === DEPTO_PRIORITARIO) return -1;
+      if (b[0] === DEPTO_PRIORITARIO) return 1;
+      return a[0].localeCompare(b[0]);
+    });
   }, [municipios]);
 
+  const municipioObj = useMemo(() => municipios?.find((m) => m.nombre === municipio) ?? null, [municipios, municipio]);
+
   const finalizar = async () => {
-    if (!municipio) return toast.show("Selecciona tu municipio.", "warning");
+    if (!municipio) return;
     setGuardandoUbicacion(true);
     try {
       await authApi.actualizarUbicacion({ municipio, lat: coords?.lat, lng: coords?.lng });
@@ -186,8 +164,6 @@ export function Onboarding() {
       setGuardandoUbicacion(false);
     }
   };
-
-  const markers: MapMarker[] = coords ? [{ id: "yo", lat: coords.lat, lng: coords.lng, color: "var(--cyan)", label: "Tu ubicación" }] : [];
 
   return (
     <div className="glow-mesh" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -246,57 +222,6 @@ export function Onboarding() {
           }}
         >
           <AnimatePresence mode="wait" initial={false}>
-            {current === "telefono" && (
-              <motion.div key="tel" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}>
-                <div style={{ width: 48, height: 48, borderRadius: 14, background: "var(--cyan-bg)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
-                  <Phone size={22} color="var(--cyan)" weight="bold" />
-                </div>
-                <h1 style={{ fontSize: 20, marginBottom: 6 }}>Verifica tu número</h1>
-                <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 20 }}>
-                  Te lo pedimos para avisarte del estado de tus pedidos y proteger tu cuenta. Te mandamos un código por WhatsApp.
-                </p>
-
-                <PhoneInput value={telefono} onChange={(v) => { setTelefono(v); setCodigoTelEnviado(false); }} />
-
-                {!codigoTelEnviado ? (
-                  <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                    <Button variant="secondary" fullWidth onClick={siguiente}>
-                      Omitir
-                    </Button>
-                    <Button fullWidth loading={enviandoTel} onClick={enviarCodigoTelefono}>
-                      Enviar código por WhatsApp
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                      <Input label="Código de 6 dígitos" inputMode="numeric" maxLength={6} value={codigoTel} onChange={(e) => setCodigoTel(e.target.value.replace(/\D/g, ""))} style={{ flex: 1 }} />
-                      <Button loading={verificandoTel} onClick={verificarCodigoTelefono} style={{ alignSelf: "flex-end", height: 44 }}>
-                        Verificar
-                      </Button>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
-                      <button
-                        type="button"
-                        onClick={enviarCodigoTelefono}
-                        disabled={enviandoTel}
-                        style={{ fontSize: 12.5, fontWeight: 600, color: "var(--cyan)", background: "none", border: "none", cursor: "pointer" }}
-                      >
-                        Reenviar código
-                      </button>
-                      <button
-                        type="button"
-                        onClick={siguiente}
-                        style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-secondary)", background: "none", border: "none", cursor: "pointer" }}
-                      >
-                        Omitir por ahora
-                      </button>
-                    </div>
-                  </>
-                )}
-              </motion.div>
-            )}
-
             {current === "usuario" && (
               <motion.div key="usuario" initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -24 }} transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}>
                 <div style={{ width: 48, height: 48, borderRadius: 14, background: "var(--cyan-bg)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>
@@ -328,10 +253,10 @@ export function Onboarding() {
                 />
 
                 <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-                  <Button variant="secondary" fullWidth onClick={() => guardarUsuario(true)} disabled={subiendoUsuario}>
+                  <Button variant="secondary" style={{ flex: 1 }} onClick={() => guardarUsuario(true)} disabled={subiendoUsuario}>
                     Omitir
                   </Button>
-                  <Button fullWidth loading={subiendoUsuario} onClick={() => guardarUsuario(false)}>
+                  <Button style={{ flex: 1 }} loading={subiendoUsuario} onClick={() => guardarUsuario(false)}>
                     Continuar
                   </Button>
                 </div>
@@ -348,44 +273,101 @@ export function Onboarding() {
                   Detecta tu ubicación y elegimos tu municipio automáticamente, o selecciónalo tú mismo.
                 </p>
 
-                {coords && markers.length > 0 ? (
-                  <div style={{ marginBottom: 16 }}>
-                    <MapView markers={markers} height={140} zoom={14} fitToMarkers />
-                  </div>
-                ) : (
-                  <Button variant="secondary" fullWidth loading={detectando} onClick={detectarUbicacion} style={{ marginBottom: 16 }}>
-                    {detectando ? "Detectando…" : "Detectar mi ubicación"}
-                  </Button>
-                )}
-                {coords && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 16, fontSize: 12, color: "var(--ok)" }}>
-                    <CheckCircle size={14} weight="fill" /> Ubicación detectada
-                  </div>
-                )}
+                <Button variant="secondary" fullWidth loading={detectando} onClick={detectarUbicacion} style={{ marginBottom: 16 }}>
+                  {detectando ? "Detectando…" : "Detectar mi ubicación"}
+                </Button>
                 {ubicacionError && <p style={{ fontSize: 12, color: "var(--warn)", marginBottom: 16 }}>{ubicacionError}</p>}
 
-                <select
-                  value={municipio}
-                  onChange={(e) => setMunicipio(e.target.value)}
-                  style={{ width: "100%", height: 44, borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface-1)", color: "var(--text-primary)", padding: "0 12px", fontSize: 13.5, marginBottom: 20 }}
-                >
-                  <option value="" disabled>
-                    Selecciona tu municipio
-                  </option>
-                  {municipiosPorDepto.map(([depto, ms]) => (
-                    <optgroup key={depto} label={depto}>
-                      {ms.map((m) => (
-                        <option key={m.id} value={m.nombre}>
-                          {m.nombre}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
+                {municipio && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 18, padding: 12, borderRadius: "var(--radius-md)", background: "var(--ok-bg)" }}>
+                    <CheckCircle size={18} weight="fill" color="var(--ok)" />
+                    <div>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>{municipio}</div>
+                      {municipioObj && <div style={{ fontSize: 11.5, color: "var(--text-secondary)" }}>{municipioObj.departamento}</div>}
+                    </div>
+                  </div>
+                )}
 
-                <Button fullWidth size="lg" loading={guardandoUbicacion} onClick={finalizar}>
-                  Empezar a explorar
-                </Button>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 }}>Más buscadas</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
+                  {POPULARES.map((nombre) => {
+                    const activo = municipio === nombre;
+                    return (
+                      <button
+                        key={nombre}
+                        type="button"
+                        onClick={() => elegirPopular(nombre)}
+                        style={{
+                          padding: "7px 12px",
+                          borderRadius: "var(--radius-pill)",
+                          border: `1px solid ${activo ? "var(--cyan)" : "var(--border)"}`,
+                          background: activo ? "var(--cyan-bg)" : "var(--surface-2)",
+                          color: activo ? "var(--cyan)" : "var(--text-primary)",
+                          fontSize: 12.5,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                        }}
+                      >
+                        {nombre}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 8 }}>O confirma tu ubicación</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 20 }}>
+                  {municipiosPorDepto.map(([depto, ms]) => {
+                    const abierto = deptoAbierto === depto;
+                    return (
+                      <div key={depto} style={{ borderRadius: "var(--radius-md)", border: "1px solid var(--border)", background: "var(--surface-2)", overflow: "hidden" }}>
+                        <button
+                          type="button"
+                          onClick={() => setDeptoAbierto(abierto ? null : depto)}
+                          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: 12, background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}
+                        >
+                          {depto}
+                          <CaretDown size={14} color="var(--text-muted)" style={{ transform: abierto ? "rotate(180deg)" : undefined, transition: "transform var(--dur-base)" }} />
+                        </button>
+                        {abierto && (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, padding: "0 12px 12px" }}>
+                            {ms.map((m) => {
+                              const activo = municipio === m.nombre;
+                              return (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  onClick={() => elegirMunicipio(m)}
+                                  style={{
+                                    padding: "6px 12px",
+                                    borderRadius: "var(--radius-pill)",
+                                    border: `1px solid ${activo ? "var(--cyan)" : "var(--border)"}`,
+                                    background: activo ? "var(--cyan-bg)" : "var(--surface-1)",
+                                    color: activo ? "var(--cyan)" : "var(--text-secondary)",
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  {m.nombre}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {municipio ? (
+                  <Button fullWidth size="lg" loading={guardandoUbicacion} onClick={finalizar}>
+                    Empezar a explorar
+                  </Button>
+                ) : (
+                  <Button variant="secondary" fullWidth size="lg" onClick={() => navigate("/", { replace: true })}>
+                    Omitir
+                  </Button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

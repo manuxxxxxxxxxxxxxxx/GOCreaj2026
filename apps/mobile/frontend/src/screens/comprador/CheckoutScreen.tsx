@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { CaretLeftIcon, CheckIcon, CreditCardIcon, MoneyIcon, PaypalLogoIcon, PlusIcon, RocketIcon, StorefrontIcon, TruckIcon } from "phosphor-react-native";
+import * as Location from "expo-location";
+import { CaretLeftIcon, CheckIcon, CreditCardIcon, CrosshairIcon, MoneyIcon, PaypalLogoIcon, PlusIcon, RocketIcon, StorefrontIcon, TruckIcon } from "phosphor-react-native";
 import type { RootStackParamList } from "../../navigation/types";
 import { useTheme } from "../../theme/ThemeContext";
 import { useCart } from "../../context/CartContext";
@@ -10,9 +11,13 @@ import { useToast } from "../../context/ToastContext";
 import { carritoApi, direccionesApi, cuponesApi, ApiError } from "../../lib/api";
 import type { Cupon, DireccionUsuario, MetodoPago } from "../../lib/types";
 import { money } from "../../lib/format";
+import { geocodificarInverso } from "../../lib/geocoding";
 import { Button } from "../../components/ui/Button";
 import { Input } from "../../components/ui/Input";
 import { Skeleton } from "../../components/ui/Skeleton";
+import { WebMapView } from "../../components/ui/WebMapView";
+
+const SAN_SALVADOR: [number, number] = [-89.2182, 13.6929];
 
 type Props = NativeStackScreenProps<RootStackParamList, "Checkout">;
 type MetodoUI = "efectivo" | "tarjeta" | "paypal";
@@ -25,6 +30,16 @@ export function CheckoutScreen({ route, navigation }: Props) {
 
   const [direcciones, setDirecciones] = useState<DireccionUsuario[] | null>(null);
   const [direccionId, setDireccionId] = useState<number | null>(null);
+  const [modoDireccion, setModoDireccion] = useState<"guardada" | "mapa">("guardada");
+  const [mapaCoords, setMapaCoords] = useState<[number, number] | null>(null);
+  const [mapaDireccion, setMapaDireccion] = useState("");
+  const [mapaMunicipio, setMapaMunicipio] = useState("");
+  const [mapaDepartamento, setMapaDepartamento] = useState("");
+  const [mapaReferencia, setMapaReferencia] = useState("");
+  const [ubicando, setUbicando] = useState(false);
+  const [localizando, setLocalizando] = useState(false);
+  const [guardarUbicacion, setGuardarUbicacion] = useState(false);
+  const [guardarAlias, setGuardarAlias] = useState("");
   const [metodosGuardados, setMetodosGuardados] = useState<MetodoPago[]>([]);
   const [metodo, setMetodo] = useState<MetodoUI>("efectivo");
   const [tipoEntrega, setTipoEntrega] = useState<"domicilio" | "recogida">("domicilio");
@@ -45,6 +60,7 @@ export function CheckoutScreen({ route, navigation }: Props) {
       setDirecciones(r.direcciones);
       const principal = r.direcciones.find((d) => d.es_principal) ?? r.direcciones[0];
       if (principal) setDireccionId(principal.id);
+      else setModoDireccion("mapa");
     });
     carritoApi.metodosListar().then((r) => setMetodosGuardados(r.metodos));
     if (route.params?.cuponCodigo) {
@@ -61,14 +77,46 @@ export function CheckoutScreen({ route, navigation }: Props) {
 
   const direccion = direcciones?.find((d) => d.id === direccionId) ?? null;
   const esRecogida = tipoEntrega === "recogida";
+  const usaMapa = !esRecogida && modoDireccion === "mapa";
+  const direccionListaLista = esRecogida || (usaMapa ? !!mapaCoords && !!mapaDireccion.trim() && !!mapaMunicipio.trim() : !!direccion);
   const costoEnvio = esRecogida ? 0 : envioModo === "express" ? 4.99 : 2.5;
   const descuento = cupon?.descuento ?? 0;
   const totalFinal = Math.max(0, total - descuento) + costoEnvio;
   const PICKUP_EFECTIVO_MAX = 20;
   const recogidaEfectivoBloqueado = esRecogida && metodo === "efectivo" && totalFinal > PICKUP_EFECTIVO_MAX;
 
+  const elegirEnMapa = async (c: [number, number]) => {
+    setMapaCoords(c);
+    setUbicando(true);
+    try {
+      const r = await geocodificarInverso(c[1], c[0]);
+      if (r.direccion) setMapaDireccion(r.direccion);
+      if (r.municipio) setMapaMunicipio(r.municipio);
+      if (r.departamento) setMapaDepartamento(r.departamento);
+      toast.show("Ubicación detectada", "success");
+    } catch {
+      toast.show("No se pudo detectar la calle — puedes escribirla manualmente.", "warning");
+    } finally {
+      setUbicando(false);
+    }
+  };
+
+  const usarMiUbicacion = async () => {
+    setLocalizando(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") return toast.show("Necesitamos permiso de ubicación.", "warning");
+      const pos = await Location.getCurrentPositionAsync({});
+      await elegirEnMapa([pos.coords.longitude, pos.coords.latitude]);
+    } catch {
+      toast.show("No se pudo obtener tu ubicación.", "error");
+    } finally {
+      setLocalizando(false);
+    }
+  };
+
   const confirmar = async () => {
-    if (!esRecogida && !direccion) return toast.show("Selecciona una dirección de entrega.", "warning");
+    if (!esRecogida && !direccionListaLista) return toast.show(usaMapa ? "Marca tu ubicación en el mapa y completa la dirección." : "Selecciona una dirección de entrega.", "warning");
     if (recogidaEfectivoBloqueado) return toast.show(`Para recoger en tienda, pedidos de más de $${PICKUP_EFECTIVO_MAX} deben pagarse con tarjeta.`, "warning");
     if (metodo === "tarjeta" && !metodoPagoId) {
       const numero = tarjetaNumero.replace(/\D/g, "");
@@ -81,11 +129,15 @@ export function CheckoutScreen({ route, navigation }: Props) {
       const res = await carritoApi.checkout({
         metodo_pago: metodo,
         tipo_entrega: tipoEntrega,
-        direccion_entrega: direccion ? `${direccion.direccion}${direccion.referencia ? ", " + direccion.referencia : ""}` : undefined,
-        lat: direccion?.lat ?? undefined,
-        lng: direccion?.lng ?? undefined,
-        municipio: direccion?.municipio,
-        departamento: direccion?.departamento,
+        direccion_entrega: esRecogida
+          ? undefined
+          : usaMapa
+            ? `${mapaDireccion.trim()}${mapaReferencia.trim() ? ", " + mapaReferencia.trim() : ""}`
+            : `${direccion!.direccion}${direccion!.referencia ? ", " + direccion!.referencia : ""}`,
+        lat: esRecogida ? undefined : usaMapa ? mapaCoords?.[1] : direccion?.lat ?? undefined,
+        lng: esRecogida ? undefined : usaMapa ? mapaCoords?.[0] : direccion?.lng ?? undefined,
+        municipio: esRecogida ? undefined : usaMapa ? mapaMunicipio.trim() : direccion?.municipio,
+        departamento: esRecogida ? undefined : usaMapa ? mapaDepartamento.trim() || undefined : direccion?.departamento,
         metodo_pago_id: metodoPagoId ?? undefined,
         tarjeta_numero: metodo === "tarjeta" && !metodoPagoId ? tarjetaNumero : undefined,
         tarjeta_cvv: metodo === "tarjeta" && !metodoPagoId ? tarjetaCvv : undefined,
@@ -97,6 +149,20 @@ export function CheckoutScreen({ route, navigation }: Props) {
         cupon_codigo: cupon?.cupon.codigo,
         notas: notas.trim() || undefined,
       });
+      if (usaMapa && guardarUbicacion) {
+        direccionesApi
+          .crear({
+            alias: guardarAlias.trim() || `Ubicación ${(direcciones?.length ?? 0) + 1}`,
+            municipio: mapaMunicipio.trim(),
+            direccion: mapaDireccion.trim(),
+            referencia: mapaReferencia.trim() || null,
+            departamento: mapaDepartamento.trim() || "San Salvador",
+            lat: mapaCoords?.[1] ?? null,
+            lng: mapaCoords?.[0] ?? null,
+            es_principal: 0,
+          })
+          .catch(() => {});
+      }
       await refrescar();
       const numero = res.numeros_pedido?.[0];
       toast.show(numero ? `¡Pedido #${numero} realizado con éxito!` : "Pedido realizado con éxito", "success");
@@ -109,7 +175,7 @@ export function CheckoutScreen({ route, navigation }: Props) {
   };
 
   return (
-    <View style={{ flex: 1, paddingTop: insets.top }}>
+    <KeyboardAvoidingView style={{ flex: 1, paddingTop: insets.top }} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={insets.top}>
       <View style={styles.header}>
         <Pressable onPress={navigation.goBack} style={[styles.backBtn, { backgroundColor: tokens.surface2, borderColor: tokens.border }]}>
           <CaretLeftIcon size={16} color={tokens.textPrimary} />
@@ -137,21 +203,60 @@ export function CheckoutScreen({ route, navigation }: Props) {
             <Text style={[styles.sectionTitle, { color: tokens.textPrimary }]}>Dirección de entrega</Text>
             {direcciones === null ? (
               <Skeleton height={70} radius={12} />
-            ) : direcciones.length === 0 ? (
-              <Pressable onPress={() => navigation.navigate("Direcciones")}>
-                <Text style={{ color: tokens.cyan, fontFamily: "Inter_700Bold", fontSize: 13 }}>+ Agregar una dirección</Text>
-              </Pressable>
             ) : (
-              <View style={{ gap: 8 }}>
-                {direcciones.map((d) => (
-                  <Pressable key={d.id} onPress={() => setDireccionId(d.id)} style={[styles.optionRow, { borderColor: direccionId === d.id ? tokens.cyan : tokens.border, backgroundColor: direccionId === d.id ? tokens.cyanBg : tokens.surface1 }]}>
-                    <Text style={{ fontFamily: "Inter_700Bold", fontSize: 13, color: tokens.textPrimary }}>{d.alias}</Text>
-                    <Text style={{ fontSize: 12, color: tokens.textSecondary }}>
-                      {d.direccion}, {d.municipio}
+              <>
+                {direcciones.length > 0 && (
+                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+                    <ModoTab active={modoDireccion === "guardada"} label="Mis direcciones" onPress={() => setModoDireccion("guardada")} tokens={tokens} />
+                    <ModoTab active={modoDireccion === "mapa"} label="Nueva ubicación" onPress={() => setModoDireccion("mapa")} tokens={tokens} />
+                  </View>
+                )}
+
+                {modoDireccion === "guardada" && direcciones.length > 0 && (
+                  <View style={{ gap: 8 }}>
+                    {direcciones.map((d) => (
+                      <Pressable key={d.id} onPress={() => setDireccionId(d.id)} style={[styles.optionRow, { borderColor: direccionId === d.id ? tokens.cyan : tokens.border, backgroundColor: direccionId === d.id ? tokens.cyanBg : tokens.surface1 }]}>
+                        <Text style={{ fontFamily: "Inter_700Bold", fontSize: 13, color: tokens.textPrimary }}>{d.alias}</Text>
+                        <Text style={{ fontSize: 12, color: tokens.textSecondary }}>
+                          {d.direccion}, {d.municipio}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+
+                {usaMapa && (
+                  <View style={{ gap: 12 }}>
+                    <View style={{ height: 180, borderRadius: 14, borderWidth: 1, borderColor: tokens.border, overflow: "hidden" }}>
+                      <WebMapView
+                        center={mapaCoords ?? SAN_SALVADOR}
+                        zoom={mapaCoords ? 16 : 12}
+                        onPress={elegirEnMapa}
+                        markers={mapaCoords ? [{ id: "pin", coordinate: mapaCoords, color: tokens.cyan }] : []}
+                      />
+                      <Pressable
+                        onPress={usarMiUbicacion}
+                        style={{ position: "absolute", right: 10, bottom: 10, width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: tokens.surface1, borderWidth: 1, borderColor: tokens.border }}
+                      >
+                        <CrosshairIcon size={16} color={localizando ? tokens.textMuted : tokens.cyan} />
+                      </Pressable>
+                    </View>
+                    <Text style={{ fontSize: 11, color: tokens.textMuted, marginTop: -6 }}>
+                      {ubicando ? "Detectando la calle…" : "Toca el mapa para marcar el punto exacto de entrega."}
                     </Text>
-                  </Pressable>
-                ))}
-              </View>
+                    <Input label="Dirección" value={mapaDireccion} onChangeText={setMapaDireccion} placeholder="Calle, avenida, número" />
+                    <Input label="Municipio" value={mapaMunicipio} onChangeText={setMapaMunicipio} placeholder="San Salvador" />
+                    <Input label="Referencia (opcional)" value={mapaReferencia} onChangeText={setMapaReferencia} placeholder="Casa color celeste, portón negro" />
+                    <Pressable onPress={() => setGuardarUbicacion((v) => !v)} style={styles.checkboxRow}>
+                      <View style={[styles.checkbox, { borderColor: guardarUbicacion ? tokens.cyan : tokens.border, backgroundColor: guardarUbicacion ? tokens.cyan : "transparent" }]}>
+                        {guardarUbicacion && <CheckIcon size={12} weight="bold" color={tokens.cyanInk} />}
+                      </View>
+                      <Text style={{ fontSize: 13, color: tokens.textSecondary }}>Guardar esta ubicación en mis direcciones</Text>
+                    </Pressable>
+                    {guardarUbicacion && <Input label="Alias" value={guardarAlias} onChangeText={setGuardarAlias} placeholder={`Casa, Trabajo… (vacío = Ubicación ${(direcciones?.length ?? 0) + 1})`} />}
+                  </View>
+                )}
+              </>
             )}
           </View>
         )}
@@ -230,7 +335,7 @@ export function CheckoutScreen({ route, navigation }: Props) {
           Confirmar pedido
         </Button>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -240,6 +345,14 @@ function SummaryRow({ label, value, tone, tokens }: { label: string; value: stri
       <Text style={{ fontSize: 13, color: tokens.textSecondary }}>{label}</Text>
       <Text style={{ fontSize: 13, fontFamily: tone ? "Inter_700Bold" : "IBMPlexMono_500Medium", color: tone ?? tokens.textSecondary }}>{value}</Text>
     </View>
+  );
+}
+
+function ModoTab({ active, label, onPress, tokens }: { active: boolean; label: string; onPress: () => void; tokens: ReturnType<typeof useTheme>["tokens"] }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.modoTab, { borderColor: active ? tokens.cyan : tokens.border, backgroundColor: active ? tokens.cyanBg : tokens.surface1 }]}>
+      <Text style={{ fontSize: 12.5, fontFamily: "Inter_700Bold", color: active ? tokens.cyan : tokens.textSecondary }}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -258,6 +371,7 @@ const styles = StyleSheet.create({
   backBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   sectionTitle: { fontSize: 13.5, fontFamily: "SpaceGrotesk_600SemiBold", marginBottom: 10 },
   optionRow: { padding: 12, borderRadius: 12, borderWidth: 1 },
+  modoTab: { flex: 1, alignItems: "center", paddingVertical: 9, borderRadius: 10, borderWidth: 1 },
   optionCard: { flex: 1, alignItems: "center", padding: 14, borderRadius: 14, borderWidth: 1 },
   summary: { borderTopWidth: 1, padding: 20 },
   totalRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14, paddingTop: 8 },

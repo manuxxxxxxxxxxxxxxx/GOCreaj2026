@@ -162,8 +162,21 @@ export function VendedorPedidos() {
                           <StatusPill estado={p.estado} />
                         </div>
 
-                        <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginBottom: 6 }}>
-                          {p.items.length} producto{p.items.length !== 1 ? "s" : ""} · <span className="tabular">{money(p.total)}</span>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 6 }}>
+                          {p.items.map((it, idx) => (
+                            <div key={it.id ?? idx} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--text-secondary)" }}>
+                              <div style={{ width: 20, height: 20, borderRadius: 5, background: "var(--surface-2)", overflow: "hidden", flexShrink: 0 }}>
+                                {it.imagen && <img src={it.imagen} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
+                              </div>
+                              <span style={{ flex: 1, minWidth: 0, overflowWrap: "break-word" }}>
+                                <span className="tabular" style={{ fontWeight: 700, color: "var(--text-primary)" }}>
+                                  {it.cantidad}×
+                                </span>{" "}
+                                {it.nombre}
+                              </span>
+                            </div>
+                          ))}
+                          <span className="tabular" style={{ fontWeight: 700, fontSize: 12 }}>{money(p.total)}</span>
                         </div>
                         <div style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 10, display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
                           {p.metodo_pago === "efectivo" ? "💵" : "💳"} {p.metodo_pago === "efectivo" ? "Efectivo" : p.metodo_pago === "paypal" ? "PayPal" : "Tarjeta"}

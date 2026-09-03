@@ -14,11 +14,38 @@ function calcular_trafico(float $km): array {
     if (($hora >= 7 && $hora <= 9) || ($hora >= 17 && $hora <= 19)) {
         $factor = 1.8;
         $estado = 'pesado';
-    } else if (($hora >= 12 && $hora <= 14)) {
+    } else if (($hora >= 12 && $hora <=14)) {
         $factor = 1.4;
         $estado = 'moderado';
     }
     $minutos = (int)ceil(($km / 30) * 60 * $factor);
+    return ['tiempo_estimado' => $minutos, 'trafico' => $estado];
+}
+
+/** Tiempo/tráfico real por calles vía OSRM público (router.project-osrm.org, gratis,
+ * sin API key -- ver DESIGN.md/plan de ruteo). Devuelve null si el servicio no responde
+ * a tiempo (timeout corto) o falla, para que el caller use calcular_trafico() de respaldo
+ * y nunca deje tiempo_estimado en blanco solo porque OSRM esté caído o lento. */
+function calcular_trafico_osrm(float $lat1, float $lng1, float $lat2, float $lng2, float $kmLineaRecta): ?array {
+    $url = sprintf(
+        'https://router.project-osrm.org/route/v1/driving/%F,%F;%F,%F?overview=false',
+        $lng1, $lat1, $lng2, $lat2
+    );
+    // El servidor demo de OSRM devuelve 403 a peticiones sin User-Agent -- descubierto
+    // probando este mismo endpoint (ver plan de ruteo).
+    $ctx = stream_context_create(['http' => ['timeout' => 3, 'ignore_errors' => true, 'header' => "User-Agent: SVGoApp/1.0\r\n"]]);
+    $raw = @file_get_contents($url, false, $ctx);
+    if (!$raw) return null;
+    $json = json_decode($raw, true);
+    if (!isset($json['routes'][0]['duration'])) return null;
+
+    $segundos = (float)$json['routes'][0]['duration'];
+    $minutos = max(1, (int)ceil($segundos / 60));
+    // Compara el tiempo real de ruta contra la estimación ingenua a 30km/h en línea
+    // recta -- entre más se aleje la ruta real de esa base, más pesado el tráfico/rodeo.
+    $baseMinutos = max(0.1, ($kmLineaRecta / 30) * 60);
+    $ratio = $minutos / $baseMinutos;
+    $estado = $ratio > 1.5 ? 'pesado' : ($ratio > 1.15 ? 'moderado' : 'fluido');
     return ['tiempo_estimado' => $minutos, 'trafico' => $estado];
 }
 
@@ -28,15 +55,31 @@ switch ($action) {
         if ($user['rol'] !== 'repartidor') jout(['ok' => false, 'error' => 'Solo repartidor'], 403);
         require_fields($data, ['pedido_id','lat','lng']);
 
-        $st = db()->prepare("SELECT lat_entrega, lng_entrega FROM pedidos WHERE id = ? AND repartidor_id = ?");
+        $st = db()->prepare(
+            "SELECT p.lat_entrega, p.lng_entrega, p.confirmado_repartidor_recogida,
+                    (SELECT t.lat FROM pedido_items i JOIN productos pr ON pr.id = i.producto_id JOIN tiendas t ON t.id = pr.tienda_id WHERE i.pedido_id = p.id LIMIT 1) AS tienda_lat,
+                    (SELECT t.lng FROM pedido_items i JOIN productos pr ON pr.id = i.producto_id JOIN tiendas t ON t.id = pr.tienda_id WHERE i.pedido_id = p.id LIMIT 1) AS tienda_lng
+             FROM pedidos p WHERE p.id = ? AND p.repartidor_id = ?"
+        );
         $st->execute([$data['pedido_id'], $user['id']]);
         $p = $st->fetch();
         if (!$p) jout(['ok' => false, 'error' => 'No autorizado'], 403);
 
+        // Mismo criterio que RepartidorEntregasScreen.tsx (vaHaciaTienda): si todavía no
+        // confirmó la recogida, el objetivo es la tienda; si ya recogió, es el comprador.
+        if (!$p['confirmado_repartidor_recogida'] && $p['tienda_lat'] && $p['tienda_lng']) {
+            $objetivoLat = (float)$p['tienda_lat'];
+            $objetivoLng = (float)$p['tienda_lng'];
+        } else {
+            $objetivoLat = $p['lat_entrega'] ? (float)$p['lat_entrega'] : null;
+            $objetivoLng = $p['lng_entrega'] ? (float)$p['lng_entrega'] : null;
+        }
+
         $info = ['tiempo_estimado' => null, 'trafico' => null];
-        if ($p['lat_entrega'] && $p['lng_entrega']) {
-            $km = distancia_km((float)$data['lat'], (float)$data['lng'], (float)$p['lat_entrega'], (float)$p['lng_entrega']);
-            $info = calcular_trafico($km);
+        if ($objetivoLat !== null && $objetivoLng !== null) {
+            $km = distancia_km((float)$data['lat'], (float)$data['lng'], $objetivoLat, $objetivoLng);
+            $info = calcular_trafico_osrm((float)$data['lat'], (float)$data['lng'], $objetivoLat, $objetivoLng, $km)
+                ?? calcular_trafico($km);
         }
 
         // Compatibilidad: si existen columnas legacy las usa; siempre escribe repartidor_lat/lng nuevas

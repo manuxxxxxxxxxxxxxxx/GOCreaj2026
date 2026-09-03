@@ -23,6 +23,12 @@ switch ($action) {
     // Wizard completo de creación de tienda en un solo call
     case 'crear_tienda':
         require_fields($data, ['nombre','municipio','lat','lng']);
+        if (mb_strlen(trim($data['nombre'])) > MAX_NOMBRE_TIENDA) {
+            jout(['ok' => false, 'error' => 'El nombre de la tienda no puede pasar de ' . MAX_NOMBRE_TIENDA . ' caracteres'], 400);
+        }
+        if (!empty($data['descripcion']) && mb_strlen($data['descripcion']) > MAX_DESCRIPCION_TIENDA) {
+            jout(['ok' => false, 'error' => 'La descripción no puede pasar de ' . MAX_DESCRIPCION_TIENDA . ' caracteres'], 400);
+        }
         $logo = !empty($data['logo']) && str_starts_with($data['logo'], 'data:image')
             ? save_base64_image($data['logo'], 'tiendas', 'logo_' . $user['id']) : null;
         $portada = !empty($data['portada']) && str_starts_with($data['portada'], 'data:image')
@@ -54,6 +60,12 @@ switch ($action) {
 
     case 'actualizar_tienda':
         require_fields($data, ['tienda_id']);
+        if (isset($data['nombre']) && mb_strlen(trim($data['nombre'])) > MAX_NOMBRE_TIENDA) {
+            jout(['ok' => false, 'error' => 'El nombre de la tienda no puede pasar de ' . MAX_NOMBRE_TIENDA . ' caracteres'], 400);
+        }
+        if (isset($data['descripcion']) && mb_strlen($data['descripcion']) > MAX_DESCRIPCION_TIENDA) {
+            jout(['ok' => false, 'error' => 'La descripción no puede pasar de ' . MAX_DESCRIPCION_TIENDA . ' caracteres'], 400);
+        }
         $portada = null;
         $logo    = null;
         if (!empty($data['portada']) && str_starts_with($data['portada'], 'data:image'))
@@ -139,6 +151,13 @@ switch ($action) {
         if ($precioOferta !== null && $precioOferta >= (float)$data['precio']) {
             jout(['ok' => false, 'error' => 'El precio de oferta debe ser menor al precio normal'], 400);
         }
+        // Oferta por porcentaje: el front ya manda precio_oferta calculado (monto final),
+        // esto solo guarda con qué tipo/valor se armó para poder re-mostrarlo al editar.
+        $ofertaTipo = null; $ofertaValor = null;
+        if ($precioOferta !== null && !empty($data['oferta_tipo']) && in_array($data['oferta_tipo'], ['monto','porcentaje'], true)) {
+            $ofertaTipo = $data['oferta_tipo'];
+            $ofertaValor = isset($data['oferta_valor']) ? (float)$data['oferta_valor'] : null;
+        }
 
         // Hashtags: se guardan sin "#" y separados por un solo espacio; el "#" se agrega
         // solo al mostrarlos, así el mismo valor sirve para buscar/comparar sin símbolos.
@@ -150,8 +169,8 @@ switch ($action) {
         }
 
         $st = db()->prepare(
-            "INSERT INTO productos (tienda_id, nombre, descripcion, precio, precio_oferta, stock, stock_ilimitado, imagen, imagenes, video_url, categoria, es_reel, estado_stock, tiempo_preparacion, hashtags)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO productos (tienda_id, nombre, descripcion, precio, precio_oferta, oferta_tipo, oferta_valor, stock, stock_ilimitado, imagen, imagenes, video_url, categoria, es_reel, estado_stock, tiempo_preparacion, hashtags)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         );
         $st->execute([
             $data['tienda_id'],
@@ -159,6 +178,8 @@ switch ($action) {
             $data['descripcion'] ?? '',
             $data['precio'],
             $precioOferta,
+            $ofertaTipo,
+            $ofertaValor,
             $stock,
             $stockIlimitado,
             $imagen,
@@ -170,16 +191,32 @@ switch ($action) {
             $data['tiempo_preparacion'] ?? null,
             $hashtags,
         ]);
-        jout(['ok' => true, 'id' => (int)db()->lastInsertId()]);
+        $productoId = (int)db()->lastInsertId();
+
+        // Avisa a los seguidores de la tienda -- una sola notificación por publicación,
+        // priorizando reel > oferta > producto nuevo para no mandar dos avisos del mismo evento.
+        $tiendaSt = db()->prepare("SELECT nombre FROM tiendas WHERE id = ?");
+        $tiendaSt->execute([$data['tienda_id']]);
+        $tiendaNombre = $tiendaSt->fetchColumn() ?: 'Una tienda que sigues';
+        if (!empty($data['es_reel'])) {
+            notificar_seguidores_tienda((int)$data['tienda_id'], "$tiendaNombre subió un reel nuevo", $data['nombre'], $productoId);
+        } elseif ($precioOferta !== null) {
+            notificar_seguidores_tienda((int)$data['tienda_id'], "$tiendaNombre puso una oferta", "{$data['nombre']} ahora a \$" . number_format($precioOferta, 2), $productoId);
+        } else {
+            notificar_seguidores_tienda((int)$data['tienda_id'], "$tiendaNombre publicó un producto nuevo", $data['nombre'], $productoId);
+        }
+
+        jout(['ok' => true, 'id' => $productoId]);
         break;
 
     case 'actualizar_producto':
         require_fields($data, ['producto_id']);
         // Antes esta acción no verificaba dueño -- cualquier vendedor autenticado podía
         // editar el producto de OTRA tienda con solo mandar su id (IDOR).
-        $own = db()->prepare("SELECT p.id FROM productos p JOIN tiendas t ON t.id = p.tienda_id WHERE p.id = ? AND t.vendedor_id = ?");
+        $own = db()->prepare("SELECT p.id, p.tienda_id, p.nombre, p.precio_oferta, t.nombre AS tienda_nombre FROM productos p JOIN tiendas t ON t.id = p.tienda_id WHERE p.id = ? AND t.vendedor_id = ?");
         $own->execute([(int)$data['producto_id'], $user['id']]);
-        if (!$own->fetch()) jout(['ok' => false, 'error' => 'Producto no encontrado'], 404);
+        $prodRow = $own->fetch();
+        if (!$prodRow) jout(['ok' => false, 'error' => 'Producto no encontrado'], 404);
 
         if (isset($data['categoria']) && !in_array($data['categoria'], CATEGORIAS_VALIDAS, true)) {
             jout(['ok' => false, 'error' => 'Categoría inválida'], 400);
@@ -198,6 +235,7 @@ switch ($action) {
 
         // Promoción: fijar/actualizar/quitar (quitar_oferta=true limpia ambos campos)
         $precioOferta = null;
+        $ofertaTipo = null; $ofertaValor = null;
         if (!empty($data['quitar_oferta'])) {
             $precioOferta = null;
         } elseif (isset($data['precio_oferta']) && $data['precio_oferta'] !== '') {
@@ -205,6 +243,10 @@ switch ($action) {
             $precioOferta = (float)$data['precio_oferta'];
             if ($precioOferta <= 0 || $precioOferta >= $precioActual) {
                 jout(['ok' => false, 'error' => 'El precio de oferta debe ser menor al precio normal'], 400);
+            }
+            if (!empty($data['oferta_tipo']) && in_array($data['oferta_tipo'], ['monto','porcentaje'], true)) {
+                $ofertaTipo = $data['oferta_tipo'];
+                $ofertaValor = isset($data['oferta_valor']) ? (float)$data['oferta_valor'] : null;
             }
         }
         $tieneOferta = !empty($data['quitar_oferta']) || isset($data['precio_oferta']);
@@ -243,6 +285,8 @@ switch ($action) {
                 descripcion = COALESCE(?, descripcion),
                 precio = COALESCE(?, precio),
                 precio_oferta = CASE WHEN ? THEN ? ELSE precio_oferta END,
+                oferta_tipo = CASE WHEN ? THEN ? ELSE oferta_tipo END,
+                oferta_valor = CASE WHEN ? THEN ? ELSE oferta_valor END,
                 oferta_hasta = CASE WHEN ? THEN ? ELSE oferta_hasta END,
                 stock = COALESCE(?, stock),
                 stock_ilimitado = COALESCE(?, stock_ilimitado),
@@ -260,6 +304,8 @@ switch ($action) {
             $data['descripcion'] ?? null,
             $data['precio'] ?? null,
             $tieneOferta ? 1 : 0, $precioOferta,
+            $tieneOferta ? 1 : 0, $ofertaTipo,
+            $tieneOferta ? 1 : 0, $ofertaValor,
             $tieneOferta ? 1 : 0, (!empty($data['quitar_oferta']) ? null : ($data['oferta_hasta'] ?? null)),
             $stockIlimitado === 1 ? 0 : ($data['stock'] ?? null),
             $stockIlimitado,
@@ -272,6 +318,20 @@ switch ($action) {
             $data['tiempo_preparacion'] ?? null,
             $data['producto_id'],
         ]);
+
+        // Solo avisa a los seguidores cuando de verdad se ACABA de poner una oferta nueva --
+        // no en cada guardado (evita reavisar si el vendedor re-guarda el mismo precio) ni
+        // cuando se está quitando la oferta.
+        $ofertaAnterior = $prodRow['precio_oferta'] !== null ? (float)$prodRow['precio_oferta'] : null;
+        if ($tieneOferta && $precioOferta !== null && $precioOferta !== $ofertaAnterior) {
+            notificar_seguidores_tienda(
+                (int)$prodRow['tienda_id'],
+                "{$prodRow['tienda_nombre']} puso una oferta",
+                "{$prodRow['nombre']} ahora a \$" . number_format($precioOferta, 2),
+                (int)$data['producto_id']
+            );
+        }
+
         jout(['ok' => true, 'estado_stock' => $estado_stock, 'imagen' => $nuevaImagen, 'video_url' => $nuevoVideo]);
         break;
 

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle } from "@phosphor-icons/react";
-import { soporteApi, ApiError } from "../../lib/api";
-import type { Producto } from "../../lib/types";
+import { interaccionesApi, chatApi, ApiError } from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { Sheet } from "../ui/Sheet";
+
+export type ReportTipo = "reel" | "producto" | "tienda" | "comentario" | "chat";
 
 const MOTIVOS = [
   "Contenido inapropiado",
@@ -16,7 +17,29 @@ const MOTIVOS = [
   "Otro motivo",
 ];
 
-export function ReportSheet({ producto, onClose }: { producto: Producto; onClose: () => void }) {
+const TITULOS: Record<ReportTipo, string> = {
+  reel: "Reportar video",
+  producto: "Reportar producto",
+  tienda: "Reportar tienda",
+  comentario: "Reportar comentario",
+  chat: "Reportar conversación",
+};
+
+/** Sheet genérico de reportes -- cubre reels, productos, tiendas, comentarios de reels y
+ * conversaciones de chat (punto 6). Cada tipo llama al endpoint de backend que corresponde:
+ * reel/producto van a productos_reportes (ya leída por el panel admin), el resto a la tabla
+ * genérica "reportes". */
+export function ReportSheet({
+  tipo,
+  entidadId,
+  entidadNombre,
+  onClose,
+}: {
+  tipo: ReportTipo;
+  entidadId: number;
+  entidadNombre?: string;
+  onClose: () => void;
+}) {
   const { usuario } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
@@ -34,12 +57,15 @@ export function ReportSheet({ producto, onClose }: { producto: Producto; onClose
     if (!motivo) return;
     setEnviando(true);
     try {
-      await soporteApi.crear(
-        "Reporte de video",
-        `Video reportado: "${producto.nombre}" (#${producto.id}) de la tienda ${producto.tienda_nombre ?? "—"}.\nMotivo: ${motivo}${
-          detalle.trim() ? `\nDetalle: ${detalle.trim()}` : ""
-        }`,
-      );
+      if (tipo === "reel" || tipo === "producto") {
+        await interaccionesApi.reportarProducto(entidadId, motivo + (detalle.trim() ? ` — ${detalle.trim()}` : ""));
+      } else if (tipo === "tienda") {
+        await interaccionesApi.reportarTienda(entidadId, motivo, detalle.trim() || undefined);
+      } else if (tipo === "comentario") {
+        await interaccionesApi.reportarComentario(entidadId, motivo, detalle.trim() || undefined);
+      } else {
+        await chatApi.reportar(entidadId, motivo, detalle.trim() || undefined);
+      }
       setEnviado(true);
       toast.show("Reporte enviado. Gracias por avisarnos.", "success");
       setTimeout(onClose, 1100);
@@ -50,9 +76,11 @@ export function ReportSheet({ producto, onClose }: { producto: Producto; onClose
     }
   };
 
+  const titulo = TITULOS[tipo];
+
   if (enviado) {
     return (
-      <Sheet open onClose={onClose} title="Reportar video">
+      <Sheet open onClose={onClose} title={titulo}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "24px 0" }}>
           <CheckCircle size={40} weight="fill" color="var(--ok)" />
           <p style={{ fontSize: 13.5, textAlign: "center" }}>Recibimos tu reporte. Nuestro equipo lo va a revisar.</p>
@@ -62,8 +90,10 @@ export function ReportSheet({ producto, onClose }: { producto: Producto; onClose
   }
 
   return (
-    <Sheet open onClose={onClose} title="Reportar video">
-      <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginBottom: 14 }}>¿Por qué reportas este video?</p>
+    <Sheet open onClose={onClose} title={titulo}>
+      <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginBottom: 14 }}>
+        {entidadNombre ? `¿Por qué reportas "${entidadNombre}"?` : "¿Por qué quieres reportar esto?"}
+      </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
         {MOTIVOS.map((m) => (
           <button

@@ -138,7 +138,7 @@ export function Reels() {
   }
 
   return (
-    <div style={{ position: "fixed", top: 68, left: 0, right: 0, bottom: 0, overflow: "hidden", background: "#000" }}>
+    <div className="fixed-below-topnav" style={{ overflow: "hidden", background: "#000" }}>
       <div style={{ position: "relative", maxWidth: 420, margin: "0 auto", height: "100%" }}>
         <div
           ref={containerRef}
@@ -219,7 +219,7 @@ export function Reels() {
           <CommentsSheet producto={comentariosDe} onClose={() => setComentariosDe(null)} onComentarioNuevo={() => bumpComentarios(comentariosDe.id)} />
         )}
         {preguntarA && <QuestionsSheet producto={preguntarA} onClose={() => setPreguntarA(null)} />}
-        {reportarA && <ReportSheet producto={reportarA} onClose={() => setReportarA(null)} />}
+        {reportarA && <ReportSheet tipo="reel" entidadId={reportarA.id} entidadNombre={reportarA.nombre} onClose={() => setReportarA(null)} />}
         {subiendoReel && (
           <SubirReelSheet
             onClose={() => setSubiendoReel(false)}
@@ -379,6 +379,7 @@ function ReelCard({
 
   const toggleLike = async () => {
     if (!usuario) return navigate("/login");
+    if (esDueno) return;
     const r = await interaccionesApi.toggleLike(producto.id);
     setEstado((s) => ({ ...s, like: r.accion === "like", likes: r.contadores.likes }));
   };
@@ -391,7 +392,7 @@ function ReelCard({
 
   const toggleSeguir = async () => {
     if (!usuario) return navigate("/login");
-    if (!producto.tienda_id) return;
+    if (!producto.tienda_id || esDueno) return;
     const r = await interaccionesApi.seguirTienda(producto.tienda_id);
     setEstado((s) => ({ ...s, sigo: r.accion === "follow" }));
   };
@@ -476,7 +477,8 @@ function ReelCard({
         <div style={{ fontSize: 13.5, marginBottom: producto.hashtags ? 3 : 8, lineHeight: 1.4 }}>{producto.nombre}</div>
         {producto.hashtags && (
           <div style={{ fontSize: 12.5, fontWeight: 600, color: "#7FE6FF", marginBottom: 8 }}>
-            {producto.hashtags.split(/\s+/).filter(Boolean).map((t) => `#${t}`).join(" ")}
+            {/* replace() por si son datos viejos guardados sin "#" -- evita mostrar "##doble". */}
+            {producto.hashtags.split(/\s+/).filter(Boolean).map((t) => `#${t.replace(/^#+/, "")}`).join(" ")}
           </div>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -496,7 +498,8 @@ function ReelCard({
       </div>
 
       <div style={{ position: "absolute", right: 12, bottom: 16, display: "flex", flexDirection: "column", alignItems: "center", gap: 15 }}>
-        <ReelAction icon={<Heart size={24} weight="fill" color={estado.like ? "var(--danger)" : "#fff"} />} label={estado.likes} onClick={toggleLike} />
+        {/* Un vendedor no se da like ni se sigue a sí mismo -- mismo criterio que StoreHero. */}
+        {!esDueno && <ReelAction icon={<Heart size={24} weight="fill" color={estado.like ? "var(--danger)" : "#fff"} />} label={estado.likes} onClick={toggleLike} />}
         <ReelAction icon={<ChatCircle size={24} weight="fill" color="#fff" />} label={producto.comentarios_count} onClick={onComentarios} />
         <ReelAction
           icon={<ShareNetwork size={24} weight="fill" color="#fff" />}
@@ -508,13 +511,15 @@ function ReelCard({
           }}
         />
         <ReelAction icon={<BookmarkSimple size={24} weight="fill" color="#fff" />} onClick={toggleGuardar} />
-        <button
-          onClick={toggleSeguir}
-          style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: estado.sigo ? "var(--cyan)" : "#fff", color: estado.sigo ? "var(--cyan-ink)" : "#000", fontSize: 15, fontWeight: 800, cursor: "pointer" }}
-          aria-label={estado.sigo ? "Dejar de seguir" : "Seguir"}
-        >
-          {estado.sigo ? "✓" : "+"}
-        </button>
+        {!esDueno && (
+          <button
+            onClick={toggleSeguir}
+            style={{ width: 30, height: 30, borderRadius: "50%", border: "none", background: estado.sigo ? "var(--cyan)" : "#fff", color: estado.sigo ? "var(--cyan-ink)" : "#000", fontSize: 15, fontWeight: 800, cursor: "pointer" }}
+            aria-label={estado.sigo ? "Dejar de seguir" : "Seguir"}
+          >
+            {estado.sigo ? "✓" : "+"}
+          </button>
+        )}
 
         <div style={{ position: "relative" }}>
           <button

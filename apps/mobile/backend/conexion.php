@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 // desarrollo local (XAMPP) como fallback -- así en local no hay que configurar nada,
 // y en producción (Railway, etc.) se inyectan las variables reales sin tocar código.
 define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+define('DB_PORT', getenv('DB_PORT') ?: '3306');
 define('DB_NAME', getenv('DB_NAME') ?: 'svgo_db');
 define('DB_USER', getenv('DB_USER') ?: 'root');
 define('DB_PASS', getenv('DB_PASS') ?: '');
@@ -97,12 +98,18 @@ define('CATEGORIAS_VALIDAS', [
 define('MAX_PRECIO_PRODUCTO', 9999.99);
 define('MAX_IMAGENES_PRODUCTO', 10);
 
+// Límites de caracteres realistas para el formulario de tienda (antes no existía ninguno,
+// así que un vendedor podía pegar párrafos enteros en "nombre"). Ver vendedor_dashboard.php
+// (crear_tienda/actualizar_tienda) y los formularios web/móvil, que muestran un contador.
+define('MAX_NOMBRE_TIENDA', 50);
+define('MAX_DESCRIPCION_TIENDA', 400);
+
 function db(): PDO {
     static $pdo = null;
     if ($pdo === null) {
         try {
             $pdo = new PDO(
-                "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4",
+                "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=utf8mb4",
                 DB_USER, DB_PASS,
                 [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -143,6 +150,9 @@ function db_migrate(): void {
         "ALTER TABLE solicitudes_rol ADD COLUMN licencia_frente VARCHAR(255) NULL",
         "ALTER TABLE solicitudes_rol ADD COLUMN licencia_reverso VARCHAR(255) NULL",
         "ALTER TABLE solicitudes_rol ADD COLUMN tipo_vehiculo VARCHAR(40) NULL",
+        "ALTER TABLE solicitudes_rol ADD COLUMN vehiculo_modelo VARCHAR(80) NULL",
+        "ALTER TABLE solicitudes_rol ADD COLUMN vehiculo_placa VARCHAR(20) NULL",
+        "ALTER TABLE solicitudes_rol ADD COLUMN licencia_numero VARCHAR(30) NULL",
         // chats — multimedia & location
         "ALTER TABLE chats ADD COLUMN tipo VARCHAR(20) NOT NULL DEFAULT 'texto' AFTER mensaje",
         "ALTER TABLE chats ADD COLUMN adjunto VARCHAR(500) NULL AFTER tipo",
@@ -565,6 +575,49 @@ function db_migrate(): void {
         // vendedor sin control de inventario (ej. servicios, comida hecha al momento)
         // tenía que inventar una cantidad falsa para no aparecer agotado.
         "ALTER TABLE productos ADD COLUMN stock_ilimitado TINYINT(1) NOT NULL DEFAULT 0 AFTER stock",
+
+        // tiendas — categoría múltiple: antes solo admitía una sola (VARCHAR(80)); ahora el
+        // vendedor puede elegir varias del catálogo completo de CATEGORIAS_VALIDAS y se guardan
+        // separadas por coma en la misma columna (StoreHero.tsx ya la leía como CSV). Se ensancha
+        // para que quepan varias categorías largas sin truncarse.
+        "ALTER TABLE tiendas MODIFY COLUMN categoria VARCHAR(600) NULL",
+
+        // tiendas — límites de caracteres realistas para nombre/descripción (ver
+        // MAX_NOMBRE_TIENDA / MAX_DESCRIPCION_TIENDA más abajo, validados en vendedor_dashboard.php).
+        // nombre ya era VARCHAR(180); no hace falta ALTER, el límite se aplica a nivel app.
+
+        // productos — oferta por porcentaje: además del precio_oferta final (monto fijo, ya
+        // existente y usado en todo el resto del código), se guarda el tipo/valor originales
+        // con los que el vendedor armó la oferta, para poder re-mostrarlos al editar (ej. "20%"
+        // en vez de forzarlo a recalcular el monto cada vez que abre el formulario).
+        "ALTER TABLE productos ADD COLUMN oferta_tipo ENUM('monto','porcentaje') NULL AFTER precio_oferta",
+        "ALTER TABLE productos ADD COLUMN oferta_valor DECIMAL(10,2) NULL AFTER oferta_tipo",
+
+        // notificaciones — nuevo tipo "interaccion" para avisar cuando a alguien le dan
+        // like a su comentario de un reel, o le comentan/responden (ver crear_notificacion
+        // en este archivo e interacciones.php). MODIFY COLUMN es idempotente: re-ejecutarlo
+        // con el mismo ENUM no falla.
+        "ALTER TABLE notificaciones MODIFY COLUMN tipo ENUM('pedido','chat','sistema','promocion','interaccion') NOT NULL DEFAULT 'sistema'",
+
+        // reportes — tabla genérica de moderación para todo lo que NO sea un reel/producto
+        // (esos ya usaban productos_reportes desde antes, y se sigue reutilizando esa misma
+        // tabla para no duplicar el flujo que admin_dashboard.php ya tiene armado). Cubre:
+        // tienda, comentario de reel y chat (conversación). `entidad_id` apunta a tienda_id /
+        // comentario_id / al id del OTRO usuario de la conversación, según `tipo`.
+        "CREATE TABLE IF NOT EXISTS reportes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tipo ENUM('tienda','comentario','chat') NOT NULL,
+            entidad_id INT NOT NULL,
+            usuario_id INT NOT NULL,
+            motivo VARCHAR(160) NOT NULL,
+            detalle TEXT NULL,
+            estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+            resuelto_por INT NULL,
+            resuelto_at DATETIME NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_tipo_entidad (tipo, entidad_id),
+            INDEX idx_estado (estado)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
     ];
     foreach ($stmts as $sql) {
         try { db()->exec($sql); } catch (PDOException $e) {}
@@ -838,11 +891,19 @@ function save_base64_pdf(string $b64, string $subdir, string $prefix): ?string {
  * Devuelve la URL pública o null si el formato es inválido.
  */
 function save_base64_audio(string $b64, string $subdir, string $prefix): ?string {
-    if (!preg_match('/^data:audio\/([\w-]+);base64,/', $b64, $m)) return null;
+    // El MediaRecorder del navegador suele reportar un mimeType con parámetros extra
+    // (p. ej. "audio/webm;codecs=opus"), y ese mismo string termina como el tipo del data URI
+    // ("data:audio/webm;codecs=opus;base64,..."). El regex original solo aceptaba
+    // "data:audio/xxx;base64,", así que cualquier nota de voz grabada en Chrome/Edge (que sí
+    // soportan MediaRecorder) fallaba silenciosamente al guardarse. Aceptamos cualquier
+    // cantidad de parámetros ";algo=valor" entre el tipo y "base64,".
+    if (!preg_match('/^data:audio\/([\w-]+)(?:;[^;,]+)*;base64,/', $b64, $m)) return null;
     $ext = strtolower($m[1]);
     if (!in_array($ext, ['m4a', 'mp4', 'aac', 'wav', 'webm', '3gp', 'mpeg', 'x-m4a'])) $ext = 'm4a';
     if ($ext === 'x-m4a') $ext = 'm4a';
-    $data = base64_decode(preg_replace('/^data:audio\/[\w-]+;base64,/', '', $b64));
+    $comma = strpos($b64, ',');
+    if ($comma === false) return null;
+    $data = base64_decode(substr($b64, $comma + 1));
     if ($data === false) return null;
     $dir = UPLOAD_BASE . $subdir;
     if (!is_dir($dir)) mkdir($dir, 0777, true);
@@ -965,13 +1026,27 @@ function current_user(): ?array {
  * también un push real vía la API de Expo. No lanza si algo falla.
  */
 function crear_notificacion(int $usuarioId, string $tipo, string $titulo, ?string $cuerpo = null, ?int $referenciaId = null): void {
-    if (!in_array($tipo, ['pedido', 'chat', 'sistema', 'promocion'], true)) $tipo = 'sistema';
+    if (!in_array($tipo, ['pedido', 'chat', 'sistema', 'promocion', 'interaccion'], true)) $tipo = 'sistema';
     try {
         db()->prepare(
             "INSERT INTO notificaciones (usuario_id, titulo, cuerpo, tipo, referencia_id) VALUES (?, ?, ?, ?, ?)"
         )->execute([$usuarioId, $titulo, $cuerpo, $tipo, $referenciaId]);
     } catch (Throwable $e) { /* no crítico */ }
     enviar_push_expo($usuarioId, $titulo, $cuerpo);
+}
+
+// Notifica a todos los seguidores de una tienda (nuevo producto, oferta o reel). Se usa
+// desde vendedor_dashboard.php al publicar/editar productos -- centralizado acá en vez de
+// repetir el loop en cada action para no duplicar la consulta a seguidores_tienda.
+function notificar_seguidores_tienda(int $tiendaId, string $titulo, string $cuerpo, int $referenciaId): void {
+    try {
+        $st = db()->prepare("SELECT usuario_id FROM seguidores_tienda WHERE tienda_id = ?");
+        $st->execute([$tiendaId]);
+        $seguidores = $st->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Throwable $e) { return; }
+    foreach ($seguidores as $usuarioId) {
+        crear_notificacion((int)$usuarioId, 'promocion', $titulo, $cuerpo, $referenciaId);
+    }
 }
 
 function enviar_push_expo(int $usuarioId, string $titulo, ?string $cuerpo): void {
@@ -1129,13 +1204,14 @@ function distancia_km(float $lat1, float $lng1, float $lat2, float $lng2): float
 // se agotan los candidatos cercanos, el pedido simplemente queda con
 // repartidor_id NULL y sin oferta activa -- cae solo al mercado normal de
 // "disponibles" en repartidor_dashboard.php, que ya filtra por eso.
-const DESPACHO_OFERTA_SEGUNDOS = 12;
+const DESPACHO_OFERTA_SEGUNDOS = 60;
 
 function ofrecer_siguiente_repartidor(int $pid): void {
     $st = db()->prepare(
         "SELECT p.repartidor_id, p.estado,
                 (SELECT t.lat FROM pedido_items i JOIN productos pr ON pr.id = i.producto_id JOIN tiendas t ON t.id = pr.tienda_id WHERE i.pedido_id = p.id LIMIT 1) AS tienda_lat,
                 (SELECT t.lng FROM pedido_items i JOIN productos pr ON pr.id = i.producto_id JOIN tiendas t ON t.id = pr.tienda_id WHERE i.pedido_id = p.id LIMIT 1) AS tienda_lng,
+                (SELECT t.municipio FROM pedido_items i JOIN productos pr ON pr.id = i.producto_id JOIN tiendas t ON t.id = pr.tienda_id WHERE i.pedido_id = p.id LIMIT 1) AS tienda_municipio,
                 p.numero_pedido
          FROM pedidos p WHERE p.id = ?"
     );
@@ -1143,15 +1219,18 @@ function ofrecer_siguiente_repartidor(int $pid): void {
     $ped = $st->fetch();
     if (!$ped || $ped['repartidor_id'] || $ped['estado'] !== 'preparacion') return;
 
+    // Misma zona que la tienda -- ver RepartidorDisponiblesScreen.tsx: el despacho
+    // automático no debe ofrecerle a un repartidor un pedido fuera de su municipio.
     $cand = db()->prepare(
         "SELECT u.id, u.lat, u.lng FROM usuarios u
          WHERE u.rol = 'repartidor' AND u.en_linea = 1 AND u.activo = 1
            AND u.lat IS NOT NULL AND u.lng IS NOT NULL
+           AND LOWER(TRIM(u.municipio)) = LOWER(TRIM(?))
            AND NOT EXISTS (SELECT 1 FROM pedido_repartidor_descartes d WHERE d.pedido_id = ? AND d.repartidor_id = u.id)
            AND (SELECT COUNT(*) FROM pedidos WHERE repartidor_id = u.id AND estado IN ('preparacion','en_camino')) = 0
            AND NOT EXISTS (SELECT 1 FROM pedidos o WHERE o.oferta_repartidor_id = u.id AND o.oferta_expira_at > NOW())"
     );
-    $cand->execute([$pid]);
+    $cand->execute([$ped['tienda_municipio'], $pid]);
     $candidatos = $cand->fetchAll();
     if (!$candidatos) return;
 

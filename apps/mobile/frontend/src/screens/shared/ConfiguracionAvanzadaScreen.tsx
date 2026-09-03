@@ -2,13 +2,10 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import {
   AtIcon,
   CaretLeftIcon,
   CreditCardIcon,
-  EyeIcon,
-  EyeSlashIcon,
   GlobeIcon,
   HandshakeIcon,
   HeadsetIcon,
@@ -16,7 +13,6 @@ import {
   MoonIcon,
   MonitorIcon,
   PlusIcon,
-  ProhibitIcon,
   ShieldCheckIcon,
   SignOutIcon,
   SunIcon,
@@ -29,12 +25,10 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { authApi, carritoApi, ApiError } from "../../lib/api";
 import type { MetodoPago } from "../../lib/types";
-import { formatDateTime } from "../../lib/format";
 import { Card } from "../../components/ui/Card";
 import { Input } from "../../components/ui/Input";
 import { PhoneInput } from "../../components/ui/PhoneInput";
 import { Button } from "../../components/ui/Button";
-import { Avatar } from "../../components/ui/Avatar";
 import { Skeleton } from "../../components/ui/Skeleton";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { ConfirmDialog } from "../../components/ui/ConfirmDialog";
@@ -60,7 +54,6 @@ export function ConfiguracionAvanzadaScreen({ navigation }: Props) {
         <InformacionPersonalSection />
         <CuentaSection />
         <PagosSection />
-        <PrivacidadSection />
         <SeguridadSection navigation={navigation} />
         <RolSection navigation={navigation} />
         <SoporteSection navigation={navigation} />
@@ -103,19 +96,6 @@ function Section({ title, description, children }: { title: string; description?
       {!!description && <Text style={{ fontSize: 12, color: tokens.textSecondary, marginTop: 3, marginBottom: 14 }}>{description}</Text>}
       <View style={{ gap: 18, marginTop: description ? 0 : 14 }}>{children}</View>
     </Card>
-  );
-}
-
-function Switch({ on, onToggle }: { on: boolean; onToggle: () => void }) {
-  const { tokens } = useTheme();
-  const x = useSharedValue(on ? 1 : 0);
-  x.value = withTiming(on ? 1 : 0, { duration: 180 });
-  const knobStyle = useAnimatedStyle(() => ({ left: 3 + x.value * 18 }));
-
-  return (
-    <Pressable onPress={onToggle} style={[styles.switchTrack, { backgroundColor: on ? tokens.cyan : tokens.surface3 }]}>
-      <Animated.View style={[styles.switchKnob, knobStyle]} />
-    </Pressable>
   );
 }
 
@@ -354,81 +334,6 @@ function Row({ icon, label, value, editing, onEdit }: { icon: React.ReactNode; l
   );
 }
 
-// ─── Privacidad ─────────────────────────────────────────────────────────────
-function PrivacidadSection() {
-  const { tokens } = useTheme();
-  const { usuario, actualizarUsuarioLocal } = useAuth();
-  const toast = useToast();
-  const [bloqueados, setBloqueados] = useState<{ id: number; bloqueado_id: number; created_at: string; nombre: string; username: string | null; foto_perfil: string | null }[] | null>(null);
-
-  useEffect(() => {
-    authApi.usuariosBloqueados().then((r) => setBloqueados(r.bloqueados)).catch(() => setBloqueados([]));
-  }, []);
-
-  if (!usuario) return null;
-
-  const togglePublico = async () => {
-    const nuevo = !usuario.perfil_publico;
-    actualizarUsuarioLocal({ ...usuario, perfil_publico: nuevo ? 1 : 0 });
-    try {
-      await authApi.actualizarVisibilidad(nuevo);
-    } catch (err) {
-      actualizarUsuarioLocal(usuario);
-      toast.show(err instanceof ApiError ? err.message : "No se pudo actualizar.", "error");
-    }
-  };
-
-  const desbloquear = async (bloqueadoId: number) => {
-    setBloqueados((prev) => prev?.filter((b) => b.bloqueado_id !== bloqueadoId) ?? null);
-    try {
-      await authApi.desbloquearUsuario(bloqueadoId);
-      toast.show("Usuario desbloqueado", "success");
-    } catch (err) {
-      toast.show(err instanceof ApiError ? err.message : "No se pudo desbloquear.", "error");
-    }
-  };
-
-  return (
-    <Section title="Privacidad">
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        {usuario.perfil_publico ? <EyeIcon size={16} color={tokens.textMuted} /> : <EyeSlashIcon size={16} color={tokens.textMuted} />}
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 13.5, fontFamily: "Inter_600SemiBold", color: tokens.textPrimary }}>Perfil público</Text>
-          <Text style={{ fontSize: 12, color: tokens.textSecondary }}>Otros usuarios pueden ver tu perfil y reseñas.</Text>
-        </View>
-        <Switch on={!!usuario.perfil_publico} onToggle={togglePublico} />
-      </View>
-
-      <View>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: bloqueados?.length ? 10 : 0 }}>
-          <ProhibitIcon size={16} color={tokens.textMuted} />
-          <Text style={{ fontSize: 13.5, fontFamily: "Inter_600SemiBold", color: tokens.textPrimary }}>Usuarios bloqueados {bloqueados ? `(${bloqueados.length})` : ""}</Text>
-        </View>
-        {bloqueados === null ? (
-          <Skeleton height={40} />
-        ) : bloqueados.length === 0 ? (
-          <Text style={{ fontSize: 12, color: tokens.textMuted, paddingLeft: 26 }}>No has bloqueado a nadie.</Text>
-        ) : (
-          <View style={{ gap: 10 }}>
-            {bloqueados.map((b) => (
-              <View key={b.id} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                <Avatar nombre={b.nombre} foto={b.foto_perfil} size={30} />
-                <View style={{ flex: 1 }}>
-                  <Text numberOfLines={1} style={{ fontSize: 13, fontFamily: "Inter_600SemiBold", color: tokens.textPrimary }}>{b.nombre}</Text>
-                  <Text style={{ fontSize: 11, color: tokens.textMuted }}>Bloqueado el {formatDateTime(b.created_at)}</Text>
-                </View>
-                <Pressable onPress={() => desbloquear(b.bloqueado_id)}>
-                  <Text style={{ fontSize: 12, fontFamily: "Inter_700Bold", color: tokens.cyan }}>Desbloquear</Text>
-                </Pressable>
-              </View>
-            ))}
-          </View>
-        )}
-      </View>
-    </Section>
-  );
-}
-
 // ─── Seguridad: tarjeta compacta que enlaza a la pantalla dedicada ─────────
 function SeguridadSection({ navigation }: { navigation: Props["navigation"] }) {
   const { tokens } = useTheme();
@@ -653,8 +558,6 @@ function SoporteSection({ navigation }: { navigation: Props["navigation"] }) {
 const styles = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 14 },
   backBtn: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: "center", justifyContent: "center" },
-  switchTrack: { width: 42, height: 24, borderRadius: 12, justifyContent: "center" },
-  switchKnob: { position: "absolute", width: 18, height: 18, borderRadius: 9, backgroundColor: "#fff" },
   chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
   accesoChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1 },
   infoRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 11 },

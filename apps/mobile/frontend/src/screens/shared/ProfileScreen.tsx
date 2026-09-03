@@ -368,7 +368,9 @@ export function ProfileScreen() {
         </View>
       </View>
 
-      {usuario.rol === "comprador" && roles.length > 1 && (
+      {/* El vendedor no puede cambiar de rol -- una vez que administra una tienda, se queda
+          en ese rol; la sección ni siquiera debe aparecer. Comprador y repartidor sí pueden. */}
+      {usuario.rol !== "vendedor" && roles.length > 1 && (
         <Card>
           <Text style={{ fontSize: 13, fontFamily: "SpaceGrotesk_600SemiBold", color: tokens.textPrimary, marginBottom: 10 }}>Cambiar de rol</Text>
           <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>

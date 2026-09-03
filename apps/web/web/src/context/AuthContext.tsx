@@ -5,7 +5,7 @@ import type { Usuario } from "../lib/types";
 interface AuthContextValue {
   usuario: Usuario | null;
   cargando: boolean;
-  login: (identificador: string, password: string) => Promise<void>;
+  login: (identificador: string, password: string) => Promise<LoginResponse>;
   register: (data: Parameters<typeof authApi.register>[0]) => Promise<RegisterResponse>;
   confirmarEmailRegistro: (email: string, codigo: string) => Promise<LoginResponse>;
   loginSocial: (data: Parameters<typeof authApi.social>[0]) => Promise<LoginResponse>;
@@ -43,10 +43,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void cargarSesion();
   }, [cargarSesion]);
 
+  // Un admin puede aprobar la solicitud de rol (vendedor/repartidor) del usuario en
+  // cualquier momento -- sin este poll, un comprador con la pestaña abierta no vería
+  // desbloquearse el menú de vendedor/repartidor hasta recargar la página a mano.
+  useEffect(() => {
+    if (!usuario || usuario.rol !== "comprador") return;
+    const id = setInterval(async () => {
+      try {
+        const res = await authApi.me();
+        if (res.usuario.rol !== "comprador") setUsuario(res.usuario);
+      } catch {
+        // chequeo de fondo -- un error de red pasajero no debe afectar la sesión
+      }
+    }, 20000);
+    return () => clearInterval(id);
+  }, [usuario?.id, usuario?.rol]);
+
   const login = useCallback(async (identificador: string, password: string) => {
     const res = await authApi.login(identificador, password);
     persistToken(res.token);
     setUsuario(res.usuario);
+    return res;
   }, []);
 
   const register = useCallback(async (data: Parameters<typeof authApi.register>[0]) => {

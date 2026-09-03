@@ -2,3 +2,14 @@ Options -Indexes
 <FilesMatch "\.(php|phtml|phps)$">
     Require all denied
 </FilesMatch>
+
+# Sin esto, un mime.types de Apache sin entradas de audio sirve las notas de voz
+# (.m4a/.aac) como application/octet-stream -- los reproductores nativos (ExoPlayer en
+# Android, AVPlayer en iOS) son más estrictos que un navegador y se niegan a reproducir un
+# stream remoto con un Content-Type incorrecto o genérico, aunque el archivo en sí esté bien.
+AddType audio/mp4 .m4a
+AddType audio/aac .aac
+AddType audio/3gpp .3gp
+AddType audio/webm .weba .webm
+AddType audio/mpeg .mpga .mp3
+AddType audio/wav .wav

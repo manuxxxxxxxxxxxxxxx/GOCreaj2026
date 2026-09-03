@@ -133,7 +133,7 @@ export function Home() {
         ) : productos.length === 0 ? (
           <EmptyState icon={<Storefront size={26} />} title="Aún no hay productos en tu zona" description="Prueba explorando otras categorías o vuelve más tarde." />
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+          <div className="home-bento-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
             {productos.map((p, i) => (
               <Reveal key={p.id} index={i} style={{ gridColumn: i === 0 ? "span 2" : "span 1", gridRow: i === 0 ? "span 2" : undefined }}>
                 <ProductCard producto={p} variant={i === 0 ? "large" : "medium"} />
@@ -153,9 +153,40 @@ export function Home() {
 
       <style>{`
         @media (max-width: 760px) {
-          .hero-emoji { display: none; }
-          .hero-banner > div { min-height: 0 !important; }
-          .hero-copy { max-width: none !important; }
+          .hero-banner > div {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            padding: 24px 20px !important;
+            gap: 4px !important;
+            min-height: 0 !important;
+          }
+          .hero-copy {
+            max-width: none !important;
+            width: 100%;
+          }
+          /* En fila, la imagen tenía su propia columna (flex:1) para compartir
+             el ancho con el texto; apilada necesita su propia franja con altura
+             fija en vez de heredar "flex:1, alignSelf:stretch" (que la dejaría
+             sin alto porque ya no hay una fila con la que estirarse). */
+          .hero-banner > div > div:last-child {
+            flex: none !important;
+            align-self: stretch !important;
+            width: 100%;
+            height: 130px;
+            margin-top: 4px;
+          }
+          .hero-character {
+            height: 160px !important;
+          }
+          /* 4 columnas de bento (una "grande" de 2x2 + tres normales) no caben
+             legibles en un teléfono -- se aplana a 2 columnas parejas. */
+          .home-bento-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          .home-bento-grid > div {
+            grid-column: span 1 !important;
+            grid-row: auto !important;
+          }
         }
       `}</style>
     </div>

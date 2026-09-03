@@ -128,4 +128,29 @@ export const adminApi = {
 
   advertirVendedorReel: (producto_id: number, motivo?: string) =>
     post<{ ok: true }>("admin_dashboard", "advertir_vendedor_reel", { producto_id, motivo }),
+
+  // Moderación genérica (tiendas, comentarios de reels y chats reportados) -- reels y
+  // productos siguen con reportesReel/eliminarReel de arriba, que ya usan productos_reportes.
+  reportesGenerales: (tipo?: "tienda" | "comentario" | "chat") =>
+    get<{
+      ok: true;
+      reportes: {
+        id: number;
+        tipo: "tienda" | "comentario" | "chat";
+        entidad_id: number;
+        motivo: string;
+        detalle: string | null;
+        estado: string;
+        created_at: string;
+        usuario_nombre: string;
+        objetivo: string;
+        producto_id?: number | null;
+      }[];
+    }>("admin_dashboard", "reportes_generales", tipo ? { tipo } : {}),
+
+  resolverReporteGeneral: (id: number, estado: "resuelto" | "descartado") =>
+    post<{ ok: true }>("admin_dashboard", "resolver_reporte_general", { id, estado }),
+
+  eliminarComentarioReel: (comentario_id: number) =>
+    post<{ ok: true }>("admin_dashboard", "eliminar_comentario_reel", { comentario_id }),
 };

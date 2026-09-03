@@ -14,7 +14,9 @@ import { ThemeProvider, useTheme } from "./src/theme/ThemeContext";
 import { AuthProvider } from "./src/context/AuthContext";
 import { CartProvider } from "./src/context/CartContext";
 import { ToastProvider } from "./src/context/ToastContext";
+import { CallProvider } from "./src/context/CallContext";
 import { AmbientPageBackground } from "./src/components/ui/AmbientPageBackground";
+import { CallOverlay } from "./src/components/domain/chat/CallOverlay";
 import { RootNavigator } from "./src/navigation/RootNavigator";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -39,7 +41,10 @@ function AppShell() {
         <AuthProvider>
           <CartProvider>
             <ToastProvider>
-              <RootNavigator />
+              <CallProvider>
+                <RootNavigator />
+                <CallOverlay />
+              </CallProvider>
             </ToastProvider>
           </CartProvider>
         </AuthProvider>

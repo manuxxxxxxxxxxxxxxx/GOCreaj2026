@@ -1,3 +1,5 @@
+import { Storefront } from "@phosphor-icons/react";
+
 function initials(nombre: string): string {
   const parts = nombre.trim().split(/\s+/);
   const a = parts[0]?.[0] ?? "";
@@ -10,9 +12,12 @@ interface Props {
   foto?: string | null;
   size?: number;
   online?: boolean;
+  /** Cuando es "vendedor" y no hay `foto`, se muestra el mismo placeholder de
+   * tienda usado en StoreCard/StoreDetail (ícono de tienda) en vez de las iniciales. */
+  rol?: string;
 }
 
-export function Avatar({ nombre, foto, size = 40, online }: Props) {
+export function Avatar({ nombre, foto, size = 40, online, rol }: Props) {
   return (
     <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
       {foto ? (
@@ -25,6 +30,23 @@ export function Avatar({ nombre, foto, size = 40, online }: Props) {
           decoding="async"
           style={{ borderRadius: "50%", objectFit: "cover", width: size, height: size, border: "1px solid var(--border)" }}
         />
+      ) : rol === "vendedor" ? (
+        <div
+          aria-hidden="true"
+          style={{
+            width: size,
+            height: size,
+            borderRadius: "50%",
+            background: "var(--surface-2)",
+            color: "var(--text-muted)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: "1px solid var(--border)",
+          }}
+        >
+          <Storefront size={size * 0.5} />
+        </div>
       ) : (
         <div
           aria-hidden="true"
